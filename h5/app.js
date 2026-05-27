@@ -52,6 +52,10 @@ function voiceEnabled() {
   return appSystem.voice_enabled !== false;
 }
 
+function generationEnabled() {
+  return homePage.generation_entry_enabled !== false && appSystem.generation_enabled !== false;
+}
+
 const defaultQuestions = [
   {
     title: "这封信是给你自己的产品写，还是帮朋友写？",
@@ -515,14 +519,14 @@ function renderAuth() {
 
 function renderHome() {
   const lines = titleLines();
-  const generationEnabled = homePage.generation_entry_enabled !== false;
+  const canGenerate = generationEnabled();
   return shell(`
     ${topbar()}
     <h1 class="home-title"><span>${h(lines[0])}</span>${h(lines[1])}</h1>
     <p class="home-copy">${h(homePage.hero_subtitle)}</p>
     <img class="home-ill" src="${ASSETS.home}" alt="写销售信插画" />
     <div class="free-hint">${h(homePage.free_hint)}</div>
-    <button class="primary-btn ${generationEnabled ? "" : "disabled"}" data-action="start-call">${uiIcon("spark", "btn-svg")} ${generationEnabled ? h(homePage.primary_button_text) : "生成入口暂未开放"}</button>
+    <button class="primary-btn ${canGenerate ? "" : "disabled"}" data-action="start-call">${uiIcon("spark", "btn-svg")} ${canGenerate ? h(homePage.primary_button_text) : "生成入口暂未开放"}</button>
     ${state.pendingLetter ? `
       <div class="pending-card card">
         <div class="pending-title">${h(homePage.unclaimed_notice)}</div>
@@ -1450,7 +1454,7 @@ document.addEventListener("click", async (event) => {
     window.XiabiMockStore.setGuest(true);
     go("home");
   } else if (action === "start-call") {
-    if (homePage.generation_entry_enabled === false) return;
+    if (!generationEnabled()) return;
     if (!state.authed) {
       state.guest = false;
       window.XiabiMockStore.clearGuest();
