@@ -6,6 +6,18 @@ import { getAdminConfig } from "../domain/config";
 import { fail, ok, readJson } from "../domain/http";
 
 const SESSION_COOKIE = "xiabi_session";
+const MAX_TRANSCRIBE_TEXT_LENGTH = 2000;
+const MAX_AUDIO_BASE64_LENGTH = 8 * 1024 * 1024;
+const ALLOWED_AUDIO_MIME = new Set([
+  "audio/webm",
+  "audio/wav",
+  "audio/wave",
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/mp4",
+  "audio/m4a",
+  "audio/ogg"
+]);
 
 type SpeakBody = {
   text?: string;
@@ -37,11 +49,17 @@ export const voiceRoutes = new Hono()
     const system = config.system as Record<string, unknown>;
     if (system.voice_enabled === false) return fail(c, "voice_disabled", "语音服务暂未开启。", 503);
     const body = await readJson<TranscribeBody>(c);
+    const text = body.text ? String(body.text) : "";
+    const audioBase64 = body.audioBase64 ? String(body.audioBase64).trim() : "";
+    const mimeType = body.mimeType ? String(body.mimeType).trim().toLowerCase() : "";
+    if (text.length > MAX_TRANSCRIBE_TEXT_LENGTH) return fail(c, "text_too_long", "输入内容过长，请分几次发送。", 413);
+    if (audioBase64.length > MAX_AUDIO_BASE64_LENGTH) return fail(c, "audio_too_large", "录音太长，请缩短后再试。", 413);
+    if (audioBase64 && mimeType && !ALLOWED_AUDIO_MIME.has(mimeType)) return fail(c, "unsupported_audio_type", "当前录音格式暂不支持。", 415);
     return ok(c, await processVoiceTurn({
       sessionId,
-      text: body.text ? String(body.text) : "",
+      text,
       audioObjectKey: body.audioObjectKey ? String(body.audioObjectKey) : undefined,
-      audioBase64: body.audioBase64 ? String(body.audioBase64) : undefined,
-      mimeType: body.mimeType ? String(body.mimeType) : undefined
+      audioBase64: audioBase64 || undefined,
+      mimeType: mimeType || undefined
     }));
   });

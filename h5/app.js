@@ -181,9 +181,7 @@ const state = {
   paymentRefreshing: false,
   phoneInput: "",
   smsCode: "",
-  smsNotice: "",
-  reminderEnabled: true,
-  saveProfileEnabled: true
+  smsNotice: ""
 };
 
 let speechRecognition = null;
@@ -907,7 +905,6 @@ function getRecords() {
 function renderRecords() {
   const filterLabels = [
     ["all", "全部"],
-    ["incomplete", "信息未完成"],
     ["claim", "待领取"],
     ["unlock", "待解锁"],
     ["done", "已完成"]
@@ -916,7 +913,6 @@ function renderRecords() {
     if (state.recordFilter === "all") return true;
     if (state.recordFilter === "claim") return item.status === "待领取";
     if (state.recordFilter === "unlock") return item.status === "待解锁";
-    if (state.recordFilter === "incomplete") return item.status === "信息未完成";
     if (state.recordFilter === "done") return ["已领取", "已导出", "已解锁"].includes(item.status);
     return true;
   });
@@ -933,7 +929,6 @@ function renderRecords() {
     `}
     <div class="status-card">
       <div class="status-head">状态说明</div>
-      <div class="legend-row"><span class="dot blue"></span><span>信息未完成</span><span>还差关键信息，补充后才能生成信件。</span></div>
       <div class="legend-row"><span class="dot orange"></span><span>待领取</span><span>信件已生成，绑定手机号后可领取完整内容。</span></div>
       <div class="legend-row"><span class="dot purple"></span><span>待解锁</span><span>可预览前半段，解锁后查看完整成交逻辑。</span></div>
       <div class="legend-row"><span class="dot green"></span><span>已完成</span><span>已领取或已解锁，可以随时查看。</span></div>
@@ -949,7 +944,7 @@ function recordCard(item) {
       <div class="record-main">
         <div class="record-name">${h(item.title)}</div>
         <div class="record-meta">${h(item.scene)} · ${h(item.meta)}</div>
-        <div class="record-action">${item.claimed ? "查看完整内容" : item.status === "信息未完成" ? "继续补充信息" : "领取完整内容"}</div>
+        <div class="record-action">${item.claimed ? "查看完整内容" : "领取完整内容"}</div>
       </div>
       <div class="status-pill ${pending ? "pending" : ""}">${h(item.status)}</div>
     </div>
@@ -1093,17 +1088,9 @@ function renderSettings() {
       </div>
       <div class="setting-row">
         <div>
-          <div class="setting-title">生成完成提醒</div>
-          <div class="setting-desc">用于提醒你回来领取写好的销售信。</div>
+          <div class="setting-title">保存范围</div>
+          <div class="setting-desc">销售信、订单和权益会按当前账号保存；未绑定手机号时仅保存在当前设备和会话。</div>
         </div>
-        <button class="switch ${state.reminderEnabled ? "on" : ""}" data-action="toggle-reminder" aria-label="生成完成提醒"></button>
-      </div>
-      <div class="setting-row">
-        <div>
-          <div class="setting-title">保存我的档案</div>
-          <div class="setting-desc">开启后，下次写信会少问重复问题。</div>
-        </div>
-        <button class="switch ${state.saveProfileEnabled ? "on" : ""}" data-action="toggle-profile-save" aria-label="保存我的档案"></button>
       </div>
     </div>
     <div class="settings-card card">
@@ -1135,7 +1122,7 @@ function renderMemory() {
     </div>
     <div class="memory-card card">
       <div class="section-head"><div class="section-icon">${uiIcon("records")}</div><div class="section-title">写信项目</div></div>
-      ${letters.length ? letters.map((letter) => profileRow("doc", letter.title, `${letter.scene || letter.content?.scene || "销售信"} · ${formatDateText(letter.createdAt)}`, "查看 〉")).join("") : `
+      ${letters.length ? letters.map((letter) => profileRow("doc", letter.title, `${letter.scene || letter.content?.scene || "销售信"} · ${formatDateText(letter.createdAt)}`, "查看 〉", false, letter.id)).join("") : `
         <div class="empty-card inline-empty">
           <div class="empty-title">还没有写信项目</div>
           <div class="empty-desc">完成一次通话后，真实项目会出现在这里。</div>
@@ -1145,9 +1132,9 @@ function renderMemory() {
   `, { tab: "profile" });
 }
 
-function profileRow(icon, name, meta, action, orange) {
+function profileRow(icon, name, meta, action, orange, letterId = "") {
   return `
-    <div class="profile-row">
+    <div class="profile-row" ${letterId ? `data-letter-id="${h(letterId)}" data-open-letter="true"` : ""}>
       <div class="profile-icon ${orange ? "orange-bg" : ""}">${uiIcon(icon)}</div>
       <div class="profile-row-main">
         <div class="small-name">${h(name)}</div>
@@ -1539,12 +1526,6 @@ document.addEventListener("click", async (event) => {
   } else if (action === "text-from-sheet") {
     state.showMicSheet = false;
     state.inputMode = "text";
-    render();
-  } else if (action === "toggle-reminder") {
-    state.reminderEnabled = !state.reminderEnabled;
-    render();
-  } else if (action === "toggle-profile-save") {
-    state.saveProfileEnabled = !state.saveProfileEnabled;
     render();
   } else if (action === "generate") {
     state.letter = null;
