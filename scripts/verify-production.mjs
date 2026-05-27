@@ -6,6 +6,7 @@ const strict = process.env.XIABI_PRODUCTION_STRICT === "1";
 const checks = [];
 const reportArgIndex = process.argv.indexOf("--report");
 const reportPath = reportArgIndex >= 0 ? process.argv[reportArgIndex + 1] : process.env.XIABI_VERIFY_REPORT_PATH;
+let deepSeekVerification = null;
 
 function addCheck(name, status, detail = {}) {
   checks.push({ name, status, ...detail });
@@ -75,6 +76,12 @@ function buildReadinessReport() {
       status: checkStatus("sms bind") === "ok" ? "verified" : readinessStatus(["sms send"]),
       evidence: ["sms send", "sms bind"],
       next: "设置 XIABI_VERIFY_SMS_PHONE 发送验证码；收到后设置 XIABI_VERIFY_SMS_CODE 复验绑定。"
+    },
+    {
+      requirement: "手机号绑定后资产归属",
+      status: readinessStatus(["sms ownership propagation"]),
+      evidence: ["sms ownership propagation"],
+      next: "同一轮设置 XIABI_VERIFY_DEEPSEEK=1、XIABI_VERIFY_SMS_PHONE 和 XIABI_VERIFY_SMS_CODE，可复验绑定后信件和权益归属到手机号用户。"
     },
     {
       requirement: "MiniMax 说话播放",
@@ -282,6 +289,7 @@ async function verifyDeepSeek() {
     skipOrStrict("deepseek generation", "set XIABI_VERIFY_DEEPSEEK=1 to run a real generation");
     skipOrStrict("first free entitlement and export", "set XIABI_VERIFY_DEEPSEEK=1 to verify first free entitlement and export");
     skipOrStrict("first free repeat guard", "set XIABI_VERIFY_DEEPSEEK=1 and XIABI_VERIFY_REPEAT_FREE=1 to verify repeat guard");
+    skipOrStrict("sms ownership propagation", "set XIABI_VERIFY_DEEPSEEK=1 with SMS bind verification to check ownership propagation");
     return;
   }
   const cookie = await createGuestSession();
@@ -311,6 +319,11 @@ async function verifyDeepSeek() {
     entitlementId: firstFree.id,
     objectKey: exported.objectKey
   });
+  deepSeekVerification = {
+    cookie,
+    letterId: current.letterId,
+    entitlementId: firstFree.id
+  };
   if (process.env.XIABI_VERIFY_REPEAT_FREE === "1") {
     const second = await createDeepSeekLetter(cookie, "production-repeat-free-verification");
     await expectApiError(`/api/public/letters/${second.letterId}/claim`, { method: "POST" }, cookie, 403, "first_free_used");
@@ -427,9 +440,12 @@ async function verifySmsSend() {
   const phone = process.env.XIABI_VERIFY_SMS_PHONE;
   if (!phone) {
     skipOrStrict("sms send", "set XIABI_VERIFY_SMS_PHONE to send a real SMS code");
+    if (!findCheck("sms ownership propagation")) {
+      skipOrStrict("sms ownership propagation", "set XIABI_VERIFY_SMS_PHONE, XIABI_VERIFY_SMS_CODE, and XIABI_VERIFY_DEEPSEEK=1 to verify ownership propagation");
+    }
     return;
   }
-  const cookie = await createGuestSession();
+  const cookie = deepSeekVerification?.cookie || await createGuestSession();
   const code = process.env.XIABI_VERIFY_SMS_CODE;
   if (code) {
     const bind = await api("/api/public/users/bind-phone", {
@@ -438,7 +454,31 @@ async function verifySmsSend() {
     }, cookie);
     if (!bind.bound || !bind.phoneMasked) throw new Error("SMS bind did not report bound=true");
     addCheck("sms bind", "ok", { phoneMasked: bind.phoneMasked });
+    if (deepSeekVerification) {
+      const [session, letter, entitlements] = await Promise.all([
+        api("/api/public/session/me", {}, cookie),
+        api(`/api/public/letters/${deepSeekVerification.letterId}`, {}, cookie),
+        api("/api/public/entitlements", {}, cookie)
+      ]);
+      if (session.user?.id !== bind.userId) throw new Error("SMS bind did not attach the current session to the bound user");
+      if (!letter.access?.complete) throw new Error("Bound user cannot access the generated first-free letter");
+      const rows = Array.isArray(entitlements.entitlements) ? entitlements.entitlements : [];
+      const boundFirstFree = rows.find((item) => item.id === deepSeekVerification.entitlementId && item.userId === bind.userId);
+      if (!entitlements.summary?.firstFreeUsed || !boundFirstFree) {
+        throw new Error("SMS bind did not propagate first-free entitlement ownership to the bound user");
+      }
+      addCheck("sms ownership propagation", "ok", {
+        userId: bind.userId,
+        letterId: deepSeekVerification.letterId,
+        entitlementId: deepSeekVerification.entitlementId
+      });
+    } else {
+      skipOrStrict("sms ownership propagation", "set XIABI_VERIFY_DEEPSEEK=1 in the same run to verify generated letter and entitlement ownership");
+    }
     return;
+  }
+  if (!findCheck("sms ownership propagation")) {
+    skipOrStrict("sms ownership propagation", "set XIABI_VERIFY_SMS_CODE with XIABI_VERIFY_DEEPSEEK=1 to verify generated letter and entitlement ownership");
   }
   const result = await api("/api/public/sms/send-code", {
     method: "POST",
