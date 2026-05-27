@@ -290,8 +290,8 @@
       guest: readFlag(keys.guest),
       answers: readJson(keys.answers, []),
       pendingLetter: readFlag(keys.pendingLetter),
-      phoneBound: readFlag(keys.phoneBound),
-      annualActive: readFlag(keys.annualActive),
+      phoneBound: false,
+      annualActive: false,
       letter: readJson(keys.letter, null),
       productProfiles: readJson(keys.productProfiles, []),
       paymentIntent: readJson(keys.paymentIntent, null),
@@ -302,8 +302,6 @@
   function persistAppState(state) {
     writeJson(keys.answers, state.answers || []);
     writeFlag(keys.pendingLetter, !!state.pendingLetter);
-    writeFlag(keys.phoneBound, !!state.phoneBound);
-    writeFlag(keys.annualActive, !!state.annualActive);
     writeJson(keys.productProfiles, Array.isArray(state.productProfiles) ? state.productProfiles : []);
     if (state.paymentIntent) writeJson(keys.paymentIntent, state.paymentIntent);
     else localStorage.removeItem(keys.paymentIntent);
