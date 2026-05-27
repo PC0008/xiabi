@@ -182,6 +182,7 @@ const state = {
   phoneMasked: "",
   generationPending: false,
   generationError: "",
+  accountLoadError: "",
   exportNotice: "",
   paymentNotice: "",
   paymentRefreshing: false,
@@ -497,9 +498,10 @@ async function loadAccountData() {
     state.entitlements = entitlementData.entitlements || [];
     state.entitlementSummary = entitlementData.summary || state.entitlementSummary;
     state.productProfiles = profilesData.profiles || state.productProfiles;
+    state.accountLoadError = "";
     if (!state.letter && state.remoteLetters[0]) applyRemoteLetter(state.remoteLetters[0]);
   } catch (error) {
-    // Keep the current screen usable if the network drops.
+    state.accountLoadError = "当前记录同步失败，请稍后刷新。";
   }
 }
 
@@ -965,6 +967,7 @@ function renderRecords() {
   return shell(`
     ${topbar()}
     <h1 class="record-title">我的销售信</h1>
+    ${state.accountLoadError ? `<div class="contact-note">${h(state.accountLoadError)}</div>` : ""}
     <div class="tabs">${filterLabels.map(([key, label]) => `<button class="tab ${state.recordFilter === key ? "active" : ""}" data-record-filter="${key}">${label}</button>`).join("")}</div>
     ${records.length ? records.map((item) => recordCard(item)).join("") : `
       <div class="empty-card card">
@@ -1003,6 +1006,7 @@ function renderProfile() {
   const accountLabel = state.phoneMasked || (state.phoneBound ? "手机号已绑定" : "手机号未绑定");
   return shell(`
     ${topbar()}
+    ${state.accountLoadError ? `<div class="contact-note">${h(state.accountLoadError)}</div>` : ""}
     <div class="profile-card card">
       <img class="avatar" src="${ASSETS.callAvatar}" alt="用户头像" />
       <div>
@@ -1060,6 +1064,7 @@ function renderOrders() {
     ${topbar()}
     <h1 class="record-title">订单记录</h1>
     <p class="page-desc">这里记录你的开通、解锁和免费领取记录。正式支付后，以微信支付结果为准。</p>
+    ${state.accountLoadError ? `<div class="contact-note">${h(state.accountLoadError)}</div>` : ""}
     ${state.paymentNotice ? `<div class="contact-note">${state.paymentNotice}</div>` : ""}
     <button class="secondary-btn" data-action="refresh-orders">${state.paymentRefreshing ? "正在刷新..." : "刷新支付结果"}</button>
     ${orders.length ? "" : `
@@ -1124,6 +1129,7 @@ function renderSettings() {
   return shell(`
     ${topbar()}
     <h1 class="record-title">设置</h1>
+    ${state.accountLoadError ? `<div class="contact-note">${h(state.accountLoadError)}</div>` : ""}
     <div class="settings-card card">
       <div class="setting-row">
         <div>
@@ -1154,6 +1160,7 @@ function renderMemory() {
     ${topbar()}
     <h1 class="memory-title">我的档案</h1>
     <div class="privacy-note">这些内容只用于帮智多星更好地理解你，你可以随时修改或删除。</div>
+    ${state.accountLoadError ? `<div class="contact-note">${h(state.accountLoadError)}</div>` : ""}
     ${state.productNotice ? `<div class="contact-note">${h(state.productNotice)}</div>` : ""}
     <div class="memory-card card">
       <div class="section-head"><div class="section-icon">${uiIcon("user")}</div><div class="section-title">个人档案</div></div>
@@ -1658,10 +1665,11 @@ document.addEventListener("click", async (event) => {
         loadAccountData();
         if (state.route === "generating" || state.route === "letter") render();
       })
-      .catch(() => {
+      .catch((error) => {
         state.generationTaskId = "";
         state.generationPending = false;
         state.generationError = "写信服务暂时没有完成，请稍后再试。";
+        if (error && error.message) state.generationError = error.message;
         persist();
         if (state.route === "generating") render();
       });

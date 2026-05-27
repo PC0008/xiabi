@@ -375,12 +375,28 @@ async function verifyAdminDiagnostics() {
   const publicHome = publicConfig.homeConfig || publicConfig.home || {};
   const savedPricing = saved.pricing || {};
   const publicPricing = publicConfig.pricing || {};
-  if (savedHome.hero_title !== publicHome.hero_title || Number(savedPricing.annual?.amount_cents || 0) !== Number(publicPricing.annual?.amount_cents || 0)) {
+  const savedGuideStages = Array.isArray(saved.guideStages) ? saved.guideStages : [];
+  const publicGuideStages = Array.isArray(publicConfig.guideStages) ? publicConfig.guideStages : [];
+  const savedSystem = saved.system || {};
+  const publicSystem = publicConfig.system || {};
+  if (
+    savedHome.hero_title !== publicHome.hero_title ||
+    Number(savedPricing.annual || 0) !== Number(publicPricing.annual || 0) ||
+    Number(savedPricing.single || 0) !== Number(publicPricing.single || 0) ||
+    savedPricing.payment_enabled !== publicPricing.payment_enabled ||
+    savedSystem.generation_enabled !== publicSystem.generation_enabled ||
+    savedSystem.sms_enabled !== publicSystem.sms_enabled ||
+    savedSystem.voice_enabled !== publicSystem.voice_enabled ||
+    savedSystem.file_export_enabled !== publicSystem.file_export_enabled ||
+    JSON.stringify(savedGuideStages) !== JSON.stringify(publicGuideStages)
+  ) {
     throw new Error("admin config propagation did not match public config");
   }
   addCheck("admin config propagation", "ok", {
     heroTitleLength: String(publicHome.hero_title || "").length,
-    annualAmountCents: publicPricing.annual?.amount_cents || null
+    annualPrice: publicPricing.annual || null,
+    singlePrice: publicPricing.single || null,
+    guideStageCount: publicGuideStages.length
   });
 }
 
