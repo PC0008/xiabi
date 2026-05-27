@@ -602,10 +602,10 @@ function renderConfirm() {
     <div class="summary-row">
         <div class="summary-icon">${uiIcon("check")}</div>
       <div class="summary-main">
-        <div class="summary-label">${item.label}</div>
-        <div class="summary-value">${item.value}</div>
+        <div class="summary-label">${h(item.label)}</div>
+        <div class="summary-value">${h(item.value)}</div>
       </div>
-      <div class="edit-link">修改</div>
+      <button class="edit-link" data-go="call">修改</button>
     </div>
   `).join("");
   return shell(`
@@ -670,6 +670,24 @@ function renderGenerating() {
       <div class="later-link" data-action="skip-phone">先不绑定，稍后再领取</div>
     ` : ""}
   `);
+}
+
+function renderPhoneBind() {
+  return shell(`
+    ${topbar()}
+    <h1 class="page-title">绑定手机号</h1>
+    <p class="page-desc">绑定后，你生成的销售信、订单和权益会保存到同一个账号里，换设备后也能继续找回。</p>
+    <div class="phone-bind-card card">
+      <div class="field-line"><input id="phoneInput" inputmode="tel" value="${h(state.phoneInput)}" placeholder="输入手机号" /></div>
+      <div class="code-line">
+        <input id="smsCode" inputmode="numeric" value="${h(state.smsCode)}" placeholder="验证码" />
+        <button class="secondary-btn inline-btn" data-action="send-sms">发送验证码</button>
+      </div>
+      ${state.smsNotice ? `<div class="small-note">${h(state.smsNotice)}</div>` : ""}
+    </div>
+    <button class="primary-btn" data-action="bind-phone">绑定手机号</button>
+    <button class="secondary-btn" data-go="profile">返回我的</button>
+  `, { tab: "profile" });
 }
 
 function renderLetter(claimedOverride) {
@@ -901,7 +919,7 @@ function renderProfile() {
         <div class="profile-name">${state.phoneMasked ? "已绑定用户" : "访客用户"}</div>
         <div class="profile-member">${accountLabel} · ${annualActive ? "年卡会员" : "免费体验用户"}</div>
       </div>
-      <button class="bind-btn" data-go="generating">${state.phoneBound ? "已绑定" : "绑定手机号"}</button>
+      <button class="bind-btn" data-go="phone">${state.phoneBound ? "已绑定" : "绑定手机号"}</button>
     </div>
     <div class="benefit-card">
       <div class="medal">${uiIcon("check")}</div>
@@ -1022,7 +1040,7 @@ function renderSettings() {
           <div class="setting-title">当前账号</div>
           <div class="setting-desc">${accountLabel}</div>
         </div>
-        <button class="mini-outline" data-go="generating">绑定手机号</button>
+        <button class="mini-outline" data-go="phone">绑定手机号</button>
       </div>
       <div class="setting-row">
         <div>
@@ -1100,6 +1118,7 @@ function render() {
   else if (route === "call") html = renderCall();
   else if (route === "confirm") html = renderConfirm();
   else if (route === "generating") html = renderGenerating();
+  else if (route === "phone") html = renderPhoneBind();
   else if (route === "letter") html = renderLetter();
   else if (route === "export") html = renderExport();
   else if (route === "paywall") html = renderPaywall();
@@ -1513,7 +1532,8 @@ document.addEventListener("click", async (event) => {
       render();
       return;
     }
-    if (state.letter?.id) {
+    const shouldClaimLetter = state.route === "generating" && !!state.letter?.id;
+    if (shouldClaimLetter) {
       try {
         const remoteLetter = await window.XiabiMockStore.claimLetter(state.letter.id);
         applyRemoteLetter(remoteLetter);
@@ -1522,14 +1542,14 @@ document.addEventListener("click", async (event) => {
         render();
         return;
       }
-    } else {
+    } else if (state.route === "generating") {
       state.generationError = "还没有可领取的销售信。";
       render();
       return;
     }
     state.pendingLetter = false;
     persist();
-    go("letter");
+    go(shouldClaimLetter ? "letter" : "profile");
   } else if (action === "send-sms") {
     try {
       const result = await window.XiabiMockStore.sendSmsCode(state.phoneInput);

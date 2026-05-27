@@ -19,7 +19,9 @@ function normalizePhone(phone: string) {
 }
 
 function createCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  const value = new Uint32Array(1);
+  crypto.getRandomValues(value);
+  return String(100000 + (value[0] % 900000));
 }
 
 export const smsRoutes = new Hono()

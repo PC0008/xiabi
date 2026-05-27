@@ -292,8 +292,17 @@ export async function verifyWechatWebhook(headers: Headers, body: string) {
   const signature = headers.get("wechatpay-signature");
   const timestamp = headers.get("wechatpay-timestamp");
   const nonce = headers.get("wechatpay-nonce");
-  if (!publicKey || !signature || !timestamp || !nonce) {
+  const serial = headers.get("wechatpay-serial");
+  if (!publicKey || !signature || !timestamp || !nonce || !serial) {
     return { verified: false, reason: "wechat_pay_platform_public_key_or_headers_missing" };
+  }
+  const timestampSeconds = Number(timestamp);
+  if (!Number.isFinite(timestampSeconds) || Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds) > 5 * 60) {
+    return { verified: false, reason: "wechatpay_timestamp_out_of_range" };
+  }
+  const expectedPlatformSerial = secret.get("WECHAT_PAY_PLATFORM_CERT_SERIAL_NO" as any) || vars.get("WECHAT_PAY_PLATFORM_CERT_SERIAL_NO" as any);
+  if (expectedPlatformSerial && serial !== expectedPlatformSerial) {
+    return { verified: false, reason: "wechatpay_serial_mismatch" };
   }
   const key = await crypto.subtle.importKey(
     "spki",

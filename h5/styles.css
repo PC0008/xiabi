@@ -848,8 +848,12 @@ button {
 }
 
 .edit-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
   color: var(--green-strong);
   font-weight: 900;
+  font: inherit;
 }
 
 .tip-card {
