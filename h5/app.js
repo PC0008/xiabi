@@ -482,11 +482,12 @@ function formatDateText(value) {
 
 async function loadAccountData() {
   try {
-    const [sessionData, lettersData, ordersData, entitlementData] = await Promise.all([
+    const [sessionData, lettersData, ordersData, entitlementData, profilesData] = await Promise.all([
       window.XiabiStore.getSession(),
       window.XiabiStore.listLetters(),
       window.XiabiStore.listOrders(),
-      window.XiabiStore.getEntitlements()
+      window.XiabiStore.getEntitlements(),
+      window.XiabiStore.listProductProfiles()
     ]);
     state.sessionUser = sessionData.user || null;
     state.phoneMasked = state.sessionUser?.phoneMasked || "";
@@ -495,6 +496,7 @@ async function loadAccountData() {
     state.remoteOrders = ordersData.orders || [];
     state.entitlements = entitlementData.entitlements || [];
     state.entitlementSummary = entitlementData.summary || state.entitlementSummary;
+    state.productProfiles = profilesData.profiles || state.productProfiles;
     if (!state.letter && state.remoteLetters[0]) applyRemoteLetter(state.remoteLetters[0]);
   } catch (error) {
     // Keep the current screen usable if the network drops.
@@ -1716,22 +1718,24 @@ document.addEventListener("click", async (event) => {
       render();
       return;
     }
-    const now = new Date().toISOString();
-    if (state.productEditingId) {
-      state.productProfiles = state.productProfiles.map((item) =>
-        item.id === state.productEditingId ? { ...item, ...draft, updatedAt: now } : item
-      );
-      state.productNotice = "产品档案已更新。";
-    } else {
-      state.productProfiles = [
-        { id: crypto.randomUUID(), ...draft, createdAt: now, updatedAt: now },
-        ...state.productProfiles
-      ];
-      state.productNotice = "产品档案已保存。";
+    try {
+      const result = state.productEditingId
+        ? await window.XiabiStore.updateProductProfile(state.productEditingId, draft)
+        : await window.XiabiStore.createProductProfile(draft);
+      if (state.productEditingId) {
+        state.productProfiles = state.productProfiles.map((item) => item.id === state.productEditingId ? result.profile : item);
+        state.productNotice = "产品档案已更新。";
+      } else {
+        state.productProfiles = [result.profile, ...state.productProfiles.filter((item) => item.id !== result.profile.id)];
+        state.productNotice = "产品档案已保存。";
+      }
+      resetProductDraft();
+      persist();
+      render();
+    } catch (error) {
+      state.productNotice = error.message || "产品档案保存失败，请稍后再试。";
+      render();
     }
-    resetProductDraft();
-    persist();
-    render();
   } else if (action === "new-product-profile") {
     resetProductDraft();
     state.productNotice = "";
@@ -1749,11 +1753,17 @@ document.addEventListener("click", async (event) => {
     state.productNotice = "正在编辑产品档案。";
     render();
   } else if (action === "delete-product-profile") {
-    state.productProfiles = state.productProfiles.filter((item) => item.id !== actionTarget.dataset.profileId);
-    if (state.productEditingId === actionTarget.dataset.profileId) resetProductDraft();
-    state.productNotice = "产品档案已删除。";
-    persist();
-    render();
+    try {
+      await window.XiabiStore.deleteProductProfile(actionTarget.dataset.profileId);
+      state.productProfiles = state.productProfiles.filter((item) => item.id !== actionTarget.dataset.profileId);
+      if (state.productEditingId === actionTarget.dataset.profileId) resetProductDraft();
+      state.productNotice = "产品档案已删除。";
+      persist();
+      render();
+    } catch (error) {
+      state.productNotice = error.message || "产品档案删除失败，请稍后再试。";
+      render();
+    }
   } else if (action === "refresh-orders") {
     await refreshOrders();
   } else if (action === "refresh-order") {

@@ -2,7 +2,7 @@ import { db } from "edgespark";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { entitlementLedger, generationTasks, guestSessions, orders, salesLetters, smsCodes, users } from "@defs";
+import { entitlementLedger, generationTasks, guestSessions, orders, productProfiles, salesLetters, smsCodes, users } from "@defs";
 import { getAdminConfig } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, readJson } from "../domain/http";
@@ -93,6 +93,7 @@ export const userRoutes = new Hono()
     await db.update(guestSessions).set({ userId, updatedAt: new Date().toISOString() }).where(eq(guestSessions.id, sessionId));
     await Promise.all([
       db.update(salesLetters).set({ userId, updatedAt: new Date().toISOString() }).where(and(eq(salesLetters.tenantId, TENANT_ID), eq(salesLetters.sessionId, sessionId))),
+      db.update(productProfiles).set({ userId, updatedAt: new Date().toISOString() }).where(and(eq(productProfiles.tenantId, TENANT_ID), eq(productProfiles.sessionId, sessionId))),
       db.update(generationTasks).set({ userId, updatedAt: new Date().toISOString() }).where(and(eq(generationTasks.tenantId, TENANT_ID), eq(generationTasks.sessionId, sessionId))),
       db.update(orders).set({ userId, updatedAt: new Date().toISOString() }).where(and(eq(orders.tenantId, TENANT_ID), eq(orders.sessionId, sessionId))),
       db.update(entitlementLedger).set({ userId }).where(and(eq(entitlementLedger.tenantId, TENANT_ID), eq(entitlementLedger.sessionId, sessionId)))

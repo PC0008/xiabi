@@ -15,6 +15,13 @@
       "when": 1779908472406,
       "tag": "0001_whole_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1779909691356,
+      "tag": "0002_cynical_ink",
+      "breakpoints": true
     }
   ]
 }

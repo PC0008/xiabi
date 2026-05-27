@@ -32,8 +32,8 @@ function buildReadinessReport() {
   const matrix = [
     {
       requirement: "线上基础运行",
-      status: readinessStatus(["health", "public config", "session logout"]),
-      evidence: ["health", "public config", "session logout"]
+      status: readinessStatus(["health", "public config", "session logout", "product profile crud"]),
+      evidence: ["health", "public config", "session logout", "product profile crud"]
     },
     {
       requirement: "管理后台登录与运营接口",
@@ -261,6 +261,44 @@ async function verifySessionLogout() {
     beforeSessionId,
     nextSessionId: next.sessionId
   });
+}
+
+async function verifyProductProfileCrud() {
+  const cookie = await createGuestSession();
+  const created = await api("/api/public/profiles", {
+    method: "POST",
+    body: JSON.stringify({
+      name: "生产验收产品档案",
+      audience: "需要写销售信的人",
+      value: "把产品价值讲清楚",
+      proof: "自动验收样本"
+    })
+  }, cookie);
+  const profileId = created.profile?.id;
+  if (!profileId) throw new Error("product profile create did not return an id");
+
+  const updated = await api(`/api/public/profiles/${encodeURIComponent(profileId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      name: "生产验收产品档案更新",
+      audience: "需要写销售信的人",
+      value: "把产品价值讲清楚",
+      proof: "自动验收样本已更新"
+    })
+  }, cookie);
+  if (updated.profile?.name !== "生产验收产品档案更新") throw new Error("product profile update did not persist");
+
+  const listed = await api("/api/public/profiles", {}, cookie);
+  const found = (listed.profiles || []).some((item) => item.id === profileId && item.name === "生产验收产品档案更新");
+  if (!found) throw new Error("product profile list did not include the saved profile");
+
+  const deleted = await api(`/api/public/profiles/${encodeURIComponent(profileId)}`, { method: "DELETE" }, cookie);
+  if (!deleted.deleted) throw new Error("product profile delete did not report success");
+  const afterDelete = await api("/api/public/profiles", {}, cookie);
+  if ((afterDelete.profiles || []).some((item) => item.id === profileId)) {
+    throw new Error("deleted product profile still appears in active list");
+  }
+  addCheck("product profile crud", "ok", { profileId });
 }
 
 async function adminLogin() {
@@ -625,6 +663,7 @@ await api("/api/public/config");
 addCheck("public config", "ok");
 
 await verifySessionLogout();
+await verifyProductProfileCrud();
 await verifyAdminDiagnostics();
 await verifyDeepSeek();
 await verifyPaymentCreate();

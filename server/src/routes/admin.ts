@@ -2,7 +2,7 @@ import { db, secret, vars } from "edgespark";
 import { and, desc, eq } from "drizzle-orm";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { adminSessions, adminUsers, auditLogs, entitlementLedger, files, generationTasks, guestSessions, orders, paymentWebhookEvents, salesLetters, users } from "@defs";
+import { adminSessions, adminUsers, auditLogs, entitlementLedger, files, generationTasks, guestSessions, orders, paymentWebhookEvents, productProfiles, salesLetters, users } from "@defs";
 import { generateSalesLetterWithDeepSeek, SalesLetterContent } from "../adapters/letter/deepseek";
 import { queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { getAdminConfig, upsertConfigScope } from "../domain/config";
@@ -559,6 +559,13 @@ function publicLetter(letter: typeof salesLetters.$inferSelect) {
   };
 }
 
+function publicProfile(profile: typeof productProfiles.$inferSelect) {
+  return {
+    ...profile,
+    summary: [profile.audience, profile.value].filter(Boolean).join(" · ")
+  };
+}
+
 function requireAdminOrFail(c: any, admin: typeof adminUsers.$inferSelect | null) {
   if (!admin) return fail(c, "not_authenticated", "请先登录后台。", 401);
   return null;
@@ -666,15 +673,17 @@ export const adminRoutes = new Hono()
     const admin = await requireAdmin(c);
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
-    const [sessionRows, letterRows, orderRows, taskRows] = await Promise.all([
+    const [sessionRows, letterRows, orderRows, taskRows, profileRows] = await Promise.all([
       db.select().from(guestSessions).where(eq(guestSessions.tenantId, TENANT_ID)).limit(200),
       db.select().from(salesLetters).where(eq(salesLetters.tenantId, TENANT_ID)).limit(200),
       db.select().from(orders).where(eq(orders.tenantId, TENANT_ID)).limit(200),
-      db.select().from(generationTasks).where(eq(generationTasks.tenantId, TENANT_ID)).limit(200)
+      db.select().from(generationTasks).where(eq(generationTasks.tenantId, TENANT_ID)).limit(200),
+      db.select().from(productProfiles).where(and(eq(productProfiles.tenantId, TENANT_ID), eq(productProfiles.status, "active"))).limit(200)
     ]);
     return ok(c, {
       metrics: {
         sessions: sessionRows.length,
+        profiles: profileRows.length,
         letters: letterRows.length,
         orders: orderRows.length,
         failedTasks: taskRows.filter((task) => task.status === "failed").length,
@@ -709,7 +718,7 @@ export const adminRoutes = new Hono()
     if (!user && !session) return fail(c, "user_not_found", "没有找到用户或会话。", 404);
     const userId = user?.id || session?.userId || "";
     const sessionId = session?.id || "";
-    const [sessions, letters, orderRows, entitlements] = await Promise.all([
+    const [sessions, letters, profiles, orderRows, entitlements] = await Promise.all([
       userId
         ? db.select().from(guestSessions).where(and(eq(guestSessions.tenantId, TENANT_ID), eq(guestSessions.userId, userId))).orderBy(desc(guestSessions.createdAt)).limit(20)
         : db.select().from(guestSessions).where(and(eq(guestSessions.tenantId, TENANT_ID), eq(guestSessions.id, sessionId))).limit(1),
@@ -717,13 +726,40 @@ export const adminRoutes = new Hono()
         ? db.select().from(salesLetters).where(and(eq(salesLetters.tenantId, TENANT_ID), eq(salesLetters.sessionId, sessionId))).orderBy(desc(salesLetters.createdAt)).limit(20)
         : db.select().from(salesLetters).where(and(eq(salesLetters.tenantId, TENANT_ID), eq(salesLetters.userId, userId))).orderBy(desc(salesLetters.createdAt)).limit(20),
       sessionId
+        ? db.select().from(productProfiles).where(and(eq(productProfiles.tenantId, TENANT_ID), eq(productProfiles.sessionId, sessionId))).orderBy(desc(productProfiles.updatedAt)).limit(20)
+        : db.select().from(productProfiles).where(and(eq(productProfiles.tenantId, TENANT_ID), eq(productProfiles.userId, userId))).orderBy(desc(productProfiles.updatedAt)).limit(20),
+      sessionId
         ? db.select().from(orders).where(and(eq(orders.tenantId, TENANT_ID), eq(orders.sessionId, sessionId))).orderBy(desc(orders.createdAt)).limit(20)
         : db.select().from(orders).where(and(eq(orders.tenantId, TENANT_ID), eq(orders.userId, userId))).orderBy(desc(orders.createdAt)).limit(20),
       sessionId
         ? db.select().from(entitlementLedger).where(and(eq(entitlementLedger.tenantId, TENANT_ID), eq(entitlementLedger.sessionId, sessionId))).orderBy(desc(entitlementLedger.createdAt)).limit(20)
         : db.select().from(entitlementLedger).where(and(eq(entitlementLedger.tenantId, TENANT_ID), eq(entitlementLedger.userId, userId))).orderBy(desc(entitlementLedger.createdAt)).limit(20)
     ]);
-    return ok(c, { user, session, sessions, letters: letters.map(publicLetter), orders: orderRows, entitlements });
+    return ok(c, { user, session, sessions, letters: letters.map(publicLetter), profiles: profiles.map(publicProfile), orders: orderRows, entitlements });
+  })
+  .get("/profiles", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const status = queryStatus(c, ["active", "deleted"]);
+    const where = status ? and(eq(productProfiles.tenantId, TENANT_ID), eq(productProfiles.status, status)) : eq(productProfiles.tenantId, TENANT_ID);
+    const rows = await db.select().from(productProfiles).where(where).orderBy(desc(productProfiles.updatedAt)).limit(listLimit(c));
+    return ok(c, { profiles: rows.map(publicProfile) });
+  })
+  .get("/profiles/:id", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const id = c.req.param("id");
+    const [profile] = await db.select().from(productProfiles).where(and(eq(productProfiles.tenantId, TENANT_ID), eq(productProfiles.id, id))).limit(1);
+    if (!profile) return fail(c, "profile_not_found", "没有找到这个产品档案。", 404);
+    const [user] = profile.userId
+      ? await db.select().from(users).where(and(eq(users.tenantId, TENANT_ID), eq(users.id, profile.userId))).limit(1)
+      : [null];
+    const [session] = profile.sessionId
+      ? await db.select().from(guestSessions).where(and(eq(guestSessions.tenantId, TENANT_ID), eq(guestSessions.id, profile.sessionId))).limit(1)
+      : [null];
+    return ok(c, { profile: publicProfile(profile), user, session });
   })
   .get("/letters", async (c) => {
     const admin = await requireAdmin(c);

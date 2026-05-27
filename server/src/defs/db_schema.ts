@@ -80,6 +80,24 @@ export const guestSessions = sqliteTable("guest_sessions", {
   index("guest_sessions_user_idx").on(table.userId)
 ]);
 
+export const productProfiles = sqliteTable("product_profiles", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id").notNull().references(() => tenants.id),
+  userId: text("user_id").references(() => users.id),
+  sessionId: text("session_id").references(() => guestSessions.id),
+  name: text("name").notNull(),
+  audience: text("audience"),
+  value: text("value"),
+  proof: text("proof"),
+  status: text("status").notNull().default("active"),
+  createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
+  updatedAt: text("updated_at").notNull().default(sql`(current_timestamp)`)
+}, (table) => [
+  index("product_profiles_tenant_user_idx").on(table.tenantId, table.userId),
+  index("product_profiles_session_idx").on(table.sessionId),
+  index("product_profiles_status_idx").on(table.status)
+]);
+
 export const salesLetters = sqliteTable("sales_letters", {
   id: text("id").primaryKey(),
   tenantId: text("tenant_id").notNull().references(() => tenants.id),

@@ -10,6 +10,7 @@ import {
   guestSessions,
   orders,
   paymentWebhookEvents,
+  productProfiles,
   salesLetters,
   smsCodes,
   tenants,
@@ -23,6 +24,7 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   letters: many(salesLetters),
   tasks: many(generationTasks),
   orders: many(orders),
+  productProfiles: many(productProfiles),
   entitlements: many(entitlementLedger),
   webhooks: many(paymentWebhookEvents),
   files: many(files),
@@ -43,4 +45,10 @@ export const salesLettersRelations = relations(salesLetters, ({ one, many }) => 
   orders: many(orders),
   entitlements: many(entitlementLedger),
   files: many(files)
+}));
+
+export const productProfilesRelations = relations(productProfiles, ({ one }) => ({
+  tenant: one(tenants, { fields: [productProfiles.tenantId], references: [tenants.id] }),
+  user: one(users, { fields: [productProfiles.userId], references: [users.id] }),
+  session: one(guestSessions, { fields: [productProfiles.sessionId], references: [guestSessions.id] })
 }));

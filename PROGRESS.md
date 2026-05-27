@@ -44,9 +44,10 @@
 - 运营漏洞修复：旧订单继续支付会重新读取后台支付开关，关闭支付/单封/年卡后不再拉起微信支付。
 - 账号链路修复：退出登录和清除本机缓存会调用服务端会话登出接口，旧 `xiabi_session` 不再复用旧资产。
 - 手机号绑定修复：线上数据库已应用 `tenant_id + phone_hash` 唯一索引，绑定并发冲突后会回查同一用户继续归属资产。
-- 用户端二级页补齐：“我的档案”产品档案已支持新增、编辑、删除和本机持久化，不再是占位页。
+- 用户端二级页补齐：“我的档案”产品档案已支持新增、编辑、删除，并已从本机持久化升级为服务端 `product_profiles` 表真实存储。
+- 管理后台补强：新增产品档案列表和详情接口，后台可以查看用户端真实保存的产品档案。
 - 交付文档补强：新增根 `README.md` 和 `docs/生产外部凭据交接清单.md`，明确线上地址、常用命令、验收分级和真实外部联调所需凭据。
-- 验证通过：`node --check h5/app.js`、`node --check h5/admin.js`、`node --check h5/store.js`、`node --check scripts/verify-production.mjs`、`node --check scripts/verify-live.mjs`、`npm run typecheck`、`npm run build`、`npm run check:ui`、`npm run check:bind-phone-unique`、`npm run verify:order-payment-switch`、`npm run verify:journey`（含通话主流程和产品档案新增/编辑/删除）、`edgespark db check`、`edgespark db migrate`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式；线上公开配置已确认 `payment_enabled`、`annual_enabled`、`single_enabled`、`system.payment_enabled` 均为 `true`。
+- 验证通过：`node --check h5/app.js`、`node --check h5/admin.js`、`node --check h5/store.js`、`node --check scripts/verify-production.mjs`、`node --check scripts/verify-live.mjs`、`npm run typecheck`、`npm run build`、`npm run check:ui`、`npm run check:bind-phone-unique`、`npm run verify:order-payment-switch`、`npm run verify:journey`（含通话主流程和服务端产品档案新增/编辑/删除）、`edgespark db check`、`edgespark db migrate`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式；线上公开配置已确认 `payment_enabled`、`annual_enabled`、`single_enabled`、`system.payment_enabled` 均为 `true`。
 - 仍需真实外部验收输入：后台账号密码、微信支付产品权限或微信内 JSAPI 授权配置、真实付款环境、可接收短信手机号、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。
 
 ## 当前状态
@@ -117,7 +118,8 @@
 - `POST /api/public/session/logout` 已上线，登出会把当前会话标记为 `logged_out` 并清除 HTTP-only cookie；`/session/guest` 和 `/session/me` 只复用 active 会话。
 - 旧订单续付已接入后台价格/支付开关校验；`npm run verify:order-payment-switch` 覆盖继续支付不会绕过后台关闭状态。
 - `users_tenant_phone_hash_idx` 唯一索引已完成线上迁移，`npm run check:bind-phone-unique` 覆盖租户内手机号唯一和冲突后回查逻辑。
-- 用户端“我的档案”已改为可操作产品档案，不再显示“未开放编辑”的占位状态。
+- 用户端“我的档案”已改为可操作产品档案，不再显示“未开放编辑”的占位状态；档案现在写入服务端 `product_profiles` 表，手机号绑定后会归属到绑定用户。
+- 后台已新增产品档案列表与详情，便于运营查看用户保存的真实产品信息。
 
 ### 本轮验证
 
@@ -126,8 +128,8 @@
 - `npm run deploy:dry` 通过。
 - `npm run deploy` 通过。
 - `npm run verify:live` 通过，线上入口、`store.js` 静态资源、配置接口、会话隔离、无信件下单限制和截图验收正常。
-- `npm run verify:production` 基础模式通过，已验证线上健康接口、公开配置和 session logout；真实短信、真实支付、真实 TTS/ASR、真实 DeepSeek 调用需显式设置对应环境变量后再执行。
-- `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1`、`XIABI_VERIFY_PAYMENT_CREATE=1` 的生产报告已刷新：DeepSeek、首次免费权益/导出、重复领取限制、MiniMax TTS 均通过；微信支付下单仍被商户产品权限外部阻塞。
+- `npm run verify:production` 基础模式通过，已验证线上健康接口、公开配置、session logout 和产品档案 CRUD；真实短信、真实支付、真实 TTS/ASR、真实 DeepSeek 调用需显式设置对应环境变量后再执行。
+- `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1`、`XIABI_VERIFY_PAYMENT_CREATE=1` 的生产报告已刷新：DeepSeek、首次免费权益/导出、重复领取限制、MiniMax TTS、产品档案 CRUD 均通过；微信支付下单仍被商户产品权限外部阻塞。
 - 本地 Edgespark：`http://localhost:7775` 已启动并通过健康检查。
 - `node --check h5/app.js`、`node --check h5/admin.js` 通过。
 - 本地 API 验证：

@@ -75,6 +75,7 @@ const adminState = {
   lists: {
     dashboard: null,
     users: null,
+    profiles: null,
     letters: null,
     orders: null,
     entitlements: null,
@@ -125,9 +126,10 @@ function readSavedAdminConfig() {
 async function loadAdminLists() {
   if (!adminState.adminUser) return;
   try {
-    const [dashboard, usersData, lettersData, ordersData, entitlementData, logsData, tasksData, paymentEventsData, feedbackData, diagnosticsData] = await Promise.all([
+    const [dashboard, usersData, profilesData, lettersData, ordersData, entitlementData, logsData, tasksData, paymentEventsData, feedbackData, diagnosticsData] = await Promise.all([
       window.XiabiStore.adminFetch("/dashboard"),
       window.XiabiStore.adminFetch("/users"),
+      window.XiabiStore.adminFetch("/profiles"),
       window.XiabiStore.adminFetch(listPath("/letters", adminState.filters.lettersStatus)),
       window.XiabiStore.adminFetch(listPath("/orders", adminState.filters.ordersStatus)),
       window.XiabiStore.adminFetch(listPath("/entitlements", adminState.filters.entitlementsStatus)),
@@ -140,6 +142,7 @@ async function loadAdminLists() {
     adminState.lists = {
       dashboard,
       users: usersData,
+      profiles: profilesData,
       letters: lettersData,
       orders: ordersData,
       entitlements: entitlementData,
@@ -175,6 +178,7 @@ const navItems = [
   ["templates", "销售信模板", "template"],
   ["pricing", "价格权益", "crown"],
   ["users", "用户管理", "user"],
+  ["profiles", "产品档案", "archive"],
   ["letters", "销售信管理", "doc"],
   ["tasks", "生成任务", "refresh"],
   ["orders", "订单支付", "order"],
@@ -678,6 +682,20 @@ function renderUsers() {
   return layout(tablePanel("用户列表", "查看用户基础信息和权益状态。", ["主体ID", "用户", "手机号", "状态", "会话", "最近更新", "创建时间", "操作"], rows.length ? rows : users));
 }
 
+function renderProfiles() {
+  const rows = (adminState.lists.profiles?.profiles || []).map((item) => [
+    shortId(item.id),
+    item.name,
+    item.audience || "-",
+    item.value || "-",
+    item.status,
+    shortId(item.userId || item.sessionId),
+    formatDate(item.updatedAt || item.createdAt),
+    actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="profiles" data-detail-id="${h(item.id)}">详情</button>`)
+  ]);
+  return layout(tablePanel("产品档案", "查看用户在 H5 中保存的真实产品档案。", ["档案ID", "名称", "面向人群", "核心价值", "状态", "归属", "更新时间", "操作"], rows));
+}
+
 function renderLetters() {
   const rows = (adminState.lists.letters?.letters || []).map((item) => [item.id.slice(0, 8), item.title, item.status, `${item.templateKey || "-"} ${item.templateVersion || ""}`, item.sessionId?.slice(0, 8) || "-", formatDate(item.createdAt)]);
   const detailRows = rows.length ? (adminState.lists.letters?.letters || []).map((item) => [
@@ -934,6 +952,26 @@ function buildDetailHtml(type, data) {
       detailMiniTable("权益", ["流水ID", "类型", "状态", "来源"], (data.entitlements || []).map((item) => [shortId(item.id), item.type, item.status, shortId(item.orderId || item.letterId)]))
     ].join("");
   }
+  if (type === "profiles") {
+    const profile = data.profile || {};
+    return [
+      detailSection("产品档案", [
+        ["档案ID", profile.id || "-"],
+        ["名称", profile.name || "-"],
+        ["面向人群", profile.audience || "-"],
+        ["核心价值", profile.value || "-"],
+        ["状态", profile.status || "-"],
+        ["用户", shortId(profile.userId)],
+        ["会话", shortId(profile.sessionId)],
+        ["更新时间", formatDate(profile.updatedAt || profile.createdAt)]
+      ]),
+      detailSection("成交证据 / 备注", [["内容", profile.proof || "-"]]),
+      detailSection("归属", [
+        ["手机号", data.user?.phoneMasked || "-"],
+        ["会话状态", data.session?.status || "-"]
+      ])
+    ].join("");
+  }
   if (type === "letters") {
     const letter = data.letter || {};
     return [
@@ -1082,6 +1120,7 @@ function render() {
     templates: renderTemplates,
     pricing: renderPricing,
     users: renderUsers,
+    profiles: renderProfiles,
     letters: renderLetters,
     tasks: renderTasks,
     orders: renderOrders,

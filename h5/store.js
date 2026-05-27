@@ -219,6 +219,32 @@
     });
   }
 
+  async function listProductProfiles() {
+    await ensureGuestSession();
+    return apiFetch("/profiles");
+  }
+
+  async function createProductProfile(profile) {
+    await ensureGuestSession();
+    return apiFetch("/profiles", {
+      method: "POST",
+      body: JSON.stringify(profile)
+    });
+  }
+
+  async function updateProductProfile(profileId, profile) {
+    await ensureGuestSession();
+    return apiFetch(`/profiles/${profileId}`, {
+      method: "PATCH",
+      body: JSON.stringify(profile)
+    });
+  }
+
+  async function deleteProductProfile(profileId) {
+    await ensureGuestSession();
+    return apiFetch(`/profiles/${profileId}`, { method: "DELETE" });
+  }
+
   async function speak(text) {
     await ensureGuestSession();
     return apiFetch("/voice/speak", {
@@ -361,6 +387,10 @@
     getEntitlements,
     sendSmsCode,
     bindPhone,
+    listProductProfiles,
+    createProductProfile,
+    updateProductProfile,
+    deleteProductProfile,
     speak,
     transcribeVoice,
     exportLetter,
