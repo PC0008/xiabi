@@ -1242,7 +1242,8 @@ document.addEventListener("click", async (event) => {
   } else if (action === "resolve-feedback" || action === "reopen-feedback") {
     try {
       const status = action === "resolve-feedback" ? "resolved" : "open";
-      await window.XiabiMockStore.adminPost(`/feedback/${actionTarget.dataset.feedbackId}/status`, { status });
+      const note = window.prompt(status === "resolved" ? "处理备注（可选）" : "重开原因（可选）", "") || "";
+      await window.XiabiMockStore.adminPost(`/feedback/${actionTarget.dataset.feedbackId}/status`, { status, note });
       await loadAdminLists();
       if (adminState.detail?.sub === `feedback/${actionTarget.dataset.feedbackId}`) await openDetail("feedback", actionTarget.dataset.feedbackId);
       showToast(status === "resolved" ? "反馈已标记处理" : "反馈已重新打开");
