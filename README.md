@@ -26,6 +26,7 @@ npm run verify:production
 - 用户端流程验收：`npm run verify:journey`，用移动端视口自动点击授权、首页、通话问题和确认页，不触发付费或外部生成调用。
 - 生产外部验收：`npm run verify:production`，默认只跑健康检查和公开配置；配置 verifier 环境变量后，会真实调用 DeepSeek、微信支付创建、真实已支付订单闭环、短信、MiniMax TTS 和 ASR。
 - 严格生产验收：设置 `XIABI_PRODUCTION_STRICT=1` 后，任何外部链路 verifier 未配置都会失败，不再跳过。
+- 生产状态报告：`npm run verify:production:report` 会刷新 `docs/production-readiness-latest.md`；其中 `ok=true` 只表示本次已执行项目没有失败，`complete=true` 才表示所有生产链路已经完整验收。
 
 ## 当前真实状态
 

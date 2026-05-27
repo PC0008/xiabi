@@ -115,13 +115,45 @@ function statusLabel(status) {
   return status;
 }
 
+function completionSummary(readiness, failed) {
+  const hasExternalBlocked = readiness.summary.externalBlocked > 0 || failed.some((item) => item.status === "external_blocked");
+  const hasFailed = readiness.summary.failed > 0 || failed.some((item) => item.status === "missing" || item.status === "failed");
+  if (hasFailed) {
+    return {
+      status: "failed",
+      complete: false,
+      summary: "未通过：存在失败项，需要先修复。"
+    };
+  }
+  if (hasExternalBlocked) {
+    return {
+      status: "external_blocked",
+      complete: false,
+      summary: "未完成：存在外部阻塞项，需要商户、短信或语音供应商侧配合。"
+    };
+  }
+  if (readiness.summary.pendingInput > 0) {
+    return {
+      status: "pending_input",
+      complete: false,
+      summary: "基础通过：仍有真实外部链路等待输入或付费验收。"
+    };
+  }
+  return {
+    status: "complete",
+    complete: true,
+    summary: "完整通过：所有生产链路已验收。"
+  };
+}
+
 function renderMarkdownReport(report) {
   const lines = [
     "# 生产验收状态报告",
     "",
     `生成时间：${report.generatedAt}`,
     `线上地址：${report.baseUrl}`,
-    `整体结果：${report.ok ? "基础通过" : "未完全通过"}`,
+    `整体结果：${report.completion.summary}`,
+    `完整可用：${report.complete ? "是" : "否"}`,
     "",
     "## 汇总",
     "",
@@ -753,8 +785,12 @@ await verifyAsr();
 
 const failed = checks.filter((item) => ["missing", "failed", "external_blocked"].includes(item.status));
 const readiness = buildReadinessReport();
+const completion = completionSummary(readiness, failed);
 const report = {
   ok: failed.length === 0,
+  complete: completion.complete,
+  overallStatus: completion.status,
+  completion,
   generatedAt: new Date().toISOString(),
   baseUrl,
   strict,
