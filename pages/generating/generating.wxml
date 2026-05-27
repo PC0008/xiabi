@@ -1,0 +1,31 @@
+<view class="page generating-page safe-bottom">
+  <view class="mini-top">
+    <view class="app-name">下笔有元</view>
+    <view class="capsule">•••  ○</view>
+  </view>
+
+  <view class="status-visual">
+    <image class="generating-hero-img" src="/assets/ui/generating-zdx.png" mode="aspectFit"></image>
+    <view class="pulse one"></view>
+    <view class="pulse two"></view>
+  </view>
+
+  <view class="title">智多星正在<text>排队整理</text>这封信</view>
+  <view class="desc">
+    绑定手机号后，这封信会保存到你的账号里。生成完成后，我会提醒你回来领取完整内容。
+  </view>
+
+  <view class="steps card">
+    <block wx:for="{{steps}}" wx:key="text">
+      <view class="step {{item.done ? 'done' : ''}}">
+        <view class="step-dot">{{item.done ? '✓' : index + 1}}</view>
+        <view>{{item.text}}</view>
+      </view>
+    </block>
+  </view>
+
+  <view class="phone-note">手机号仅用于确认首次免费权益、保存销售信和结果提醒，不会公开展示。</view>
+
+  <button class="primary-button" bindtap="mockPhone">授权手机号，生成好后提醒我</button>
+  <view class="later-link" bindtap="skipPhone">先不绑定，稍后再领取</view>
+</view>

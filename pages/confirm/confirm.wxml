@@ -1,0 +1,35 @@
+<view class="page confirm-page safe-bottom">
+  <view class="mini-top">
+    <view class="app-name">下笔有元</view>
+    <view class="capsule">•••  ○</view>
+  </view>
+
+  <view class="page-tag">✓ 智多星已整理</view>
+  <view class="title">写这封销售信的信息已经够了</view>
+  <view class="desc">我已经知道这封信要写给谁、想让对方做什么、你的产品解决什么问题。</view>
+
+  <view class="summary card">
+    <block wx:for="{{items}}" wx:key="label">
+      <view class="summary-row">
+        <view class="summary-icon">✓</view>
+        <view>
+          <view class="label">{{item.label}}</view>
+          <view class="value">{{item.value}}</view>
+        </view>
+        <view class="edit">修改</view>
+      </view>
+    </block>
+  </view>
+
+  <view class="tip-card" bindtap="supplementMaterials">
+    <view class="tip-icon">◇</view>
+    <view class="tip-main">
+    <view class="tip-title">建议补充</view>
+    <view class="tip-text">如果你有客户反馈、成交故事、真实案例，可以点这里继续补充。没有也可以先生成。</view>
+    <view class="tip-link">补充一个案例或素材 〉</view>
+    </view>
+  </view>
+
+  <button class="primary-button generate-button" bindtap="generate">✦ 立即生成销售信</button>
+  <button class="secondary-button back-chat" bindtap="backToCall">再和智多星聊两句</button>
+</view>

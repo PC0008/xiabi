@@ -1,0 +1,75 @@
+<view class="page memory-page">
+  <view class="mini-top">
+    <view class="app-name">下笔有元</view>
+    <view class="capsule">•••  ○</view>
+  </view>
+
+  <view class="title">我的档案</view>
+  <view class="privacy-note">这些内容只用于帮智多星更好地理解你，你可以随时修改或删除。</view>
+
+  <view class="memory-card card">
+    <view class="section-head">
+      <view class="section-icon">●</view>
+      <view class="section-title">个人档案</view>
+      <view class="section-action">编辑</view>
+    </view>
+    <view class="kv-row"><text>常用称呼</text><text>王总</text></view>
+    <view class="kv-row"><text>写信偏好</text><text>表达直接一点</text></view>
+  </view>
+
+  <view class="memory-card card">
+    <view class="section-head">
+      <view class="section-icon cube">◆</view>
+      <view class="section-title">产品档案</view>
+    </view>
+    <view class="segment-row">
+      <view class="segment active">我的产品</view>
+      <view class="segment">朋友/客户的产品</view>
+      <view class="segment">临时产品</view>
+    </view>
+    <view class="profile-row">
+      <view class="profile-icon green">▣</view>
+      <view class="profile-main">
+        <view class="profile-name">门店复购方案</view>
+        <view class="profile-meta">我的产品</view>
+      </view>
+      <view class="profile-action">查看 〉</view>
+    </view>
+    <view class="profile-row">
+      <view class="profile-icon orange">✦</view>
+      <view class="profile-main">
+        <view class="profile-name">朋友的茶叶礼盒</view>
+        <view class="profile-meta">临时产品</view>
+      </view>
+      <view class="profile-action">确认归属 〉</view>
+    </view>
+    <view class="add-profile">＋ 新增产品档案</view>
+  </view>
+
+  <view class="memory-card card">
+    <view class="section-head">
+      <view class="section-icon doc">▤</view>
+      <view class="section-title">写信项目</view>
+    </view>
+    <view class="project-row">
+      <view class="profile-icon green">▤</view>
+      <view>
+        <view class="profile-name">给老客户的复购邀约信</view>
+        <view class="profile-meta">发信主体：我　使用产品：门店复购方案</view>
+      </view>
+    </view>
+    <view class="project-row">
+      <view class="profile-icon orange">●</view>
+      <view>
+        <view class="profile-name">帮朋友写招商信</view>
+        <view class="profile-meta">发信主体：朋友　使用产品：朋友的茶叶礼盒</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="nav-shell">
+    <view class="nav-item" bindtap="goHome"><view class="nav-icon">⌂</view><view>首页</view></view>
+    <view class="nav-item" bindtap="goRecords"><view class="nav-icon">▤</view><view>记录</view></view>
+    <view class="nav-item active" bindtap="goProfile"><view class="nav-icon">●</view><view>我的</view></view>
+  </view>
+</view>

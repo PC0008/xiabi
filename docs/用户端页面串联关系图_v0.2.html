@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>下笔有元用户端页面串联关系图 v0.2</title>
+  <style>
+    :root {
+      --green: #11945a;
+      --green2: #18b46b;
+      --deep: #123329;
+      --ink: #17211c;
+      --muted: #637069;
+      --line: #dfe8e2;
+      --paper: #fffdf8;
+      --soft: #f2f8f4;
+      --orange: #e78a2f;
+      --red: #dc4c43;
+      --blue: #3478f6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #f2f8f4 0%, #fffdf8 46%);
+      color: var(--ink);
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    main {
+      width: min(1320px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 34px 0 64px;
+    }
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 46px);
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+    .lead {
+      max-width: 920px;
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.8;
+    }
+    .badge {
+      padding: 10px 14px;
+      border: 1px solid rgba(17, 148, 90, .22);
+      border-radius: 999px;
+      color: var(--green);
+      background: rgba(255, 255, 255, .74);
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .panel {
+      margin-top: 22px;
+      border: 1px solid rgba(23, 33, 28, .09);
+      border-radius: 24px;
+      background: rgba(255, 255, 255, .88);
+      box-shadow: 0 22px 70px rgba(31, 48, 39, .10);
+      overflow: hidden;
+    }
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 22px;
+      border-bottom: 1px solid rgba(23, 33, 28, .08);
+      background: rgba(255,255,255,.68);
+    }
+    h2, h3 { margin: 0; letter-spacing: 0; }
+    h2 { font-size: 22px; }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin-right: 6px;
+      border-radius: 50%;
+      vertical-align: -1px;
+    }
+    .chart-wrap {
+      overflow: auto;
+      padding: 18px;
+      background: #fff;
+    }
+    svg {
+      display: block;
+      min-width: 1180px;
+      width: 100%;
+      height: auto;
+    }
+    .lane {
+      fill: rgba(242, 248, 244, .78);
+      stroke: rgba(17, 148, 90, .12);
+    }
+    .lane-title {
+      font-size: 15px;
+      font-weight: 900;
+      fill: #536159;
+    }
+    .node rect {
+      fill: #fff;
+      stroke: #dfe8e2;
+      stroke-width: 1.4;
+      filter: drop-shadow(0 8px 14px rgba(22, 36, 29, .08));
+    }
+    .node.main rect { stroke: rgba(17, 148, 90, .42); }
+    .node.inner rect { fill: #f7fcf9; stroke: rgba(17, 148, 90, .46); }
+    .node.config rect { fill: #f4f9ff; stroke: rgba(52, 120, 246, .42); }
+    .node.branch rect { fill: #fffaf2; stroke: rgba(231, 138, 47, .5); stroke-dasharray: 7 5; }
+    .node.error rect { fill: #fff7f6; stroke: rgba(220, 76, 67, .58); stroke-dasharray: 7 5; }
+    .title {
+      font-size: 17px;
+      font-weight: 900;
+      fill: var(--ink);
+    }
+    .sub {
+      font-size: 12.5px;
+      fill: var(--muted);
+    }
+    .tag-bg { fill: var(--green); }
+    .tag-bg.orange { fill: var(--orange); }
+    .tag-bg.red { fill: var(--red); }
+    .tag-bg.blue { fill: var(--blue); }
+    .tag {
+      font-size: 11px;
+      font-weight: 900;
+      fill: #fff;
+    }
+    .edge {
+      fill: none;
+      stroke: rgba(17, 148, 90, .78);
+      stroke-width: 2.4;
+      marker-end: url(#arrowGreen);
+    }
+    .edge.blue { stroke: rgba(52, 120, 246, .78); marker-end: url(#arrowBlue); }
+    .edge.orange { stroke: rgba(231, 138, 47, .84); marker-end: url(#arrowOrange); stroke-dasharray: 8 6; }
+    .edge.red { stroke: rgba(220, 76, 67, .84); marker-end: url(#arrowRed); stroke-dasharray: 8 6; }
+    .edge-label {
+      font-size: 12px;
+      font-weight: 900;
+      fill: #5f6b64;
+      paint-order: stroke;
+      stroke: #fff;
+      stroke-width: 5px;
+      stroke-linejoin: round;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      padding: 18px;
+    }
+    .card {
+      border: 1px solid rgba(23, 33, 28, .09);
+      border-radius: 18px;
+      padding: 16px;
+      background: #fff;
+    }
+    .card h3 { margin-bottom: 10px; font-size: 18px; }
+    .card ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 14px;
+    }
+    .card strong { color: var(--ink); }
+    @media (max-width: 860px) {
+      header { grid-template-columns: 1fr; }
+      .panel-head { flex-direction: column; }
+      .cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>用户端页面串联关系图 v0.2</h1>
+        <p class="lead">v0.2 将“帮谁写 / 写信目标 / 产品档案选择”从固定三连页面，调整为通话页内部的引导阶段。用户先进入通话感体验，再通过语音或点击快捷选项完成归类。</p>
+      </div>
+      <div class="badge">通话页内引导 · 后台可配置</div>
+    </header>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>页面与配置关系</h2>
+        <div class="legend">
+          <span><span class="dot" style="background: var(--green)"></span>用户主流程</span>
+          <span><span class="dot" style="background: var(--blue)"></span>后台配置</span>
+          <span><span class="dot" style="background: var(--orange)"></span>条件出现</span>
+          <span><span class="dot" style="background: var(--red)"></span>异常兜底</span>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <svg viewBox="0 0 1280 860" role="img" aria-label="下笔有元用户端页面串联关系图 v0.2">
+          <defs>
+            <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#11945a" />
+            </marker>
+            <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#3478f6" />
+            </marker>
+            <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#e78a2f" />
+            </marker>
+            <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#dc4c43" />
+            </marker>
+          </defs>
+
+          <rect class="lane" x="24" y="58" width="1232" height="250" rx="22" />
+          <rect class="lane" x="24" y="332" width="1232" height="224" rx="22" />
+          <rect class="lane" x="24" y="580" width="1232" height="220" rx="22" />
+          <text class="lane-title" x="44" y="90">用户主流程</text>
+          <text class="lane-title" x="44" y="364">通话页内部阶段</text>
+          <text class="lane-title" x="44" y="612">结果 / 回流 / 异常</text>
+
+          <path class="edge" d="M166 170 C190 170, 194 170, 220 170" />
+          <path class="edge" d="M360 170 C384 170, 388 170, 414 170" />
+          <path class="edge" d="M554 170 C578 170, 582 170, 608 170" />
+          <path class="edge" d="M748 170 C800 170, 802 370, 430 410" />
+          <path class="edge" d="M540 410 C568 410, 572 410, 608 410" />
+          <path class="edge" d="M748 410 C776 410, 780 410, 816 410" />
+          <path class="edge" d="M956 410 C984 410, 988 410, 1024 410" />
+          <path class="edge" d="M1094 462 C1106 584, 958 606, 942 672" />
+          <path class="edge" d="M834 672 C806 672, 802 672, 766 672" />
+          <path class="edge" d="M626 672 C598 672, 594 672, 558 672" />
+
+          <path class="edge blue" d="M1046 170 C1046 220, 1046 285, 956 360" />
+          <text class="edge-label" x="1030" y="270">下发问题/选项</text>
+          <path class="edge blue" d="M1046 170 C1000 235, 900 310, 666 360" />
+          <path class="edge blue" d="M1046 170 C988 274, 824 318, 458 360" />
+
+          <path class="edge orange" d="M886 462 C886 522, 1016 526, 1064 628" />
+          <text class="edge-label" x="930" y="536">多档案/归属不确定</text>
+          <path class="edge orange" d="M1116 170 C1180 170, 1194 256, 1126 314 C1080 354, 1020 348, 956 386" />
+          <text class="edge-label" x="1140" y="286">后台调整</text>
+
+          <path class="edge red" d="M678 222 C626 296, 538 312, 268 650" />
+          <text class="edge-label" x="404" y="492">拒绝系统授权</text>
+          <path class="edge red" d="M1004 724 C1060 760, 1120 742, 1126 672" />
+          <text class="edge-label" x="1040" y="768">支付失败/取消</text>
+
+          <g class="node main">
+            <rect x="46" y="120" width="120" height="100" rx="16" />
+            <rect class="tag-bg" x="62" y="136" width="40" height="20" rx="10" />
+            <text class="tag" x="74" y="151">01</text>
+            <text class="title" x="62" y="178">授权登录</text>
+            <text class="sub" x="62" y="201">头像昵称</text>
+          </g>
+          <g class="node main">
+            <rect x="220" y="120" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="236" y="136" width="40" height="20" rx="10" />
+            <text class="tag" x="248" y="151">02</text>
+            <text class="title" x="236" y="178">首页</text>
+            <text class="sub" x="236" y="201">首次免费入口</text>
+          </g>
+          <g class="node main">
+            <rect x="414" y="120" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="430" y="136" width="40" height="20" rx="10" />
+            <text class="tag" x="442" y="151">13</text>
+            <text class="title" x="430" y="178">通话准备</text>
+            <text class="sub" x="430" y="201">降低开口压力</text>
+          </g>
+          <g class="node main">
+            <rect x="608" y="120" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="624" y="136" width="40" height="20" rx="10" />
+            <text class="tag" x="636" y="151">03</text>
+            <text class="title" x="624" y="178">语音通话页</text>
+            <text class="sub" x="624" y="201">按住说话</text>
+          </g>
+          <g class="node config">
+            <rect x="976" y="120" width="140" height="100" rx="16" />
+            <rect class="tag-bg blue" x="992" y="136" width="40" height="20" rx="10" />
+            <text class="tag" x="1004" y="151">总</text>
+            <text class="title" x="992" y="178">后台配置</text>
+            <text class="sub" x="992" y="201">引导问题/选项</text>
+          </g>
+
+          <g class="node inner">
+            <rect x="400" y="360" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="416" y="376" width="56" height="20" rx="10" />
+            <text class="tag" x="425" y="391">阶段1</text>
+            <text class="title" x="416" y="418">帮谁写</text>
+            <text class="sub" x="416" y="441">语音或点选</text>
+          </g>
+          <g class="node inner">
+            <rect x="608" y="360" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="624" y="376" width="56" height="20" rx="10" />
+            <text class="tag" x="633" y="391">阶段2</text>
+            <text class="title" x="624" y="418">写信目标</text>
+            <text class="sub" x="624" y="441">回复/预约/成交</text>
+          </g>
+          <g class="node inner">
+            <rect x="816" y="360" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="832" y="376" width="56" height="20" rx="10" />
+            <text class="tag" x="841" y="391">阶段3</text>
+            <text class="title" x="832" y="418">产品归类</text>
+            <text class="sub" x="832" y="441">已有/临时/朋友</text>
+          </g>
+          <g class="node main">
+            <rect x="1024" y="360" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="1040" y="376" width="40" height="20" rx="10" />
+            <text class="tag" x="1052" y="391">04</text>
+            <text class="title" x="1040" y="418">信息确认</text>
+            <text class="sub" x="1040" y="441">确认归属</text>
+          </g>
+          <g class="node branch">
+            <rect x="1010" y="628" width="150" height="88" rx="16" />
+            <rect class="tag-bg orange" x="1026" y="644" width="40" height="20" rx="10" />
+            <text class="tag" x="1038" y="659">16</text>
+            <text class="title" x="1026" y="686">档案候选层</text>
+            <text class="sub" x="1026" y="708">仅必要时出现</text>
+          </g>
+
+          <g class="node main">
+            <rect x="802" y="622" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="818" y="638" width="40" height="20" rx="10" />
+            <text class="tag" x="830" y="653">05</text>
+            <text class="title" x="818" y="680">排队生成</text>
+            <text class="sub" x="818" y="703">手机号提醒</text>
+          </g>
+          <g class="node main">
+            <rect x="626" y="622" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="642" y="638" width="40" height="20" rx="10" />
+            <text class="tag" x="654" y="653">17</text>
+            <text class="title" x="642" y="680">生成完成</text>
+            <text class="sub" x="642" y="703">可领取</text>
+          </g>
+          <g class="node main">
+            <rect x="418" y="622" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="434" y="638" width="40" height="20" rx="10" />
+            <text class="tag" x="446" y="653">06</text>
+            <text class="title" x="434" y="680">销售信详情</text>
+            <text class="sub" x="434" y="703">查看/保存</text>
+          </g>
+          <g class="node error">
+            <rect x="198" y="622" width="140" height="100" rx="16" />
+            <rect class="tag-bg red" x="214" y="638" width="48" height="20" rx="10" />
+            <text class="tag" x="224" y="653">补</text>
+            <text class="title" x="214" y="680">通话页弹层</text>
+            <text class="sub" x="214" y="703">麦克风被拒</text>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>新的页面逻辑</h2>
+      </div>
+      <div class="cards">
+        <article class="card">
+          <h3>用户体验</h3>
+          <ul>
+            <li><strong>不再三连点击：</strong>用户不需要先点完三个选择页。</li>
+            <li><strong>先进通话：</strong>让用户感觉已经接通智多星。</li>
+            <li><strong>说或点都行：</strong>语音回答优先，快捷选项降低表达成本。</li>
+            <li><strong>授权逻辑：</strong>麦克风先走微信系统弹窗，被拒后才出现通话页弹层。</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>档案规则</h3>
+          <ul>
+            <li><strong>新用户：</strong>边聊边建立临时产品档案。</li>
+            <li><strong>多产品用户：</strong>必要时出现候选层。</li>
+            <li><strong>帮朋友/客户：</strong>默认临时项目，不污染我的产品档案。</li>
+            <li><strong>手机号：</strong>授权失败只是生成页内部状态，不新增独立页面。</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>后台配置</h3>
+          <ul>
+            <li><strong>可配：</strong>问题、选项、顺序、启用状态、追问文案。</li>
+            <li><strong>可灰度：</strong>不同用户状态展示不同引导。</li>
+            <li><strong>可回滚：</strong>配置版本化，避免小程序频繁发版。</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>下笔有元 UI 自检</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #2b2d2f; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+    main { display: flex; gap: 28px; flex-wrap: wrap; padding: 28px; }
+    .phone { width: 393px; height: 852px; overflow: hidden; border-radius: 34px; background: #fff; position: relative; box-shadow: 0 12px 40px rgba(0,0,0,.35); }
+    .status { height: 44px; padding: 14px 24px 0; display: flex; justify-content: space-between; font-size: 14px; color: #111; }
+    .top { height: 42px; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; }
+    .brand { font-size: 18px; font-weight: 900; }
+    .capsule { height: 30px; padding: 0 14px; border: 1px solid rgba(0,0,0,.1); border-radius: 999px; font-weight: 900; letter-spacing: 3px; display: flex; align-items: center; }
+    .home { padding: 0 34px 84px; }
+    .home h1 { margin: 58px 0 18px; font-size: 27px; line-height: 1.2; letter-spacing: 0; }
+    .home h1 span { color: #139552; display: block; }
+    .home p { margin: 0; color: #616a66; font-size: 16px; line-height: 1.7; }
+    .home-ill { width: 100%; height: 250px; object-fit: contain; margin: 18px 0 4px; }
+    .free { color: #07833f; text-align: center; font-size: 14px; margin-bottom: 8px; }
+    .primary { height: 56px; width: 100%; border-radius: 16px; background: #16a15e; color: white; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 900; box-shadow: 0 12px 22px rgba(22,161,94,.23); }
+    .nav { position: absolute; left: 0; right: 0; bottom: 0; height: 78px; border-top: 1px solid rgba(0,0,0,.08); background: rgba(255,255,255,.98); display: flex; justify-content: space-around; align-items: center; color: #8a9490; }
+    .nav .active { color: #16a15e; font-weight: 800; }
+    .auth { padding: 0 34px; display: flex; flex-direction: column; }
+    .auth-img { width: 270px; height: 260px; object-fit: contain; margin: 78px auto 20px; }
+    .auth h1 { margin: 0; text-align: center; font-size: 32px; line-height: 1.15; }
+    .auth p { width: 310px; margin: 20px auto 0; text-align: center; color: #626c67; font-size: 17px; line-height: 1.7; }
+    .agree { margin-top: 108px; color: #8a9490; text-align: center; font-size: 13px; }
+    .auth .primary { margin-top: 18px; }
+    .look { margin-top: 34px; text-align: center; color: #727c77; font-size: 17px; font-weight: 700; }
+    .call { background: radial-gradient(circle at 50% 18%, rgba(28,177,106,.28), transparent 26%), linear-gradient(160deg,#084934,#063b2a 54%,#04291f); color: white; padding: 0 28px; }
+    .call .status { color: white; padding-left: 0; padding-right: 0; }
+    .call-top { display: flex; justify-content: space-between; align-items: center; height: 46px; }
+    .round { width: 36px; height: 36px; border-radius: 12px; background: rgba(255,255,255,.14); display: grid; place-items: center; font-weight: 900; }
+    .timer { font-size: 18px; font-weight: 900; }
+    .bars { display: flex; gap: 5px; align-items: end; justify-content: center; height: 34px; }
+    .bars i { width: 6px; border-radius: 99px; background: #29d47a; display: block; }
+    .bars i:nth-child(1) { height: 14px; } .bars i:nth-child(2) { height: 22px; } .bars i:nth-child(3) { height: 30px; }
+    .call-avatar { width: 112px; height: 112px; border-radius: 50%; object-fit: cover; display: block; margin: 16px auto 0; box-shadow: 0 14px 28px rgba(0,0,0,.18); }
+    .call-name { text-align: center; font-size: 28px; font-weight: 900; margin-top: 18px; }
+    .call-state { text-align: center; color: rgba(255,255,255,.78); font-size: 16px; margin-top: 8px; }
+    .dots { text-align: center; color: #29d47a; letter-spacing: 8px; margin-top: 6px; }
+    .qcard { margin-top: 18px; background: #fff; color: #111; border-radius: 22px; padding: 20px; box-shadow: 0 12px 32px rgba(0,0,0,.16); }
+    .qlabel { color: #16a15e; font-weight: 900; font-size: 16px; }
+    .qtitle { margin-top: 10px; font-size: 23px; line-height: 1.28; font-weight: 900; }
+    .qdesc { margin-top: 8px; color: #7e8783; font-size: 15px; }
+    .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .opt { min-height: 50px; border: 1px solid rgba(0,0,0,.1); border-radius: 12px; display: flex; align-items: center; gap: 8px; padding: 8px; font-size: 13px; font-weight: 800; }
+    .controls { position: absolute; left: 28px; right: 28px; bottom: 36px; display: flex; justify-content: space-between; align-items: start; text-align: center; font-size: 14px; font-weight: 800; }
+    .circle { width: 70px; height: 70px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 10px; font-size: 24px; }
+    .speaker { background: #fff; color: #111; } .mic { background: #151a18; } .hang { background: #ef3f3a; }
+    .switch { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; color: rgba(255,255,255,.84); font-size: 15px; font-weight: 800; }
+  </style>
+</head>
+<body>
+<main>
+  <section class="phone auth">
+    <div class="status"><span>21:42</span><span>⌁ ▱</span></div><div class="top"><div class="brand">下笔有元</div><div class="capsule">••• ◎</div></div>
+    <img class="auth-img" src="../assets/ui/zhiduoxing-auth.png" />
+    <h1>我是智多星</h1>
+    <p>授权头像昵称后，智多星就知道怎么称呼你，也能帮你保存写好的销售信。</p>
+    <div class="agree">○ 我已阅读并同意《用户协议》和《隐私政策》</div>
+    <div class="primary">授权头像昵称，开始体验</div>
+    <div class="look">暂不登录，先看看</div>
+  </section>
+  <section class="phone home">
+    <div class="status"><span>21:42</span><span>⌁ ▱</span></div><div class="top"><div class="brand">下笔有元</div><div class="capsule">••• ◎</div></div>
+    <h1><span>说出目标，</span>我们帮你写成销售信。</h1>
+    <p>告诉我们你想达成的产品或客户目标，智多星会通过提问帮你理清思路，并为你写成有说服力的销售信。</p>
+    <img class="home-ill" src="../assets/ui/home-pen-paper.png" />
+    <div class="free">首次体验可免费生成一封</div>
+    <div class="primary">🎙 开始语音通话 · 首次免费</div>
+    <div class="nav"><div class="active">⌂<br>首页</div><div>▤<br>记录</div><div>○<br>我的</div></div>
+  </section>
+  <section class="phone call">
+    <div class="status"><span>21:42</span><span>⌁ ▱</span></div>
+    <div class="call-top"><div class="round">↙</div><div class="timer">语音通话中 00:48</div><div class="round">•••</div></div>
+    <div class="bars"><i></i><i></i><i></i></div>
+    <img class="call-avatar" src="../assets/ui/zhiduoxing-call-avatar.png" />
+    <div class="call-name">智多星</div><div class="call-state">正在确认这封信帮谁写</div><div class="dots">●●●</div>
+    <div class="qcard"><div class="qlabel">智多星正在提问</div><div class="qtitle">这封信是给你自己的产品写，还是帮朋友写？</div><div class="qdesc">你可以直接说，也可以点一下。</div><div class="opts"><div class="opt">♙ 给我自己的产品写</div><div class="opt">▥ 给自己公司的产品写</div><div class="opt">♧ 帮朋友/客户写</div><div class="opt">□ 先作为临时项目</div></div></div>
+    <div class="controls"><div><div class="circle speaker">)))</div>扬声器</div><div><div class="circle mic">🎙</div>按住说话</div><div><div class="circle hang">⌒</div>挂断</div></div><div class="switch">切换打字模式 〉</div>
+  </section>
+</main>
+</body>
+</html>

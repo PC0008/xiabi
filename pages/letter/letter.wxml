@@ -1,0 +1,34 @@
+<view class="page letter-page safe-bottom">
+  <view class="mini-top">
+    <view class="app-name">下笔有元</view>
+    <view class="capsule">•••  ○</view>
+  </view>
+
+  <view class="doc-head">
+    <view class="doc-tag">✓ {{claimed ? '完整销售信' : '待领取销售信'}}</view>
+    <view class="title">{{letter.title}}</view>
+    <view class="meta">智多星整理 · {{letter.scene}}场景 · 第 {{letter.version}} 版</view>
+  </view>
+
+  <view class="letter-card card">
+    <block wx:for="{{letter.paragraphs}}" wx:key="*this">
+      <view class="paragraph {{!claimed && index > 1 ? 'blurred' : ''}}">{{item}}</view>
+    </block>
+    <view wx:if="{{!claimed}}" class="lock-mask">
+      <view class="lock-title">完整内容已经写好</view>
+      <view class="lock-desc">绑定手机号后领取全文，并保存到你的账号。</view>
+      <button class="primary-button lock-button" bindtap="claimNow">领取完整销售信</button>
+    </view>
+    <view wx:if="{{claimed}}" class="image-suggestion">
+      <view class="image-icon">▧</view>
+      <view>
+        <view class="suggest-title">建议放图：客户反馈截图</view>
+        <view class="suggest-desc">放在这里，会让这段更有说服力。</view>
+      </view>
+      <view class="suggest-arrow">〉</view>
+    </view>
+  </view>
+
+  <button wx:if="{{claimed}}" class="primary-button save-button" bindtap="saveLetter">⇩ 保存并带走</button>
+  <button wx:if="{{claimed}}" class="rewrite-link" bindtap="goPaywall">↻ 让智多星再写一版</button>
+</view>

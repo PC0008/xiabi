@@ -1,0 +1,164 @@
+.paywall-page {
+  background: #ffffff;
+}
+
+.page-tag {
+  display: inline-flex;
+  margin-top: 58rpx;
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  color: #16a15e;
+  background: rgba(22, 161, 94, 0.10);
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.title {
+  margin-top: 30rpx;
+  color: #111816;
+  font-size: 54rpx;
+  line-height: 1.22;
+  font-weight: 900;
+}
+
+.preview-card {
+  position: relative;
+  overflow: hidden;
+  margin-top: 36rpx;
+  padding: 32rpx;
+  border-radius: 30rpx;
+}
+
+.paragraph {
+  margin-bottom: 24rpx;
+  color: #222b27;
+  font-size: 30rpx;
+  line-height: 1.82;
+}
+
+.faded {
+  color: rgba(34, 43, 39, 0.28);
+}
+
+.fade-lock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 96rpx 24rpx 30rpx;
+  background: linear-gradient(rgba(255,255,255,0), rgba(255,255,255,.96) 42%, #ffffff);
+  text-align: center;
+}
+
+.lock-title {
+  color: #168f56;
+  font-size: 29rpx;
+  font-weight: 900;
+}
+
+.offer-card {
+  margin-top: 22rpx;
+  padding: 26rpx;
+  border-radius: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  border: 2rpx solid transparent;
+}
+
+.single {
+  background: #ffffff;
+  border: 1rpx solid rgba(17, 24, 22, 0.08);
+}
+
+.annual {
+  background: linear-gradient(110deg, #f9fffb 0%, #ffffff 48%, #159858 100%);
+  color: #111816;
+}
+
+.offer-card.selected {
+  border-color: #16a15e;
+  box-shadow: 0 18rpx 34rpx rgba(22, 161, 94, 0.16);
+}
+
+.select-dot {
+  flex: 0 0 auto;
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 50%;
+  border: 2rpx solid rgba(22, 161, 94, 0.26);
+  color: #16a15e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  font-weight: 900;
+}
+
+.annual .select-dot {
+  border-color: rgba(22, 161, 94, 0.36);
+  color: #07833f;
+}
+
+.offer-visual {
+  flex: 0 0 auto;
+  width: 90rpx;
+  height: 90rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42rpx;
+  font-weight: 900;
+}
+
+.offer-visual.doc {
+  background: rgba(22, 161, 94, 0.08);
+  color: #07833f;
+}
+
+.offer-visual.crown {
+  background: #073e2c;
+  color: #e0bd72;
+}
+
+.offer-name {
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.offer-name text {
+  margin-left: 10rpx;
+  padding: 5rpx 10rpx;
+  border-radius: 10rpx;
+  background: rgba(22, 161, 94, 0.10);
+  color: #07833f;
+  font-size: 22rpx;
+}
+
+.offer-note {
+  margin-top: 8rpx;
+  color: currentColor;
+  opacity: 0.68;
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.price {
+  flex: 0 0 auto;
+  color: #07833f;
+  font-size: 40rpx;
+  font-weight: 900;
+}
+
+.paywall-page .primary-button {
+  margin-top: 34rpx;
+}
+
+.pay-safe {
+  margin-top: 28rpx;
+  color: #8a9490;
+  font-size: 26rpx;
+  text-align: center;
+}

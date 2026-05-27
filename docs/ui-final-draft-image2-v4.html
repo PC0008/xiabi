@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>下笔有元 UI 补齐审核稿 v4</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f4f3ef;
+      color: #151a18;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    main {
+      width: min(1180px, calc(100vw - 28px));
+      margin: 0 auto;
+      padding: 28px 0 56px;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: 18px 0 16px;
+      background: rgba(244, 243, 239, .92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(21, 26, 24, .08);
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(26px, 4vw, 44px);
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+    .intro {
+      margin: 10px 0 0;
+      max-width: 930px;
+      color: #5f6863;
+      font-size: 15px;
+      line-height: 1.75;
+    }
+    .section-title {
+      margin: 34px 0 12px;
+      font-size: 26px;
+      letter-spacing: 0;
+    }
+    .section-note {
+      margin: -4px 0 16px;
+      color: #68736d;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+    .screen-block {
+      margin-top: 18px;
+      padding: 18px;
+      border-radius: 22px;
+      border: 1px solid rgba(21, 26, 24, .10);
+      background: rgba(255,255,255,.72);
+      box-shadow: 0 18px 52px rgba(31, 38, 34, .12);
+    }
+    .screen-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .num {
+      width: 38px;
+      height: 38px;
+      border-radius: 13px;
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      background: #16a15e;
+      color: #fff;
+      font-weight: 900;
+    }
+    .num.orange { background: #e78a2f; }
+    .num.blue { background: #3478f6; }
+    h2 {
+      margin: 0;
+      font-size: 23px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    .image-wrap {
+      overflow: auto;
+      border-radius: 16px;
+      border: 1px solid rgba(21, 26, 24, .08);
+      background: #fff;
+      text-align: center;
+    }
+    img {
+      display: block;
+      width: min(100%, 760px);
+      min-width: 360px;
+      height: auto;
+      margin: 0 auto;
+    }
+    .wide img {
+      width: min(100%, 1080px);
+      min-width: 760px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>下笔有元 UI 补齐审核稿 v4</h1>
+      <p class="intro">本页只放这次新增和重构的页面：通话页内引导 3 张、一期必须补齐的用户端兜底状态 6 张、总后台通话引导配置 1 张。已确认不变的主流程页面仍看 v3。</p>
+    </header>
+
+    <h2 class="section-title">A. 修改后的通话内引导</h2>
+    <p class="section-note">原来的“帮谁写 / 写信目标 / 产品档案选择”不再作为三连跳转页，而是进入语音通话后，以问题卡片和快捷选项的形式出现。</p>
+
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">20</span><h2>通话页内引导：这封信帮谁写</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v4/20-call-guide-recipient.png" alt="通话页内引导：这封信帮谁写" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">21</span><h2>通话页内引导：写信目标</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v4/21-call-guide-goal.png" alt="通话页内引导：写信目标" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">22</span><h2>通话页内引导：产品档案匹配</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v4/22-call-guide-profile-match.png" alt="通话页内引导：产品档案匹配" /></div>
+    </section>
+
+    <h2 class="section-title">B. 一期需要补齐的用户端 UI</h2>
+    <p class="section-note">这些不是新增独立路由，而是主页面里的兜底状态。麦克风先走微信系统授权弹窗，拒绝后才出现通话页弹层；手机号失败状态发生在排队生成页内部。</p>
+
+    <section class="screen-block">
+      <div class="screen-head"><span class="num orange">23</span><h2>通话页弹层：麦克风权限被拒后</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v4/23-mic-permission.png" alt="通话页弹层：麦克风权限被拒后" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num orange">24</span><h2>生成页状态：手机号授权失败</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v4/24-phone-auth-retry.png" alt="生成页状态：手机号授权失败" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num orange">25</span><h2>支付处理中</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v4/25-payment-processing.png" alt="支付处理中" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num orange">26</span><h2>支付失败 / 取消</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v4/26-payment-failed.png" alt="支付失败取消" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num orange">27</span><h2>档案详情 / 归属纠错</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v4/27-profile-detail-edit.png" alt="档案详情归属纠错" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num orange">28</span><h2>用户协议 / 隐私政策</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v4/28-agreement-privacy.png" alt="用户协议隐私政策" /></div>
+    </section>
+
+    <h2 class="section-title">C. 总后台配置 UI</h2>
+    <p class="section-note">正式环境中，通话引导问题、选项、顺序、是否必答和写入位置应从总后台下发。测试号阶段可以先用 mock 配置。</p>
+
+    <section class="screen-block">
+      <div class="screen-head"><span class="num blue">29</span><h2>总后台：通话引导配置</h2></div>
+      <div class="image-wrap wide"><img src="./assets/ui-final-draft-image2-v4/29-admin-voice-guide-config.png" alt="总后台通话引导配置" /></div>
+    </section>
+  </main>
+</body>
+</html>

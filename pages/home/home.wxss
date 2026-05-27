@@ -1,0 +1,103 @@
+.home-page {
+  position: relative;
+  padding: 72rpx 52rpx 156rpx;
+  background: #ffffff;
+}
+
+.hero-title {
+  margin-top: 92rpx;
+  color: #0d1110;
+  font-size: 52rpx;
+  line-height: 1.22;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.hero-title-line {
+  display: block;
+}
+
+.hero-title-line.green {
+  color: #139552;
+}
+
+.hero-copy {
+  margin-top: 28rpx;
+  width: 630rpx;
+  color: #5b6560;
+  font-size: 31rpx;
+  line-height: 1.68;
+}
+
+.illustration {
+  height: 410rpx;
+  margin: 28rpx -18rpx 18rpx;
+}
+
+.home-hero-img {
+  width: 100%;
+  height: 100%;
+}
+
+.home-cta {
+  position: relative;
+  z-index: 4;
+}
+
+.free-hint {
+  margin: 0 0 18rpx;
+  color: #168f56;
+  font-size: 24rpx;
+  text-align: center;
+}
+
+.start-button {
+  height: 114rpx;
+  border-radius: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16rpx;
+  font-size: 36rpx;
+}
+
+.start-button.is-disabled {
+  opacity: 0.55;
+}
+
+.mic-mark {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 50%;
+  border: 4rpx solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22rpx;
+  line-height: 1;
+}
+
+.hint-card {
+  margin-top: 28rpx;
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: rgba(22, 161, 94, 0.08);
+}
+
+.hint-title {
+  color: #168f56;
+  font-size: 28rpx;
+  font-weight: 800;
+}
+
+.hint-desc {
+  margin-top: 8rpx;
+  color: #5b6560;
+  font-size: 24rpx;
+}
+
+.hint-button {
+  margin-top: 18rpx;
+  height: 76rpx;
+  line-height: 76rpx;
+}

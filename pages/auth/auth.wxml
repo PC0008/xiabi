@@ -1,0 +1,23 @@
+<view class="page auth-page safe-bottom">
+  <view class="mini-top">
+    <view class="app-name">下笔有元</view>
+    <view class="capsule">•••  ○</view>
+  </view>
+
+  <button class="avatar-stage" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+    <image class="auth-hero-img" src="{{avatarUrl ? avatarUrl : '/assets/ui/zhiduoxing-auth.png'}}" mode="aspectFit"></image>
+  </button>
+
+  <view class="title">我是智多星</view>
+  <view class="desc">
+    授权头像昵称后，智多星就知道怎么称呼你，也能帮你保存写好的销售信。
+  </view>
+
+  <view class="agreement" bindtap="toggleAgreement">
+    <view class="check {{agreed ? 'checked' : ''}}">{{agreed ? '✓' : ''}}</view>
+    <view class="agreement-text">我已阅读并同意《用户协议》和《隐私政策》</view>
+  </view>
+
+  <button class="primary-button auth-submit" bindtap="submitAuth">授权头像昵称，开始体验</button>
+  <button class="look-around" bindtap="lookAround">暂不登录，先看看</button>
+</view>

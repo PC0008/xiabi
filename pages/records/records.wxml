@@ -1,0 +1,43 @@
+<view class="page records-page">
+  <view class="mini-top">
+    <view class="app-name">下笔有元</view>
+    <view class="capsule">•••  ○</view>
+  </view>
+
+  <view class="title">我的销售信</view>
+  <view class="tabs">
+    <view class="tab active">全部</view>
+    <view class="tab">已领取</view>
+    <view class="tab">待领取</view>
+    <view class="tab">待解锁</view>
+    <view class="tab">已完成</view>
+  </view>
+
+  <block wx:for="{{records}}" wx:key="id">
+  <view class="letter-item card" bindtap="openLetter" data-claimed="{{item.claimed}}">
+    <view class="doc-thumb {{item.claimed ? 'green' : 'orange'}}">▤</view>
+    <view class="item-main">
+    <view class="item-top">
+      <view class="item-title">{{item.title}}</view>
+      <view class="status {{item.claimed ? '' : 'pending'}}">{{item.status}}</view>
+    </view>
+    <view class="item-meta">{{item.scene}} · {{item.created_at_label}}</view>
+    <view class="item-actions">{{item.claimed ? '查看完整内容' : '领取完整内容'}}</view>
+    </view>
+  </view>
+  </block>
+
+  <view class="status-card">
+    <view class="status-head">状态说明 <text>收起⌃</text></view>
+    <view class="legend-row"><text class="dot blue"></text><text>信息未完成</text><text>还差关键信息，补充后才能生成信件。</text></view>
+    <view class="legend-row"><text class="dot orange"></text><text>待领取</text><text>信件已生成，绑定手机号后可领取完整内容。</text></view>
+    <view class="legend-row"><text class="dot purple"></text><text>待解锁</text><text>可预览前半段，解锁后查看完整成交逻辑。</text></view>
+    <view class="legend-row"><text class="dot green"></text><text>已完成</text><text>已领取或已解锁，可以随时查看。</text></view>
+  </view>
+
+  <view class="nav-shell">
+    <view class="nav-item" bindtap="goHome"><view class="nav-icon">⌂</view><view>首页</view></view>
+    <view class="nav-item active"><view class="nav-icon">▤</view><view>记录</view></view>
+    <view class="nav-item" bindtap="goProfile"><view class="nav-icon">○</view><view>我的</view></view>
+  </view>
+</view>

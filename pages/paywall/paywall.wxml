@@ -1,0 +1,41 @@
+<view class="page paywall-page safe-bottom">
+  <view class="mini-top">
+    <view class="app-name">下笔有元</view>
+    <view class="capsule">•••  ○</view>
+  </view>
+
+  <view class="page-tag">✓ 新信件已写好</view>
+  <view class="title">这封信先给你看前半段</view>
+
+  <view class="preview-card card">
+    <view class="paragraph">你现在卡住的地方，不是产品没有价值，而是客户还没有看见这件事和他自己的关系。</view>
+    <view class="paragraph">所以这封信不会一上来就介绍功能，而是先把他正在损失的机会讲清楚。</view>
+    <view class="paragraph faded">接下来要把你的案例、价格和行动建议放在同一条成交线上...</view>
+    <view class="fade-lock">
+      <view class="lock-title">解锁后查看完整成交逻辑</view>
+    </view>
+  </view>
+
+  <view class="offer-card single {{selectedPlan === 'single' ? 'selected' : ''}}" bindtap="selectPlan" data-plan="single">
+    <view class="select-dot">{{selectedPlan === 'single' ? '●' : ''}}</view>
+    <view class="offer-visual doc">▤</view>
+    <view>
+      <view class="offer-name">单封解锁</view>
+      <view class="offer-note">解锁当前这封销售信，7 天内升级年卡可抵扣。</view>
+    </view>
+    <view class="price">¥200</view>
+  </view>
+
+  <view class="offer-card annual {{selectedPlan === 'annual' ? 'selected' : ''}}" bindtap="selectPlan" data-plan="annual">
+    <view class="select-dot">{{selectedPlan === 'annual' ? '●' : ''}}</view>
+    <view class="offer-visual crown">♛</view>
+    <view>
+      <view class="offer-name">年卡会员 <text>更划算</text></view>
+      <view class="offer-note">一年内正常使用范围内不限次数生成、保存和继续完善。</view>
+    </view>
+    <view class="price">¥2000</view>
+  </view>
+
+  <button class="primary-button" bindtap="mockPay">{{payButtonText}}</button>
+  <view class="pay-safe">支付安全由微信支付保障</view>
+</view>

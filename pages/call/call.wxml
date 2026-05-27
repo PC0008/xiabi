@@ -1,0 +1,80 @@
+<view class="call-page">
+  <view class="call-bg"></view>
+
+  <view class="call-content {{inputMode === 'text' ? 'typing' : ''}}">
+    <view class="call-top">
+      <button class="round-mini" bindtap="goBack">↙</button>
+      <view class="timer">语音通话中 {{durationText}}</view>
+      <button class="round-mini" bindtap="showMore">•••</button>
+    </view>
+
+    <view class="voice-bars">
+      <view></view>
+      <view class="mid"></view>
+      <view class="tall"></view>
+    </view>
+
+    <view class="avatar-wrap">
+      <image class="call-avatar-img" src="/assets/ui/zhiduoxing-call-avatar.png" mode="aspectFill"></image>
+    </view>
+
+    <view class="assistant-name">智多星</view>
+    <view class="assistant-state">{{statusText}}</view>
+    <view class="dots"><text></text><text></text><text></text></view>
+
+    <view class="question-card">
+      <view class="question-label">智多星正在提问</view>
+      <view class="question-title">{{currentQuestion}}</view>
+      <view class="question-desc">{{questionDesc}}</view>
+      <view class="option-grid" wx:if="{{quickOptions.length}}">
+        <view class="quick-option" wx:for="{{quickOptions}}" wx:key="label" bindtap="chooseQuickOption" data-value="{{item.value}}">
+          <view class="option-icon">{{item.icon}}</view>
+          <view class="option-label">{{item.label}}</view>
+          <view class="option-arrow">〉</view>
+        </view>
+      </view>
+      <button wx:if="{{hasEnoughInfo}}" class="ready-button" bindtap="goConfirm">信息够了，查看整理结果</button>
+    </view>
+
+    <view wx:if="{{inputMode === 'voice'}}" class="voice-controls">
+      <view class="call-actions">
+        <view class="call-action" bindtap="toggleSpeaker">
+          <view class="action-circle speaker {{speakerOn ? 'active' : ''}}">)))</view>
+          <view>扬声器</view>
+        </view>
+        <view class="call-action main-action" bindtouchstart="startHold" bindtouchend="endHold">
+          <view class="action-circle mic {{holding ? 'holding' : ''}}"></view>
+          <view>{{holding ? '松开发送' : '按住说话'}}</view>
+        </view>
+        <view class="call-action" bindtap="hangup">
+          <view class="action-circle hang">⌒</view>
+          <view>挂断</view>
+        </view>
+      </view>
+      <view class="switch-mode" bindtap="switchToText">切换打字模式 〉</view>
+    </view>
+
+    <view wx:else class="text-controls">
+      <view class="text-input-row">
+        <input class="text-input" placeholder="打字告诉智多星" value="{{typedText}}" bindinput="onTypeInput" confirm-type="send" bindconfirm="sendTypedText" />
+        <button class="send-button" bindtap="sendTypedText">发送</button>
+      </view>
+      <view class="switch-mode" bindtap="switchToVoice">切回语音模式 〉</view>
+    </view>
+
+    <view wx:if="{{showMicSheet}}" class="sheet-mask" bindtap="closeMicSheet"></view>
+    <view wx:if="{{showMicSheet}}" class="mic-sheet">
+      <view class="sheet-handle"></view>
+      <view class="sheet-row">
+        <view class="sheet-icon">麦</view>
+        <view>
+          <view class="sheet-title">麦克风权限没有开启</view>
+          <view class="sheet-desc">开启后才能按住说话。你也可以先切换打字模式。</view>
+        </view>
+      </view>
+      <view class="sheet-note">系统弹窗拒绝后，需要到设置里重新开启。</view>
+      <button class="primary-button sheet-button" bindtap="openSetting">去开启权限</button>
+      <view class="sheet-text-link" bindtap="useTextFromSheet">改用打字模式</view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,156 @@
+.memory-page {
+  padding-bottom: 148rpx;
+  background: #fbfcfb;
+}
+
+.title {
+  margin-top: 58rpx;
+  color: #070b09;
+  font-size: 56rpx;
+  line-height: 1.12;
+  font-weight: 900;
+}
+
+.privacy-note {
+  margin-top: 22rpx;
+  color: #07833f;
+  font-size: 25rpx;
+  line-height: 1.55;
+}
+
+.memory-card {
+  margin-top: 28rpx;
+  padding: 28rpx;
+  border-radius: 28rpx;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.section-icon {
+  width: 46rpx;
+  height: 46rpx;
+  border-radius: 14rpx;
+  background: rgba(22, 161, 94, 0.10);
+  color: #07833f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 25rpx;
+  font-weight: 900;
+}
+
+.section-title {
+  flex: 1;
+  color: #111816;
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
+.section-action,
+.profile-action {
+  color: #07833f;
+  font-size: 27rpx;
+  font-weight: 700;
+}
+
+.kv-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 24rpx 0 0;
+  color: #6a736f;
+  font-size: 28rpx;
+}
+
+.kv-row text:last-child {
+  color: #111816;
+}
+
+.segment-row {
+  display: flex;
+  gap: 18rpx;
+  margin: 26rpx 0 12rpx;
+  overflow: hidden;
+}
+
+.segment {
+  padding: 13rpx 20rpx;
+  border-radius: 999rpx;
+  background: #f2f4f2;
+  color: #6f7874;
+  font-size: 25rpx;
+  white-space: nowrap;
+}
+
+.segment.active {
+  background: rgba(22, 161, 94, 0.08);
+  color: #07833f;
+  border: 1rpx solid rgba(22, 161, 94, 0.35);
+}
+
+.profile-row,
+.project-row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid rgba(17, 24, 22, 0.08);
+}
+
+.profile-row:last-of-type,
+.project-row:last-child {
+  border-bottom: 0;
+}
+
+.profile-main {
+  flex: 1;
+}
+
+.profile-icon {
+  width: 74rpx;
+  height: 74rpx;
+  border-radius: 18rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+}
+
+.profile-icon.green {
+  background: rgba(22, 161, 94, 0.10);
+  color: #07833f;
+}
+
+.profile-icon.orange {
+  background: rgba(230, 151, 42, 0.12);
+  color: #d08518;
+}
+
+.profile-name {
+  color: #111816;
+  font-size: 29rpx;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.profile-meta {
+  margin-top: 8rpx;
+  color: #737c78;
+  font-size: 24rpx;
+}
+
+.add-profile {
+  margin-top: 22rpx;
+  height: 78rpx;
+  border-radius: 18rpx;
+  border: 2rpx dashed rgba(22, 161, 94, 0.35);
+  color: #07833f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28rpx;
+  font-weight: 800;
+}

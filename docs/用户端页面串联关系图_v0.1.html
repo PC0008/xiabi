@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>下笔有元用户端页面串联关系图 v0.1</title>
+  <style>
+    :root {
+      --green: #11945a;
+      --green-2: #17b36b;
+      --deep: #0f2f25;
+      --ink: #17211c;
+      --muted: #637069;
+      --line: #dfe8e2;
+      --paper: #fffdf8;
+      --soft: #f2f8f4;
+      --warn: #e78a2f;
+      --danger: #dc4c43;
+      --blue: #3478f6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        linear-gradient(180deg, rgba(242, 248, 244, .96), rgba(255, 253, 248, 1) 42%),
+        #fffdf8;
+      color: var(--ink);
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    main {
+      width: min(1320px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 34px 0 64px;
+    }
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 46px);
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+    .lead {
+      max-width: 900px;
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.8;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border: 1px solid rgba(17, 148, 90, .22);
+      border-radius: 999px;
+      color: var(--green);
+      background: rgba(255, 255, 255, .72);
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .panel {
+      margin-top: 22px;
+      border: 1px solid rgba(23, 33, 28, .09);
+      border-radius: 24px;
+      background: rgba(255, 255, 255, .86);
+      box-shadow: 0 22px 70px rgba(31, 48, 39, .10);
+      overflow: hidden;
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 22px;
+      border-bottom: 1px solid rgba(23, 33, 28, .08);
+      background: rgba(255, 255, 255, .64);
+    }
+    h2 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+    .legend {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .chart-wrap {
+      overflow: auto;
+      padding: 18px;
+      background: linear-gradient(180deg, #fff, #fbfdfb);
+    }
+    svg {
+      display: block;
+      min-width: 1180px;
+      width: 100%;
+      height: auto;
+    }
+    .lane-label {
+      font-size: 15px;
+      font-weight: 900;
+      fill: #536159;
+    }
+    .lane-bg {
+      fill: rgba(242, 248, 244, .72);
+      stroke: rgba(17, 148, 90, .12);
+    }
+    .node rect {
+      fill: #fff;
+      stroke: #dfe8e2;
+      stroke-width: 1.4;
+      filter: drop-shadow(0 8px 14px rgba(22, 36, 29, .08));
+    }
+    .node.main rect { stroke: rgba(17, 148, 90, .42); }
+    .node.branch rect { stroke: rgba(231, 138, 47, .46); }
+    .node.missing rect {
+      fill: #fff8f2;
+      stroke: rgba(231, 138, 47, .62);
+      stroke-dasharray: 6 5;
+    }
+    .node.danger rect {
+      fill: #fff7f6;
+      stroke: rgba(220, 76, 67, .62);
+      stroke-dasharray: 6 5;
+    }
+    .node.support rect { stroke: rgba(52, 120, 246, .38); }
+    .node-title {
+      font-size: 17px;
+      font-weight: 900;
+      fill: var(--ink);
+    }
+    .node-sub {
+      font-size: 12.5px;
+      fill: var(--muted);
+    }
+    .tag {
+      font-size: 11px;
+      font-weight: 800;
+      fill: #fff;
+    }
+    .tag-bg { fill: var(--green); }
+    .tag-bg.orange { fill: var(--warn); }
+    .tag-bg.red { fill: var(--danger); }
+    .tag-bg.blue { fill: var(--blue); }
+    .edge {
+      fill: none;
+      stroke: rgba(17, 148, 90, .78);
+      stroke-width: 2.4;
+      marker-end: url(#arrowGreen);
+    }
+    .edge.alt {
+      stroke: rgba(231, 138, 47, .82);
+      marker-end: url(#arrowOrange);
+      stroke-dasharray: 8 6;
+    }
+    .edge.red {
+      stroke: rgba(220, 76, 67, .82);
+      marker-end: url(#arrowRed);
+      stroke-dasharray: 8 6;
+    }
+    .edge.blue {
+      stroke: rgba(52, 120, 246, .78);
+      marker-end: url(#arrowBlue);
+    }
+    .edge-label {
+      font-size: 12px;
+      font-weight: 800;
+      fill: #5f6b64;
+      paint-order: stroke;
+      stroke: #fff;
+      stroke-width: 5px;
+      stroke-linejoin: round;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      padding: 18px;
+    }
+    .card {
+      border: 1px solid rgba(23, 33, 28, .09);
+      border-radius: 18px;
+      padding: 16px;
+      background: #fff;
+    }
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+    .card ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 14px;
+    }
+    .card strong { color: var(--ink); }
+    .must h3 { color: var(--warn); }
+    .ok h3 { color: var(--green); }
+    .later h3 { color: var(--blue); }
+    @media (max-width: 860px) {
+      header { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
+      .panel-head { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>用户端页面串联关系图</h1>
+        <p class="lead">这张图按“一期主小程序验证”口径整理：先保证首次免费闭环、二次付费闭环、记录/档案回流闭环，再补齐权限、支付、失败等兜底状态。</p>
+      </div>
+      <div class="badge">微信亲和绿 · v0.1</div>
+    </header>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>页面流转 SVG</h2>
+        <div class="legend">
+          <span><span class="dot" style="background: var(--green)"></span>已画主页面</span>
+          <span><span class="dot" style="background: var(--warn)"></span>建议补状态</span>
+          <span><span class="dot" style="background: var(--danger)"></span>异常兜底</span>
+          <span><span class="dot" style="background: var(--blue)"></span>记录/档案回流</span>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <svg viewBox="0 0 1280 900" role="img" aria-label="下笔有元用户端页面串联关系图">
+          <defs>
+            <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#11945a" />
+            </marker>
+            <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#e78a2f" />
+            </marker>
+            <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#dc4c43" />
+            </marker>
+            <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#3478f6" />
+            </marker>
+          </defs>
+
+          <rect class="lane-bg" x="24" y="56" width="1232" height="250" rx="22" />
+          <rect class="lane-bg" x="24" y="326" width="1232" height="250" rx="22" />
+          <rect class="lane-bg" x="24" y="596" width="1232" height="250" rx="22" />
+          <text class="lane-label" x="42" y="88">首次免费主流程</text>
+          <text class="lane-label" x="42" y="358">生成 / 支付 / 异常</text>
+          <text class="lane-label" x="42" y="628">记录 / 档案 / 我的</text>
+
+          <path class="edge" d="M166 166 C190 166, 192 166, 216 166" />
+          <path class="edge" d="M356 166 C380 166, 382 166, 406 166" />
+          <path class="edge" d="M546 166 C570 166, 572 166, 596 166" />
+          <path class="edge" d="M736 166 C760 166, 762 166, 786 166" />
+          <path class="edge" d="M926 166 C950 166, 952 166, 976 166" />
+          <path class="edge" d="M1116 166 C1180 166, 1190 224, 1120 250 C1020 286, 760 285, 736 416" />
+          <path class="edge" d="M926 416 C950 416, 952 416, 976 416" />
+          <path class="edge" d="M1116 416 C1148 416, 1154 450, 1128 470 C1048 532, 576 532, 548 686" />
+
+          <path class="edge blue" d="M736 686 C760 686, 762 686, 786 686" />
+          <path class="edge blue" d="M926 686 C950 686, 952 686, 976 686" />
+          <path class="edge blue" d="M596 738 C516 818, 310 808, 286 218" />
+
+          <path class="edge alt" d="M666 218 C666 270, 666 312, 666 356" />
+          <text class="edge-label" x="676" y="302">不想说话</text>
+          <path class="edge alt" d="M856 218 C856 270, 856 312, 856 356" />
+          <text class="edge-label" x="866" y="302">信息不够</text>
+          <path class="edge alt" d="M1046 218 C1046 270, 1046 312, 1046 356" />
+          <text class="edge-label" x="1056" y="302">生成超时</text>
+          <path class="edge red" d="M286 218 C286 312, 310 388, 406 416" />
+          <text class="edge-label" x="300" y="306">未给麦克风</text>
+          <path class="edge red" d="M1046 468 C1046 520, 1046 574, 1046 656" />
+          <text class="edge-label" x="1058" y="572">支付失败/取消</text>
+          <path class="edge alt" d="M856 468 C856 532, 856 584, 856 656" />
+          <text class="edge-label" x="868" y="572">二次使用</text>
+
+          <g class="node main">
+            <rect x="46" y="116" width="120" height="100" rx="16" />
+            <rect class="tag-bg" x="62" y="132" width="40" height="20" rx="10" />
+            <text class="tag" x="74" y="147">01</text>
+            <text class="node-title" x="62" y="174">授权登录</text>
+            <text class="node-sub" x="62" y="197">头像 + 昵称</text>
+          </g>
+          <g class="node main">
+            <rect x="216" y="116" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="232" y="132" width="40" height="20" rx="10" />
+            <text class="tag" x="244" y="147">02</text>
+            <text class="node-title" x="232" y="174">首页</text>
+            <text class="node-sub" x="232" y="197">首次免费入口</text>
+          </g>
+          <g class="node main">
+            <rect x="406" y="116" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="422" y="132" width="40" height="20" rx="10" />
+            <text class="tag" x="434" y="147">13</text>
+            <text class="node-title" x="422" y="174">通话准备</text>
+            <text class="node-sub" x="422" y="197">说明权限</text>
+          </g>
+          <g class="node main">
+            <rect x="596" y="116" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="612" y="132" width="40" height="20" rx="10" />
+            <text class="tag" x="624" y="147">14</text>
+            <text class="node-title" x="612" y="174">帮谁写</text>
+            <text class="node-sub" x="612" y="197">自己/公司/朋友</text>
+          </g>
+          <g class="node main">
+            <rect x="786" y="116" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="802" y="132" width="40" height="20" rx="10" />
+            <text class="tag" x="814" y="147">15</text>
+            <text class="node-title" x="802" y="174">写信目标</text>
+            <text class="node-sub" x="802" y="197">回复/预约/成交</text>
+          </g>
+          <g class="node main">
+            <rect x="976" y="116" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="992" y="132" width="40" height="20" rx="10" />
+            <text class="tag" x="1004" y="147">16</text>
+            <text class="node-title" x="992" y="174">选产品档案</text>
+            <text class="node-sub" x="992" y="197">已有或临时</text>
+          </g>
+
+          <g class="node danger">
+            <rect x="406" y="366" width="140" height="100" rx="16" />
+            <rect class="tag-bg red" x="422" y="382" width="48" height="20" rx="10" />
+            <text class="tag" x="432" y="397">补</text>
+            <text class="node-title" x="422" y="424">权限引导</text>
+            <text class="node-sub" x="422" y="447">麦克风拒绝</text>
+          </g>
+          <g class="node main">
+            <rect x="596" y="366" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="612" y="382" width="40" height="20" rx="10" />
+            <text class="tag" x="624" y="397">03</text>
+            <text class="node-title" x="612" y="424">语音通话</text>
+            <text class="node-sub" x="612" y="447">按住说话</text>
+          </g>
+          <g class="node main">
+            <rect x="786" y="366" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="802" y="382" width="40" height="20" rx="10" />
+            <text class="tag" x="814" y="397">04</text>
+            <text class="node-title" x="802" y="424">信息确认</text>
+            <text class="node-sub" x="802" y="447">核对 + 补充</text>
+          </g>
+          <g class="node main">
+            <rect x="976" y="366" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="992" y="382" width="40" height="20" rx="10" />
+            <text class="tag" x="1004" y="397">05</text>
+            <text class="node-title" x="992" y="424">排队生成</text>
+            <text class="node-sub" x="992" y="447">手机号提醒</text>
+          </g>
+          <g class="node branch">
+            <rect x="596" y="246" width="140" height="74" rx="16" />
+            <rect class="tag-bg orange" x="612" y="262" width="40" height="20" rx="10" />
+            <text class="tag" x="624" y="277">11</text>
+            <text class="node-title" x="612" y="304">打字模式</text>
+          </g>
+          <g class="node branch">
+            <rect x="786" y="246" width="140" height="74" rx="16" />
+            <rect class="tag-bg orange" x="802" y="262" width="40" height="20" rx="10" />
+            <text class="tag" x="814" y="277">12</text>
+            <text class="node-title" x="802" y="304">补充素材</text>
+          </g>
+          <g class="node branch">
+            <rect x="976" y="246" width="140" height="74" rx="16" />
+            <rect class="tag-bg orange" x="992" y="262" width="40" height="20" rx="10" />
+            <text class="tag" x="1004" y="277">18</text>
+            <text class="node-title" x="992" y="304">生成重试</text>
+          </g>
+
+          <g class="node main">
+            <rect x="406" y="636" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="422" y="652" width="40" height="20" rx="10" />
+            <text class="tag" x="434" y="667">17</text>
+            <text class="node-title" x="422" y="694">生成完成</text>
+            <text class="node-sub" x="422" y="717">可领取</text>
+          </g>
+          <g class="node main">
+            <rect x="596" y="636" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="612" y="652" width="40" height="20" rx="10" />
+            <text class="tag" x="624" y="667">06</text>
+            <text class="node-title" x="612" y="694">销售信详情</text>
+            <text class="node-sub" x="612" y="717">保存并带走</text>
+          </g>
+          <g class="node branch">
+            <rect x="786" y="636" width="140" height="100" rx="16" />
+            <rect class="tag-bg orange" x="802" y="652" width="40" height="20" rx="10" />
+            <text class="tag" x="814" y="667">07</text>
+            <text class="node-title" x="802" y="694">付费解锁</text>
+            <text class="node-sub" x="802" y="717">单封/年卡</text>
+          </g>
+          <g class="node main">
+            <rect x="976" y="636" width="140" height="100" rx="16" />
+            <rect class="tag-bg" x="992" y="652" width="40" height="20" rx="10" />
+            <text class="tag" x="1004" y="667">19</text>
+            <text class="node-title" x="992" y="694">支付成功</text>
+            <text class="node-sub" x="992" y="717">权益生效</text>
+          </g>
+          <g class="node danger">
+            <rect x="976" y="746" width="140" height="74" rx="16" />
+            <rect class="tag-bg red" x="992" y="762" width="48" height="20" rx="10" />
+            <text class="tag" x="1002" y="777">补</text>
+            <text class="node-title" x="992" y="804">支付失败</text>
+          </g>
+          <g class="node support">
+            <rect x="786" y="746" width="140" height="74" rx="16" />
+            <rect class="tag-bg blue" x="802" y="762" width="40" height="20" rx="10" />
+            <text class="tag" x="814" y="777">08</text>
+            <text class="node-title" x="802" y="804">我的销售信</text>
+          </g>
+          <g class="node support">
+            <rect x="596" y="746" width="140" height="74" rx="16" />
+            <rect class="tag-bg blue" x="612" y="762" width="40" height="20" rx="10" />
+            <text class="tag" x="624" y="777">09</text>
+            <text class="node-title" x="612" y="804">我的档案</text>
+          </g>
+          <g class="node support">
+            <rect x="406" y="746" width="140" height="74" rx="16" />
+            <rect class="tag-bg blue" x="422" y="762" width="40" height="20" rx="10" />
+            <text class="tag" x="434" y="777">10</text>
+            <text class="node-title" x="422" y="804">个人中心</text>
+          </g>
+          <g class="node missing">
+            <rect x="216" y="746" width="140" height="74" rx="16" />
+            <rect class="tag-bg orange" x="232" y="762" width="48" height="20" rx="10" />
+            <text class="tag" x="242" y="777">补</text>
+            <text class="node-title" x="232" y="804">档案详情</text>
+          </g>
+          <g class="node missing">
+            <rect x="46" y="746" width="140" height="74" rx="16" />
+            <rect class="tag-bg orange" x="62" y="762" width="48" height="20" rx="10" />
+            <text class="tag" x="72" y="777">补</text>
+            <text class="node-title" x="62" y="804">协议隐私</text>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>还缺什么页面</h2>
+      </div>
+      <div class="grid">
+        <article class="card ok">
+          <h3>主流程已经够用</h3>
+          <ul>
+            <li><strong>首次体验闭环：</strong>授权、首页、准备、开场选择、通话、确认、生成、领取、详情。</li>
+            <li><strong>二次付费闭环：</strong>预览解锁、支付成功、详情回流。</li>
+            <li><strong>沉淀回流：</strong>记录、档案、个人中心、打字模式、补充素材。</li>
+          </ul>
+        </article>
+        <article class="card must">
+          <h3>开发前建议补</h3>
+          <ul>
+            <li><strong>麦克风权限拒绝引导：</strong>用户不给录音权限时，不能卡死。</li>
+            <li><strong>手机号授权失败/稍后领取状态：</strong>可以在生成页做状态，不一定单独成页。</li>
+            <li><strong>支付失败/取消/处理中：</strong>微信支付一定会遇到，至少要有弹窗或状态页。</li>
+            <li><strong>档案详情/纠错页：</strong>用于修改产品、客户、朋友/客户归属，避免档案越聊越乱。</li>
+            <li><strong>用户协议/隐私政策：</strong>登录页和手机号授权都要能打开。</li>
+          </ul>
+        </article>
+        <article class="card later">
+          <h3>可以一期后置</h3>
+          <ul>
+            <li><strong>订单/权益明细：</strong>正式支付上线前补更合适。</li>
+            <li><strong>联系客服/反馈：</strong>先在个人中心留入口即可。</li>
+            <li><strong>空状态页：</strong>记录为空、档案为空可在对应页面内做。</li>
+            <li><strong>导出/分享引导：</strong>等销售信详情页交互定版后再画。</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

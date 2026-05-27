@@ -1,0 +1,96 @@
+.auth-page {
+  background: #ffffff;
+  padding: 72rpx 52rpx calc(34rpx + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.avatar-stage {
+  width: 520rpx;
+  height: 500rpx;
+  margin: 82rpx auto 42rpx;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-stage::after {
+  border: 0;
+}
+
+.auth-hero-img {
+  width: 100%;
+  height: 100%;
+}
+
+.title {
+  color: #111816;
+  font-size: 60rpx;
+  line-height: 1.16;
+  font-weight: 900;
+  text-align: center;
+}
+
+.desc {
+  margin: 30rpx auto 0;
+  width: 600rpx;
+  color: #515c56;
+  font-size: 31rpx;
+  line-height: 1.72;
+  text-align: center;
+}
+
+.agreement {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14rpx;
+}
+
+.check {
+  width: 34rpx;
+  height: 34rpx;
+  border-radius: 50%;
+  border: 2rpx solid rgba(17, 24, 22, 0.18);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22rpx;
+  line-height: 1;
+}
+
+.check.checked {
+  background: #16a15e;
+  border-color: #16a15e;
+}
+
+.agreement-text {
+  color: #5f6964;
+  font-size: 24rpx;
+}
+
+.auth-submit {
+  margin-top: 32rpx;
+  border-radius: 34rpx;
+  width: 100%;
+}
+
+.look-around {
+  height: 78rpx;
+  line-height: 78rpx;
+  margin-top: 44rpx;
+  background: transparent;
+  color: #7a8580;
+  font-size: 29rpx;
+  border: 0;
+}
+
+.look-around::after {
+  border: 0;
+}

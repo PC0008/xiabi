@@ -1,0 +1,46 @@
+<view class="page home-page">
+  <view class="mini-top">
+    <view class="app-name">{{homePage.brand_name}}</view>
+    <view class="capsule">•••  ○</view>
+  </view>
+
+  <view class="hero-title">
+    <text wx:for="{{titleLines}}" wx:key="*this" class="hero-title-line {{index === 0 ? 'green' : ''}}">{{item}}</text>
+  </view>
+  <view class="hero-copy">
+    {{homePage.hero_subtitle}}
+  </view>
+
+  <view class="illustration">
+    <image class="home-hero-img" src="/assets/ui/home-pen-paper.png" mode="aspectFit"></image>
+  </view>
+
+  <view class="home-cta">
+    <view class="free-hint" wx:if="{{homePage.free_hint}}">{{homePage.free_hint}}</view>
+    <button class="primary-button start-button {{startDisabled ? 'is-disabled' : ''}}" disabled="{{startDisabled}}" bindtap="startConversation">
+      <view class="mic-mark">⌾</view>
+      <text>{{homePage.primary_button_text}}</text>
+    </button>
+  </view>
+
+  <view class="hint-card" wx:if="{{hasPendingLetter}}">
+    <view class="hint-title">{{homePage.unclaimed_notice}}</view>
+    <view class="hint-desc">{{homePage.unclaimed_notice_desc}}</view>
+    <button class="secondary-button hint-button" bindtap="claimLetter">{{homePage.unclaimed_button_text}}</button>
+  </view>
+
+  <view class="nav-shell">
+    <view class="nav-item active">
+      <view class="nav-icon home-shape">{{bottomNav[0].icon}}</view>
+      <view>{{bottomNav[0].label}}</view>
+    </view>
+    <view class="nav-item" bindtap="goRecords">
+      <view class="nav-icon">{{bottomNav[1].icon}}</view>
+      <view>{{bottomNav[1].label}}</view>
+    </view>
+    <view class="nav-item" bindtap="goProfile">
+      <view class="nav-icon">{{bottomNav[2].icon}}</view>
+      <view>{{bottomNav[2].label}}</view>
+    </view>
+  </view>
+</view>

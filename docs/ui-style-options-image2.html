@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>下笔有元 UI 风格五选一</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: #171c19;
+      background: #f3efe6;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    main {
+      width: min(1280px, calc(100vw - 28px));
+      margin: 0 auto;
+      padding: 28px 0 52px;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: 18px 0 16px;
+      background: linear-gradient(rgba(243, 239, 230, 0.96), rgba(243, 239, 230, 0.88));
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(23, 28, 25, 0.08);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(26px, 4vw, 46px);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .intro {
+      margin: 10px 0 0;
+      max-width: 860px;
+      color: #606a64;
+      font-size: 15px;
+      line-height: 1.8;
+    }
+
+    .option {
+      margin-top: 28px;
+      padding: 18px;
+      border: 1px solid rgba(23, 28, 25, 0.10);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.64);
+      box-shadow: 0 18px 52px rgba(36, 42, 38, 0.12);
+    }
+
+    .option-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .badge {
+      width: 38px;
+      height: 38px;
+      border-radius: 13px;
+      display: inline-grid;
+      place-items: center;
+      background: #174f3e;
+      color: #fff;
+      font-size: 19px;
+      font-weight: 900;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 23px;
+      line-height: 1.2;
+    }
+
+    .hint {
+      margin: 4px 0 0;
+      color: #68716c;
+      font-size: 13px;
+    }
+
+    .image-wrap {
+      overflow: auto;
+      border-radius: 16px;
+      background: #fff;
+      border: 1px solid rgba(23, 28, 25, 0.08);
+    }
+
+    img {
+      display: block;
+      width: 100%;
+      min-width: 820px;
+      height: auto;
+    }
+
+    @media (max-width: 760px) {
+      main {
+        width: min(100vw - 18px, 1280px);
+        padding-top: 16px;
+      }
+
+      .option {
+        padding: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>下笔有元 UI 风格五选一</h1>
+      <p class="intro">每个风格单独一张图，从上往下排。通话页底部统一收敛为三个按钮：扬声器、按住说话、挂断，并在底部增加“切换打字模式”。</p>
+    </header>
+
+    <section class="option">
+      <div class="option-title">
+        <span class="badge">A</span>
+        <div>
+          <h2>微信亲和绿</h2>
+          <p class="hint">贴近微信生态，熟悉、直接、学习成本低。</p>
+        </div>
+      </div>
+      <div class="image-wrap">
+        <img src="./assets/style-options-image2/style-a-wechat-green.png" alt="A 微信亲和绿 UI 风格" />
+      </div>
+    </section>
+
+    <section class="option">
+      <div class="option-title">
+        <span class="badge">B</span>
+        <div>
+          <h2>暖纸商务顾问</h2>
+          <p class="hint">温暖纸感与商务信任感，更像专属销售顾问。</p>
+        </div>
+      </div>
+      <div class="image-wrap">
+        <img src="./assets/style-options-image2/style-b-warm-business.png" alt="B 暖纸商务顾问 UI 风格" />
+      </div>
+    </section>
+
+    <section class="option">
+      <div class="option-title">
+        <span class="badge">C</span>
+        <div>
+          <h2>极简黑白专业</h2>
+          <p class="hint">克制、干净、效率优先，专业感最强。</p>
+        </div>
+      </div>
+      <div class="image-wrap">
+        <img src="./assets/style-options-image2/style-c-minimal-blackwhite.png" alt="C 极简黑白专业 UI 风格" />
+      </div>
+    </section>
+
+    <section class="option">
+      <div class="option-title">
+        <span class="badge">D</span>
+        <div>
+          <h2>温柔橙绿陪伴</h2>
+          <p class="hint">更亲切，降低用户开口压力，适合不擅长表达的人。</p>
+        </div>
+      </div>
+      <div class="image-wrap">
+        <img src="./assets/style-options-image2/style-d-soft-orange-green.png" alt="D 温柔橙绿陪伴 UI 风格" />
+      </div>
+    </section>
+
+    <section class="option">
+      <div class="option-title">
+        <span class="badge">E</span>
+        <div>
+          <h2>信纸成交质感</h2>
+          <p class="hint">更强调“拿到一封能发的信”，付费价值感更强。</p>
+        </div>
+      </div>
+      <div class="image-wrap">
+        <img src="./assets/style-options-image2/style-e-letter-premium.png" alt="E 信纸成交质感 UI 风格" />
+      </div>
+    </section>
+  </main>
+</body>
+</html>

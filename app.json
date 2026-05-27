@@ -1,0 +1,23 @@
+{
+  "pages": [
+    "pages/auth/auth",
+    "pages/home/home",
+    "pages/call/call",
+    "pages/confirm/confirm",
+    "pages/generating/generating",
+    "pages/letter/letter",
+    "pages/paywall/paywall",
+    "pages/records/records",
+    "pages/profile/profile",
+    "pages/memory/memory"
+  ],
+  "window": {
+    "navigationBarTitleText": "下笔有元",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f7f8f7",
+    "navigationStyle": "custom"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

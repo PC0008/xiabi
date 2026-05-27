@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>下笔有元真实落地 UI 稿 v3</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f4f3ef;
+      color: #151a18;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    main {
+      width: min(1180px, calc(100vw - 28px));
+      margin: 0 auto;
+      padding: 28px 0 56px;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: 18px 0 16px;
+      background: rgba(244, 243, 239, .92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(21, 26, 24, .08);
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(26px, 4vw, 44px);
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+    .intro {
+      margin: 10px 0 0;
+      max-width: 920px;
+      color: #5f6863;
+      font-size: 15px;
+      line-height: 1.75;
+    }
+    .screen-block {
+      margin-top: 28px;
+      padding: 18px;
+      border-radius: 22px;
+      border: 1px solid rgba(21, 26, 24, .10);
+      background: rgba(255,255,255,.72);
+      box-shadow: 0 18px 52px rgba(31, 38, 34, .12);
+    }
+    .screen-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .num {
+      width: 38px;
+      height: 38px;
+      border-radius: 13px;
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      background: #16a15e;
+      color: #fff;
+      font-weight: 900;
+    }
+    h2 {
+      margin: 0;
+      font-size: 23px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    .image-wrap {
+      overflow: auto;
+      border-radius: 16px;
+      border: 1px solid rgba(21, 26, 24, .08);
+      background: #fff;
+      text-align: center;
+    }
+    img {
+      display: block;
+      width: min(100%, 760px);
+      min-width: 360px;
+      height: auto;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>下笔有元真实落地 UI 稿 v3</h1>
+      <p class="intro">v3 在 v2 的主流程基础上，继续补齐通话准备、开场判断、产品档案选择、生成完成、生成失败和支付成功等分支状态页。当前仍是审核稿，确认后再拆成小程序 WXML/WXSS。</p>
+    </header>
+
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">1</span><h2>首次头像昵称授权页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/01-auth.png" alt="首次头像昵称授权页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">2</span><h2>首页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/02-home.png" alt="首页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">3</span><h2>语音通话互动页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/03-call.png" alt="语音通话互动页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">4</span><h2>信息确认页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/04-confirm.png" alt="信息确认页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">5</span><h2>排队生成 + 手机号授权页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/05-generating-phone.png" alt="排队生成和手机号授权页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">6</span><h2>销售信详情页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/06-letter.png" alt="销售信详情页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">7</span><h2>二次付费解锁页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/07-paywall.png" alt="二次付费解锁页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">8</span><h2>我的销售信 / 记录页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/08-records.png" alt="我的销售信记录页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">9</span><h2>我的档案页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/09-memory.png" alt="我的档案页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">10</span><h2>个人中心页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/10-profile.png" alt="个人中心页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">11</span><h2>打字模式页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/11-typing-mode.png" alt="打字模式页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">12</span><h2>补充案例或素材页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/12-supplement.png" alt="补充案例或素材页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">13</span><h2>通话准备页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/13-call-ready.png" alt="通话准备页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">14</span><h2>这封信帮谁写</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/14-recipient-scope.png" alt="这封信帮谁写" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">15</span><h2>写信目标选择页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/15-letter-goal.png" alt="写信目标选择页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">16</span><h2>产品档案选择页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/16-product-profile-select.png" alt="产品档案选择页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">17</span><h2>生成完成 / 可领取页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/17-generation-ready.png" alt="生成完成可领取页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">18</span><h2>生成失败 / 重试页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/18-generation-retry.png" alt="生成失败重试页" /></div>
+    </section>
+    <section class="screen-block">
+      <div class="screen-head"><span class="num">19</span><h2>支付成功 / 权益生效页</h2></div>
+      <div class="image-wrap"><img src="./assets/ui-final-draft-image2-v3/19-payment-success.png" alt="支付成功权益生效页" /></div>
+    </section>
+  </main>
+</body>
+</html>
