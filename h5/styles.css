@@ -535,6 +535,27 @@ button {
   font-weight: 900;
 }
 
+.speech-live {
+  width: min(100%, 680px);
+  min-height: 42px;
+  margin: 12px auto 0;
+  padding: 11px 14px;
+  border-radius: 14px;
+  color: #dff8e8;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 800;
+}
+
+.speech-live.error {
+  color: #ffe2dc;
+  background: rgba(242, 60, 56, 0.18);
+  border-color: rgba(255, 226, 220, 0.24);
+}
+
 .voice-controls,
 .text-controls {
   position: fixed;
@@ -561,6 +582,10 @@ button {
   text-align: center;
   font-size: 15px;
   font-weight: 900;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .action-circle {
@@ -609,6 +634,7 @@ button {
 
 .mic.holding {
   background: var(--green);
+  box-shadow: 0 0 0 12px rgba(41, 212, 122, 0.16), 0 16px 30px rgba(0, 0, 0, 0.20);
 }
 
 .hang {

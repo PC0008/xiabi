@@ -129,6 +129,8 @@ const state = {
   route: location.hash.replace("#", "") || "auth",
   inputMode: "voice",
   holding: false,
+  voiceTranscript: "",
+  voiceError: "",
   speakerOn: true,
   showMicSheet: false,
   typedText: "",
@@ -144,6 +146,10 @@ const state = {
   mockOrders: storedState.mockOrders,
   mockLedger: storedState.mockLedger
 };
+
+let speechRecognition = null;
+let activeSpeechText = "";
+let suppressVoiceClick = false;
 
 function persist() {
   window.XiabiMockStore.persistAppState(state);
@@ -237,6 +243,15 @@ function tabbar(active) {
 
 function currentQuestion() {
   return questions[Math.min(state.answers.length, questions.length - 1)];
+}
+
+function getSpeechRecognition() {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  return Recognition ? new Recognition() : null;
+}
+
+function speechSupported() {
+  return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 }
 
 function titleLines() {
@@ -382,7 +397,7 @@ function renderCall() {
     <div class="voice-bars"><i></i><i></i><i></i></div>
     <img class="call-avatar" src="${ASSETS.callAvatar}" alt="智多星" />
     <div class="assistant-name">智多星</div>
-    <div class="assistant-state">${q.stage}</div>
+    <div class="assistant-state">${state.holding ? "正在听你说话" : q.stage}</div>
     <div class="dots">●●●</div>
     <div class="question-card">
       <div class="question-label">智多星正在提问</div>
@@ -399,6 +414,11 @@ function renderCall() {
       </div>
       ${enough ? `<button class="ready-mini" data-go="confirm">信息够了，查看整理结果</button>` : ""}
     </div>
+    ${(state.voiceTranscript || state.voiceError) ? `
+      <div class="speech-live ${state.voiceError ? "error" : ""}">
+        ${state.voiceError || `我听到：${state.voiceTranscript}`}
+      </div>
+    ` : ""}
     ${state.inputMode === "voice" ? `
       <div class="voice-controls">
         <div class="call-actions">
@@ -422,6 +442,7 @@ function renderCall() {
 }
 
 function renderMicSheet() {
+  const unsupported = !speechSupported();
   return `
     <div class="sheet-mask" data-action="close-sheet"></div>
     <div class="bottom-sheet">
@@ -430,7 +451,7 @@ function renderMicSheet() {
         <div class="sheet-icon">麦</div>
         <div>
           <div class="sheet-title">麦克风权限没有开启</div>
-          <div class="sheet-desc">开启后才能按住说话。你也可以先切换打字模式。</div>
+          <div class="sheet-desc">${state.voiceError || (unsupported ? "当前浏览器不支持直接语音转文字，请先改用打字模式。" : "开启后才能按住说话。你也可以先切换打字模式。")}</div>
         </div>
       </div>
       <div class="sheet-note">系统弹窗拒绝后，需要到设置里重新开启。</div>
@@ -890,6 +911,71 @@ function addAnswer(value) {
   render();
 }
 
+function startVoiceInput() {
+  if (state.holding) return;
+  state.voiceError = "";
+  state.voiceTranscript = "";
+  activeSpeechText = "";
+  const recognition = getSpeechRecognition();
+  if (!recognition) {
+    state.showMicSheet = true;
+    state.voiceError = "当前浏览器不支持语音转文字，请先切换打字模式。";
+    render();
+    return;
+  }
+  speechRecognition = recognition;
+  recognition.lang = "zh-CN";
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+  recognition.onresult = (event) => {
+    let text = "";
+    for (let index = event.resultIndex; index < event.results.length; index += 1) {
+      text += event.results[index][0].transcript;
+    }
+    activeSpeechText = text.trim();
+    state.voiceTranscript = activeSpeechText;
+    if (state.route === "call") render();
+  };
+  recognition.onerror = (event) => {
+    const reason = event.error === "not-allowed" ? "没有麦克风权限，请允许后再试。" : "这次没有听清楚，可以再按住说一遍。";
+    state.voiceError = reason;
+    state.holding = false;
+    if (state.route === "call") render();
+  };
+  recognition.onend = () => {
+    state.holding = false;
+    if (activeSpeechText) {
+      const answer = activeSpeechText;
+      activeSpeechText = "";
+      state.voiceTranscript = "";
+      addAnswer(answer);
+      return;
+    }
+    if (!state.voiceError) state.voiceError = "没有识别到内容，可以再按住说一遍。";
+    if (state.route === "call") render();
+  };
+  try {
+    state.holding = true;
+    render();
+    recognition.start();
+  } catch (error) {
+    state.holding = false;
+    state.voiceError = "语音入口启动失败，请再试一次或切换打字模式。";
+    render();
+  }
+}
+
+function stopVoiceInput() {
+  if (!speechRecognition) return;
+  try {
+    speechRecognition.stop();
+  } catch (error) {
+    state.holding = false;
+    render();
+  }
+}
+
 function generateLetter(claimed, options = {}) {
   state.letter = state.letter || buildLetter();
   state.letter.claimed = !!claimed;
@@ -914,6 +1000,25 @@ function applyRemoteLetter(remoteLetter) {
   state.pendingLetter = !state.letter.claimed;
   persist();
 }
+
+document.addEventListener("pointerdown", (event) => {
+  const voiceTarget = event.target.closest('[data-action="voice-answer"]');
+  if (!voiceTarget) return;
+  event.preventDefault();
+  suppressVoiceClick = true;
+  startVoiceInput();
+});
+
+document.addEventListener("pointerup", (event) => {
+  const voiceTarget = event.target.closest('[data-action="voice-answer"]');
+  if (!voiceTarget && !state.holding) return;
+  event.preventDefault();
+  stopVoiceInput();
+});
+
+document.addEventListener("pointercancel", () => {
+  stopVoiceInput();
+});
 
 document.addEventListener("click", async (event) => {
   const goTarget = event.target.closest("[data-go]");
@@ -976,7 +1081,11 @@ document.addEventListener("click", async (event) => {
     persist();
     go("call");
   } else if (action === "voice-answer") {
-    addAnswer();
+    if (suppressVoiceClick) {
+      suppressVoiceClick = false;
+      return;
+    }
+    startVoiceInput();
   } else if (action === "text-mode") {
     if (homePage.text_mode_enabled === false) return;
     state.inputMode = "text";
