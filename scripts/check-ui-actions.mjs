@@ -98,6 +98,16 @@ const requiredMarkers = [
     file: "server/src/routes/sms.ts",
     marker: "smsSendFailedMessage",
     message: "SMS provider errors must be mapped to user-facing copy"
+  },
+  {
+    file: "server/src/routes/admin.ts",
+    marker: "requireOwnerOrFail",
+    message: "high-risk admin mutations must require owner role"
+  },
+  {
+    file: "h5/admin.js",
+    marker: "canAdminWrite",
+    message: "admin UI must hide or block owner-only controls for non-owner roles"
   }
 ];
 

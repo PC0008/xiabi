@@ -698,6 +698,13 @@ function requireAdminOrFail(c: any, admin: typeof adminUsers.$inferSelect | null
   return null;
 }
 
+function requireOwnerOrFail(c: any, admin: typeof adminUsers.$inferSelect | null) {
+  const denied = requireAdminOrFail(c, admin);
+  if (denied) return denied;
+  if (admin!.role !== "owner") return fail(c, "admin_permission_denied", "当前账号没有权限执行这个操作。", 403);
+  return null;
+}
+
 export const adminRoutes = new Hono()
   .post("/login", async (c) => {
     const body = await readJson<AdminLoginBody>(c);
@@ -785,7 +792,8 @@ export const adminRoutes = new Hono()
   })
   .patch("/config", async (c) => {
     const admin = await requireAdmin(c);
-    if (!admin) return fail(c, "not_authenticated", "请先登录后台。", 401);
+    const denied = requireOwnerOrFail(c, admin);
+    if (denied) return denied;
     const body = await readJson<AdminConfigBody>(c);
     const updates: Partial<Record<ConfigScope, unknown>> = {};
     if (body.homeConfig) updates.home = body.homeConfig;
@@ -803,9 +811,9 @@ export const adminRoutes = new Hono()
     const beforeConfig = await getAdminConfig(db) as Record<string, unknown>;
     const auditDiff = buildConfigAuditDiff(beforeConfig, sanitized);
     for (const [scope, data] of Object.entries(sanitized)) {
-      await upsertConfigScope(db, scope as ConfigScope, data, admin.id);
+      await upsertConfigScope(db, scope as ConfigScope, data, admin!.id);
     }
-    await logAdmin(admin.id, "config.update", "app_config", { scopes: Object.keys(sanitized), ...auditDiff });
+    await logAdmin(admin!.id, "config.update", "app_config", { scopes: Object.keys(sanitized), ...auditDiff });
     return ok(c, await getAdminConfig(db));
   })
   .get("/dashboard", async (c) => {
@@ -955,7 +963,7 @@ export const adminRoutes = new Hono()
   })
   .post("/tasks/:id/retry", async (c) => {
     const admin = await requireAdmin(c);
-    const denied = requireAdminOrFail(c, admin);
+    const denied = requireOwnerOrFail(c, admin);
     if (denied) return denied;
     const id = c.req.param("id");
     const [task] = await db.select().from(generationTasks).where(and(eq(generationTasks.tenantId, TENANT_ID), eq(generationTasks.id, id))).limit(1);
@@ -1037,7 +1045,7 @@ export const adminRoutes = new Hono()
   })
   .post("/orders/:id/reconcile", async (c) => {
     const admin = await requireAdmin(c);
-    const denied = requireAdminOrFail(c, admin);
+    const denied = requireOwnerOrFail(c, admin);
     if (denied) return denied;
     const [order] = await db
       .select()
@@ -1065,7 +1073,7 @@ export const adminRoutes = new Hono()
   })
   .post("/orders/:id/rebuild-entitlement", async (c) => {
     const admin = await requireAdmin(c);
-    const denied = requireAdminOrFail(c, admin);
+    const denied = requireOwnerOrFail(c, admin);
     if (denied) return denied;
     const [order] = await db
       .select()
@@ -1149,7 +1157,7 @@ export const adminRoutes = new Hono()
   })
   .post("/payment-events/:id/reprocess", async (c) => {
     const admin = await requireAdmin(c);
-    const denied = requireAdminOrFail(c, admin);
+    const denied = requireOwnerOrFail(c, admin);
     if (denied) return denied;
     const id = c.req.param("id");
     const [event] = await db.select().from(paymentWebhookEvents).where(and(eq(paymentWebhookEvents.tenantId, TENANT_ID), eq(paymentWebhookEvents.id, id))).limit(1);

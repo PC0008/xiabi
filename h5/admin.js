@@ -180,6 +180,10 @@ function listPath(path, status, pageKey = "") {
   return params.toString() ? `${path}?${params}` : path;
 }
 
+function canAdminWrite() {
+  return adminState.adminUser?.role === "owner";
+}
+
 function formatDate(value) {
   return value ? new Date(value).toLocaleString() : "-";
 }
@@ -354,7 +358,7 @@ function layout(content) {
           <div class="top-actions">
             <span class="pill">tenant_id: main</span>
       ${adminState.adminUser ? `<span class="pill">${h(adminState.adminUser.displayName || adminState.adminUser.username)}</span>` : ""}
-            <button class="secondary" data-action="save">保存配置</button>
+            ${canAdminWrite() ? `<button class="secondary" data-action="save">保存配置</button>` : `<button class="secondary disabled" disabled>只读账号</button>`}
             <button class="ghost" data-action="preview-user">查看用户端</button>
             <button class="ghost" data-action="admin-logout">退出</button>
           </div>
@@ -775,7 +779,7 @@ function renderTasks() {
     formatDate(item.updatedAt || item.createdAt),
     actionCell(`
       <button class="mini-action" data-action="show-detail" data-detail-type="tasks" data-detail-id="${h(item.id)}">详情</button>
-      ${item.status === "failed" ? `<button class="mini-action warn-action" data-action="retry-task" data-task-id="${h(item.id)}">重试</button>` : ""}
+      ${canAdminWrite() && item.status === "failed" ? `<button class="mini-action warn-action" data-action="retry-task" data-task-id="${h(item.id)}">重试</button>` : ""}
     `)
   ]);
   const controls = statusFilter("tasksStatus", adminState.filters.tasksStatus, [["", "全部状态"], ["queued", "排队中"], ["running", "生成中"], ["succeeded", "已完成"], ["failed", "失败"]]);
@@ -793,8 +797,8 @@ function renderOrders() {
     item.providerTransactionId || item.providerOrderNo || "-",
     actionCell(`
       <button class="mini-action" data-action="show-detail" data-detail-type="orders" data-detail-id="${h(item.id)}">详情</button>
-      ${item.status === "pending" ? `<button class="mini-action" data-action="reconcile-order" data-order-id="${h(item.id)}">查单</button>` : ""}
-      ${item.status === "paid" ? `<button class="mini-action" data-action="repair-order-entitlement" data-order-id="${h(item.id)}">补权益</button>` : ""}
+      ${canAdminWrite() && item.status === "pending" ? `<button class="mini-action" data-action="reconcile-order" data-order-id="${h(item.id)}">查单</button>` : ""}
+      ${canAdminWrite() && item.status === "paid" ? `<button class="mini-action" data-action="repair-order-entitlement" data-order-id="${h(item.id)}">补权益</button>` : ""}
     `)
   ]);
   const controls = statusFilter("ordersStatus", adminState.filters.ordersStatus, [["", "全部状态"], ["pending", "待支付"], ["paid", "已支付"], ["payment_failed", "支付失败"], ["closed", "已关闭"], ["refunded", "已退款"]]);
@@ -880,7 +884,7 @@ function renderPaymentEvents() {
     formatDate(item.createdAt),
     actionCell(`
       <button class="mini-action" data-action="show-detail" data-detail-type="payment-events" data-detail-id="${h(item.id)}">详情</button>
-      ${item.status === "failed" ? `<button class="mini-action warn-action" data-action="reprocess-payment-event" data-event-id="${h(item.id)}">重处理</button>` : ""}
+      ${canAdminWrite() && item.status === "failed" ? `<button class="mini-action warn-action" data-action="reprocess-payment-event" data-event-id="${h(item.id)}">重处理</button>` : ""}
     `)
   ]);
   const controls = statusFilter("paymentEventsStatus", adminState.filters.paymentEventsStatus, [["", "全部状态"], ["received", "已接收"], ["processed", "已处理"], ["failed", "失败"]]);
@@ -1074,7 +1078,7 @@ function buildDetailHtml(type, data) {
         ["错误码", task.errorCode || "-"],
         ["错误信息", task.errorMessage || "-"]
       ]),
-      task.status === "failed" ? `<button class="primary" data-action="retry-task" data-task-id="${h(task.id)}">重试生成</button>` : "",
+      canAdminWrite() && task.status === "failed" ? `<button class="primary" data-action="retry-task" data-task-id="${h(task.id)}">重试生成</button>` : "",
       detailSection("关联信件", [["标题", data.letter?.title || "-"], ["状态", data.letter?.status || "-"]]),
       renderJson({ input: task.input, progress: task.progress })
     ].join("");
@@ -1092,8 +1096,8 @@ function buildDetailHtml(type, data) {
         ["关联信件", shortId(order.letterId)]
       ]),
       `<div class="detail-actions">
-        ${order.status === "pending" ? `<button class="primary" data-action="reconcile-order" data-order-id="${h(order.id)}">查单</button>` : ""}
-        ${order.status === "paid" ? `<button class="secondary" data-action="repair-order-entitlement" data-order-id="${h(order.id)}">补发权益</button>` : ""}
+        ${canAdminWrite() && order.status === "pending" ? `<button class="primary" data-action="reconcile-order" data-order-id="${h(order.id)}">查单</button>` : ""}
+        ${canAdminWrite() && order.status === "paid" ? `<button class="secondary" data-action="repair-order-entitlement" data-order-id="${h(order.id)}">补发权益</button>` : ""}
       </div>`,
       detailMiniTable("权益流水", ["流水ID", "类型", "状态", "时间"], (data.entitlements || []).map((item) => [shortId(item.id), item.type, item.status, formatDate(item.createdAt)])),
       detailMiniTable("回调事件", ["事件ID", "状态", "错误", "时间"], (data.events || []).map((item) => [shortId(item.id), item.status, item.errorMessage || "-", formatDate(item.createdAt)]))
@@ -1113,7 +1117,7 @@ function buildDetailHtml(type, data) {
         ["订单", shortId(event.orderId)],
         ["错误", event.errorMessage || "-"]
       ]),
-      event.status === "failed" ? `<div class="detail-actions"><button class="primary" data-action="reprocess-payment-event" data-event-id="${h(event.id)}">重新处理回调</button></div>` : "",
+      canAdminWrite() && event.status === "failed" ? `<div class="detail-actions"><button class="primary" data-action="reprocess-payment-event" data-event-id="${h(event.id)}">重新处理回调</button></div>` : "",
       renderJson(event.payload || {})
     ].join("");
   }
@@ -1241,6 +1245,10 @@ document.addEventListener("click", async (event) => {
     adminState.loginPassword = "";
     render();
   } else if (action === "save") {
+    if (!canAdminWrite()) {
+      showToast("当前账号没有权限保存配置");
+      return;
+    }
     try {
       await window.XiabiStore.saveAdminConfig({
         homeConfig: adminState.homeConfig,
@@ -1277,6 +1285,10 @@ document.addEventListener("click", async (event) => {
   } else if (action === "show-detail") {
     await openDetail(actionTarget.dataset.detailType, actionTarget.dataset.detailId);
   } else if (action === "toggle") {
+    if (!canAdminWrite()) {
+      showToast("当前账号没有权限修改配置");
+      return;
+    }
     actionTarget.classList.toggle("on");
     setPath(actionTarget.dataset.togglePath, actionTarget.classList.contains("on"));
   } else if (action === "select-template") {
@@ -1286,6 +1298,10 @@ document.addEventListener("click", async (event) => {
     adminState.selectedGuideIndex = Number(actionTarget.dataset.guideIndex || 0);
     render();
   } else if (action === "add-guide-stage") {
+    if (!canAdminWrite()) {
+      showToast("当前账号没有权限修改通话引导");
+      return;
+    }
     adminState.guideStages = [
       ...adminState.guideStages,
       {
@@ -1301,6 +1317,10 @@ document.addEventListener("click", async (event) => {
     adminState.selectedGuideIndex = adminState.guideStages.length - 1;
     render();
   } else if (action === "add-template") {
+    if (!canAdminWrite()) {
+      showToast("当前账号没有权限修改模板");
+      return;
+    }
     const nextKey = `custom_template_${Date.now()}`;
     commitTemplates([
       ...getEditableTemplates(),
@@ -1318,6 +1338,10 @@ document.addEventListener("click", async (event) => {
     adminState.selectedTemplateKey = nextKey;
     render();
   } else if (action === "reconcile-order") {
+    if (!canAdminWrite()) {
+      showToast("当前账号没有权限查单补偿");
+      return;
+    }
     try {
       await window.XiabiStore.adminPost(`/orders/${actionTarget.dataset.orderId}/reconcile`);
       await loadAdminLists();
@@ -1327,6 +1351,10 @@ document.addEventListener("click", async (event) => {
       showToast(error.message || "查单失败");
     }
   } else if (action === "repair-order-entitlement") {
+    if (!canAdminWrite()) {
+      showToast("当前账号没有权限补发权益");
+      return;
+    }
     try {
       await window.XiabiStore.adminPost(`/orders/${actionTarget.dataset.orderId}/rebuild-entitlement`);
       await loadAdminLists();
@@ -1336,6 +1364,10 @@ document.addEventListener("click", async (event) => {
       showToast(error.message || "补发权益失败");
     }
   } else if (action === "retry-task") {
+    if (!canAdminWrite()) {
+      showToast("当前账号没有权限重试生成任务");
+      return;
+    }
     try {
       await window.XiabiStore.adminPost(`/tasks/${actionTarget.dataset.taskId}/retry`);
       await loadAdminLists();
@@ -1345,6 +1377,10 @@ document.addEventListener("click", async (event) => {
       showToast(error.message || "任务重试失败");
     }
   } else if (action === "reprocess-payment-event") {
+    if (!canAdminWrite()) {
+      showToast("当前账号没有权限重处理支付回调");
+      return;
+    }
     try {
       await window.XiabiStore.adminPost(`/payment-events/${actionTarget.dataset.eventId}/reprocess`);
       await loadAdminLists();
