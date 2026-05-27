@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 产品档案写入风控补强：公开产品档案接口不再静默截断超长内容，字段超限会返回 `profile_too_long`；同一会话/用户最多保留 20 个活跃产品档案，超出返回 `too_many_profiles`；用户端输入框同步加长度限制，`verify:live` 已覆盖超长档案拒绝。
 - 后台登录输入边界补强：管理员登录账号限制 64 字符、密码限制 256 字符，超限会在哈希和审计写入前返回 `admin_credentials_too_long`；后台登录/改密表单同步加 `maxlength`，`verify:live` 已覆盖超长账号返回 413。
 - 后台登录风控补强：管理员登录新增同账号 15 分钟失败次数限制，连续失败达到阈值后返回 `admin_login_rate_limited`，并写入审计日志；`verify:live` 已加入独立用户名的 401→429 在线回归，不需要真实后台账号即可证明暴力尝试保护生效。
 - 本地权限残留清理：用户端不再把 `h5PhoneBound` / `h5AnnualActive` 当作当前状态 key 定义或从本地恢复；这两个旧 key 只作为 legacy 清理项保留，手机号绑定和年卡权益继续只以服务端 `/session/me` 与 `/entitlements` 为准，`check:ui` 已加入回归检查。

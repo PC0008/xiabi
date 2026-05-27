@@ -62,6 +62,11 @@ const requiredMarkers = [
     file: "server/src/routes/admin.ts",
     marker: "ADMIN_USERNAME_MAX_LENGTH",
     message: "admin login must reject oversized credentials before hashing or auditing"
+  },
+  {
+    file: "server/src/routes/profiles.ts",
+    marker: "MAX_PROFILES_PER_OWNER",
+    message: "public product profile writes must have count and length limits"
   }
 ];
 

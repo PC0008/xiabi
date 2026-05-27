@@ -1241,10 +1241,10 @@ function renderMemory() {
     <div class="memory-card card">
       <div class="section-head"><div class="section-icon">${uiIcon("archive")}</div><div class="section-title">产品档案</div></div>
       <div class="phone-bind-card profile-editor">
-        <div class="field-line"><input data-profile-field="name" value="${h(state.productDraft.name)}" placeholder="产品或服务名称" /></div>
-        <div class="field-line"><input data-profile-field="audience" value="${h(state.productDraft.audience)}" placeholder="主要面向谁" /></div>
-        <div class="field-line"><input data-profile-field="value" value="${h(state.productDraft.value)}" placeholder="解决什么问题" /></div>
-        <textarea class="feedback-input" data-profile-field="proof" placeholder="成交证据、客户反馈或注意事项">${h(state.productDraft.proof)}</textarea>
+        <div class="field-line"><input data-profile-field="name" value="${h(state.productDraft.name)}" placeholder="产品或服务名称" maxlength="80" /></div>
+        <div class="field-line"><input data-profile-field="audience" value="${h(state.productDraft.audience)}" placeholder="主要面向谁" maxlength="120" /></div>
+        <div class="field-line"><input data-profile-field="value" value="${h(state.productDraft.value)}" placeholder="解决什么问题" maxlength="160" /></div>
+        <textarea class="feedback-input" data-profile-field="proof" placeholder="成交证据、客户反馈或注意事项" maxlength="500">${h(state.productDraft.proof)}</textarea>
         <button class="primary-btn" data-action="save-product-profile">${state.productEditingId ? "保存修改" : "新增产品档案"}</button>
         ${state.productEditingId ? `<button class="secondary-btn" data-action="new-product-profile">取消编辑</button>` : ""}
       </div>

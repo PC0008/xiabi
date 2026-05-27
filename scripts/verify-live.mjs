@@ -159,6 +159,16 @@ checks.push(await assertJson(
   (payload) => payload?.error?.code === "feedback_too_long"
 ));
 checks.push(await assertJson(
+  "/api/public/profiles",
+  {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "x".repeat(81), audience: "test", value: "test", proof: "test" })
+  },
+  413,
+  (payload) => payload?.error?.code === "profile_too_long"
+));
+checks.push(await assertJson(
   "/api/public/voice/transcribe",
   { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ text: "测试语音文本" }) },
   200,
