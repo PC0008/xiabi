@@ -13,6 +13,7 @@
 - 验收脚本补强：`verify:live` 覆盖反馈写入、后台改密码未登录保护；`verify:production` 严格模式会要求真实外部链路 verifier 输入，后台账号存在时会读取关键运营列表，短信支持 `XIABI_VERIFY_SMS_CODE` 绑定验证，MiniMax TTS 会校验返回音频资源可访问。
 - 用户端开关闭环补强：用户端 H5 已读取公开配置里的 `system.voice_enabled`；后台关闭语音服务后，通话页会直接降级为打字模式，隐藏/阻止按住说话和切回语音入口。
 - 生成入口开关闭环补强：用户端首页现在同时尊重 `home.generation_entry_enabled` 和 `system.generation_enabled`；后台关闭后端写信服务时，首页按钮会禁用且不会进入通话流程。
+- 短信/导出开关闭环补强：用户端 H5 现在同时尊重 `system.sms_enabled` 和 `system.file_export_enabled`；后台关闭短信后不会继续展示可操作验证码绑定，关闭导出后用户端保留记录但不再提供打印版入口；服务端绑定手机号和导出接口也会按配置真实拒绝。
 - 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式。
 - 仍需真实外部验收输入：后台账号密码、DeepSeek 真实生成开关、真实支付创建/付款环境、可接收短信手机号、MiniMax TTS 开关、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。
 

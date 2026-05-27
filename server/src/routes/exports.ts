@@ -3,6 +3,7 @@ import { and, eq, or } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { buckets, entitlementLedger, files, guestSessions, salesLetters } from "@defs";
+import { getAdminConfig } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, parseJson } from "../domain/http";
 
@@ -103,6 +104,11 @@ export const exportRoutes = new Hono()
     if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
     const session = await getCurrentSession(sessionId);
     if (!session) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const config = await getAdminConfig(db);
+    const system = config.system as Record<string, unknown>;
+    if (system.file_export_enabled === false) {
+      return fail(c, "export_disabled", "导出服务暂未开启。", 503);
+    }
     const [letter] = await db
       .select()
       .from(salesLetters)

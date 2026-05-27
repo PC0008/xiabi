@@ -51,7 +51,10 @@ const checks = [
   await assertHttp("/index.html", (text) => text.includes("app.js")),
   await assertHttp("/admin.html", (text) => text.includes("admin.js")),
   await assertHttp("/api/public/config", (text) => text.includes("pricing")),
-  await assertJson("/api/public/config", undefined, 200, (payload) => payload?.data?.system && "voice_enabled" in payload.data.system),
+  await assertJson("/api/public/config", undefined, 200, (payload) => {
+    const system = payload?.data?.system;
+    return system && ["voice_enabled", "sms_enabled", "file_export_enabled"].every((key) => key in system);
+  }),
   await assertJson("/api/public/tasks/not-a-task", undefined, 401, (payload) => payload?.error?.code === "missing_session")
 ];
 

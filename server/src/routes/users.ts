@@ -3,6 +3,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { entitlementLedger, generationTasks, guestSessions, orders, salesLetters, smsCodes, users } from "@defs";
+import { getAdminConfig } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, readJson } from "../domain/http";
 import { sha256 } from "../domain/security";
@@ -31,6 +32,11 @@ export const userRoutes = new Hono()
     const code = String(body.code || "").trim();
     if (!/^1\d{10}$/.test(phone)) return fail(c, "invalid_phone", "请输入正确的手机号。", 400);
     if (!/^\d{6}$/.test(code)) return fail(c, "invalid_code", "请输入 6 位验证码。", 400);
+    const config = await getAdminConfig(db);
+    const system = config.system as Record<string, unknown>;
+    if (system.sms_enabled === false) {
+      return fail(c, "sms_disabled", "短信服务暂未开启。", 503);
+    }
 
     const phoneHash = await sha256(`phone:${phone}`);
     const codeHash = await sha256(`sms:${phone}:${code}`);

@@ -52,6 +52,14 @@ function voiceEnabled() {
   return appSystem.voice_enabled !== false;
 }
 
+function smsEnabled() {
+  return appSystem.sms_enabled !== false;
+}
+
+function exportEnabled() {
+  return appSystem.file_export_enabled !== false;
+}
+
 function generationEnabled() {
   return homePage.generation_entry_enabled !== false && appSystem.generation_enabled !== false;
 }
@@ -166,6 +174,7 @@ const state = {
   phoneMasked: "",
   generationPending: false,
   generationError: "",
+  exportNotice: "",
   paymentNotice: "",
   paymentRefreshing: false,
   phoneInput: "",
@@ -657,6 +666,7 @@ function renderGenerating() {
   ];
   const letterReady = !!state.letter;
   const waitingForLetter = state.generationPending && !letterReady && !state.generationError;
+  const phoneBindingOpen = homePage.phone_bind_enabled !== false && smsEnabled();
   return shell(`
     ${topbar()}
     <img class="generating-hero" src="${ASSETS.generating}" alt="智多星正在整理" />
@@ -670,10 +680,11 @@ function renderGenerating() {
         </div>
       `).join("")}
     </div>
-    <div class="contact-note">${homePage.phone_bind_enabled === false ? "这封信会先保存到你的记录里，后续可以回来领取和导出。" : "手机号仅用于确认首次免费权益、保存销售信和结果提醒，不会公开展示。"}</div>
+    <div class="contact-note">${phoneBindingOpen ? "手机号仅用于确认首次免费权益、保存销售信和结果提醒，不会公开展示。" : "这封信会先保存到你的记录里，后续可以回来领取和导出。"}</div>
+    ${homePage.phone_bind_enabled !== false && !smsEnabled() ? `<div class="contact-note">短信绑定暂未开启，可以先保存并稍后领取。</div>` : ""}
     ${state.generationError ? `<div class="contact-note error-note">${state.generationError}</div><button class="secondary-btn" data-action="generate">重新整理</button>` : ""}
     ${waitingForLetter ? `<button class="primary-btn" disabled>智多星正在写信...</button>` : ""}
-    ${letterReady && homePage.phone_bind_enabled === false ? `
+    ${letterReady && !phoneBindingOpen ? `
       <button class="primary-btn" data-action="skip-phone">保存到我的销售信</button>
     ` : letterReady ? `
       <div class="phone-bind-card card">
@@ -691,19 +702,22 @@ function renderGenerating() {
 }
 
 function renderPhoneBind() {
+  const canBindPhone = smsEnabled();
   return shell(`
     ${topbar()}
     <h1 class="page-title">绑定手机号</h1>
     <p class="page-desc">绑定后，你生成的销售信、订单和权益会保存到同一个账号里，换设备后也能继续找回。</p>
     <div class="phone-bind-card card">
       <div class="field-line"><input id="phoneInput" inputmode="tel" value="${h(state.phoneInput)}" placeholder="输入手机号" /></div>
-      <div class="code-line">
-        <input id="smsCode" inputmode="numeric" value="${h(state.smsCode)}" placeholder="验证码" />
-        <button class="secondary-btn inline-btn" data-action="send-sms">发送验证码</button>
-      </div>
+      ${canBindPhone ? `
+        <div class="code-line">
+          <input id="smsCode" inputmode="numeric" value="${h(state.smsCode)}" placeholder="验证码" />
+          <button class="secondary-btn inline-btn" data-action="send-sms">发送验证码</button>
+        </div>
+      ` : `<div class="small-note">短信绑定暂未开启，请稍后再来绑定。</div>`}
       ${state.smsNotice ? `<div class="small-note">${h(state.smsNotice)}</div>` : ""}
     </div>
-    <button class="primary-btn" data-action="bind-phone">绑定手机号</button>
+    <button class="primary-btn ${canBindPhone ? "" : "disabled"}" ${canBindPhone ? `data-action="bind-phone"` : ""}>${canBindPhone ? "绑定手机号" : "短信绑定暂未开启"}</button>
     <button class="secondary-btn" data-go="profile">返回我的</button>
   `, { tab: "profile" });
 }
@@ -721,7 +735,8 @@ function renderLetter(claimedOverride) {
     `, { tab: "records" });
   }
   const claimed = claimedOverride ?? isLetterComplete(letter);
-  const phoneEnabled = homePage.phone_bind_enabled !== false;
+  const phoneEnabled = homePage.phone_bind_enabled !== false && smsEnabled();
+  const canExport = exportEnabled();
   return shell(`
     ${topbar()}
     <div class="letter-head">
@@ -749,7 +764,7 @@ function renderLetter(claimedOverride) {
     </article>
     ${claimed ? `
       <div class="letter-actions">
-        <button class="primary-btn" data-action="save-letter">${uiIcon("download", "btn-svg")}保存并带走</button>
+        <button class="primary-btn" data-action="save-letter">${uiIcon("download", "btn-svg")}${canExport ? "保存并带走" : "保存到我的销售信"}</button>
         <div class="rewrite-link" data-go="paywall">${uiIcon("refresh", "link-svg")}让智多星再写一版</div>
       </div>
     ` : ""}
@@ -796,6 +811,7 @@ function renderExport() {
   }
   const annualActive = hasAnnualEntitlement();
   const canPayAnnual = paymentOpen() && commerceConfig.annual_enabled !== false;
+  const canExport = exportEnabled();
   return shell(`
     ${topbar()}
     <div class="tag">${uiIcon("pdf", "tag-svg")} 打印版带走</div>
@@ -816,8 +832,9 @@ function renderExport() {
         <div class="pdf-info-desc">导出后可以发给客户、保存到手机，或交给团队继续跟进。</div>
       </div>
     </div>
+    ${!canExport && state.exportNotice ? `<div class="contact-note">${h(state.exportNotice)}</div>` : ""}
     <div class="export-actions">
-      <button class="primary-btn" data-action="export-pdf">${uiIcon("download", "btn-svg")}打开打印版</button>
+      ${canExport ? `<button class="primary-btn" data-action="export-pdf">${uiIcon("download", "btn-svg")}打开打印版</button>` : `<button class="primary-btn disabled">${uiIcon("download", "btn-svg")}导出暂未开启</button>`}
       <button class="secondary-btn" data-go="records">先保存到我的销售信</button>
     </div>
     ${commerceConfig.pdf_upsell_enabled !== false && commerceConfig.annual_enabled !== false ? `
@@ -836,7 +853,7 @@ function renderExport() {
     ` : `
       <button class="secondary-btn annual-pay-btn" data-action="annual-pay">${uiIcon("crown", "btn-svg")}微信支付开通年卡 ${money(commerceConfig.annual)}/年</button>
     `}
-    <div class="pay-safe">${paymentOpen() ? "支付安全由微信支付保障" : "支付入口维护中，打印版导出不受影响"}</div>
+    <div class="pay-safe">${!canExport ? "打印版导出暂未开启，销售信会继续保存在记录里" : paymentOpen() ? "支付安全由微信支付保障" : "支付入口维护中，打印版导出不受影响"}</div>
     ` : ""}
   `);
 }
@@ -1542,6 +1559,11 @@ document.addEventListener("click", async (event) => {
         if (state.route === "generating") render();
       });
   } else if (action === "bind-phone") {
+    if (!smsEnabled()) {
+      state.smsNotice = "短信绑定暂未开启，请稍后再试。";
+      render();
+      return;
+    }
     try {
       const result = await window.XiabiMockStore.bindPhone(state.phoneInput, state.smsCode);
       state.phoneBound = true;
@@ -1571,6 +1593,11 @@ document.addEventListener("click", async (event) => {
     persist();
     go(shouldClaimLetter ? "letter" : "profile");
   } else if (action === "send-sms") {
+    if (!smsEnabled()) {
+      state.smsNotice = "短信绑定暂未开启，请稍后再试。";
+      render();
+      return;
+    }
     try {
       const result = await window.XiabiMockStore.sendSmsCode(state.phoneInput);
       state.smsNotice = `验证码已发送到 ${result.phoneMasked}`;
@@ -1619,6 +1646,11 @@ document.addEventListener("click", async (event) => {
       render();
     }
   } else if (action === "save-letter") {
+    if (!exportEnabled()) {
+      state.exportNotice = "打印版导出暂未开启，这封信已经保存在你的记录里。";
+    } else {
+      state.exportNotice = "";
+    }
     go("export");
   } else if (action === "annual-pay") {
     if (!paymentOpen() || commerceConfig.annual_enabled === false) return;
@@ -1636,6 +1668,12 @@ document.addEventListener("click", async (event) => {
       render();
     }
   } else if (action === "export-pdf") {
+    if (!exportEnabled()) {
+      state.exportNotice = "打印版导出暂未开启，请稍后再试。";
+      render();
+      return;
+    }
+    state.exportNotice = "";
     if (!state.letter) {
       state.generationError = "还没有可导出的销售信。";
       go("generating");
