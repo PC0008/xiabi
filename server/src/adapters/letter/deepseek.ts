@@ -92,7 +92,7 @@ export async function generateSalesLetterWithDeepSeek(input: SalesLetterInput) {
   const apiKey = secret.get("DEEPSEEK_API_KEY");
   if (!apiKey) return null;
 
-  const model = vars.get("DEEPSEEK_MODEL") || "deepseek-v4-flash";
+  const model = vars.get("DEEPSEEK_MODEL") || "deepseek-v4-pro";
   const baseUrl = (vars.get("DEEPSEEK_BASE_URL") || "https://api.deepseek.com").replace(/\/+$/, "");
   const messages: DeepSeekMessage[] = [
     {

@@ -9,7 +9,7 @@
 - 当前按手机端响应式 H5/Web + H5 总后台推进，部署目标是 Edgespark.dev。
 - `h5/` 是当前有效开发目录；`pages/`、`cloudfunctions/` 只作为历史参考。
 - 用户端统一称呼“智多星”，用户端不暴露 AI、大模型、prompt、智能体等技术概念。
-- 写信生成走 DeepSeek；语音互动、输入和智多星说话声音走 MiniMax 接入位。
+- 写信生成走 DeepSeek `deepseek-v4-pro`；语音互动、输入和智多星说话声音走 MiniMax 接入位。
 - 微信支付、短信、语音、DeepSeek Key 都只能放服务端密钥，不进入前端文件。
 
 ### 当前线上地址
