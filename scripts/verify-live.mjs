@@ -127,6 +127,12 @@ checks.push(await assertJson(
   (payload) => payload?.data?.submitted === true
 ));
 checks.push(await assertJson(
+  "/api/public/feedback",
+  { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ category: "production-smoke", content: "x".repeat(2001) }) },
+  413,
+  (payload) => payload?.error?.code === "feedback_too_long"
+));
+checks.push(await assertJson(
   "/api/public/voice/transcribe",
   { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ text: "测试语音文本" }) },
   200,
