@@ -25,10 +25,12 @@
 - MiniMax TTS 真实验收通过：线上已配置 `MINIMAX_TTS_ENDPOINT=https://api.minimax.io/v1/t2a_v2`、`MINIMAX_TTS_OUTPUT_FORMAT=hex`、`MINIMAX_TTS_MODEL=speech-2.8-hd`，`XIABI_VERIFY_TTS=1 npm run verify:production` 返回 `audio/mp3`，traceId `06665fa1c520e487c74987a4296b424a`。
 - DeepSeek 真实写信验收通过：`XIABI_VERIFY_DEEPSEEK=1 npm run verify:production` 已在线上生成任务 `9b8d26e3-7693-4fea-9bff-519a73294201` 和信件 `60ca6afd-e328-4a0b-b88f-e293a8c52848`。
 - DeepSeek 二次线上验收通过：`XIABI_VERIFY_DEEPSEEK=1 npm run verify:production` 已再次生成任务 `98055e89-2479-4168-8dbe-330bc3996f3d` 和信件 `7eb8602f-ee74-4942-b86a-1ad18f4ebb78`。
-- 微信支付创建验收当前被后台业务开关阻止：`XIABI_VERIFY_PAYMENT_CREATE=1 npm run verify:production` 返回 403 `支付入口暂未开放。`；需要后台打开 `payment_enabled` 后再做真实小额支付、回调和权益闭环。
+- 微信支付创建验收已越过后台开关和本地配置检查，真实请求到微信支付；当前微信侧返回 `商户号该产品权限未开通，请前往商户平台>产品中心检查后重试。`，需要在微信商户平台开通 H5 支付产品或改走微信内 JSAPI 支付并补 `WECHAT_MP_APP_SECRET` 后复验。
+- 微信支付回调验签补强：平台公钥不再是唯一方式；如果未配置 `WECHAT_PAY_PLATFORM_PUBLIC_KEY`，服务端会用商户号、商户证书序列号、商户私钥和 API v3 Key 调用微信 `/v3/certificates` 自动拉取平台证书验签。
+- 支付默认开关调整：默认配置已改为开放支付入口；后台仍可随时关闭 `payment_enabled`，微信支付凭据不完整时仍会 fail-fast，不创建脏订单。
 - 交付文档补强：新增根 `README.md` 和 `docs/生产外部凭据交接清单.md`，明确线上地址、常用命令、验收分级和真实外部联调所需凭据。
-- 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run check:ui`、`npm run verify:journey`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式。
-- 仍需真实外部验收输入：后台账号密码、DeepSeek 真实生成开关、真实支付创建/付款环境、可接收短信手机号、MiniMax TTS 开关、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。
+- 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run check:ui`、`npm run verify:journey`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式；线上公开配置已确认 `payment_enabled`、`annual_enabled`、`single_enabled`、`system.payment_enabled` 均为 `true`。
+- 仍需真实外部验收输入：后台账号密码、微信支付产品权限或微信内 JSAPI 授权配置、真实付款环境、可接收短信手机号、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。
 
 ## 当前状态
 
@@ -94,7 +96,7 @@
 - 用户端订单页已识别 `payment_failed`，显示“支付未完成”并提供“重新支付”入口；后台概览也会把支付未完成订单列为待处理项。
 - 短信验证码已增加错码次数控制：同一验证码连续错误会累加 `attempts`，达到上限后锁定并要求重新获取，避免无限撞码。
 - 新增 `npm run verify:production` 强验收脚本：可按环境变量显式触发后台自检严格校验、DeepSeek 真实生成、微信 H5 下单拉起、阿里云短信发送、MiniMax TTS 和服务端 ASR 转写验证；默认不主动触发会产生费用的外部调用。
-- `WECHAT_PAY_PLATFORM_PUBLIC_KEY`、`VOICE_ASR_*` 继续作为可选生产接入槽读取，避免 Edgespark 把未配置的可选项判定为部署必填；是否缺项由后台系统自检和 `verify:production` 严格模式判断。
+- `WECHAT_PAY_PLATFORM_PUBLIC_KEY`、`WECHAT_PAY_PLATFORM_CERT_SERIAL_NO`、`VOICE_ASR_*` 继续作为可选生产接入槽读取，避免 Edgespark 把未配置的可选项判定为部署必填；是否缺项由后台系统自检和 `verify:production` 严格模式判断。
 
 ### 本轮验证
 
@@ -125,16 +127,16 @@
 ### 还没完成 / 风险
 
 - MiniMax 官方公开文档未列出独立 ASR/语音转文字接口；如果必须“输入也走 MiniMax”，需要用户提供 MiniMax 对应语音识别接口文档或后台开通说明，或配置可用的 `VOICE_ASR_ENDPOINT`。
-- 微信 H5 支付适合普通手机浏览器；如果用户在微信内打开 H5，正式付款通常还需要 JSAPI + openid 授权链路。
-- 微信支付回调验签需要配置 `WECHAT_PAY_PLATFORM_PUBLIC_KEY`，否则正式回调会失败。
+- 微信 H5 支付适合普通手机浏览器，但当前商户号的 H5 支付产品权限未开通；如果用户在微信内打开 H5，正式付款需要 JSAPI + openid 授权链路和 `WECHAT_MP_APP_SECRET`。
+- 微信支付回调验签已支持自动拉取平台证书；如果商户证书/API v3 Key 无效，正式回调仍会失败。
 - 阿里云短信发送位已实现，但尚未用真实手机号发短信验证，避免产生费用。
 - 导出目前不是二进制 PDF 文件，而是服务端可打印 HTML；用户可以在浏览器内保存为 PDF，如需服务端直接生成 PDF 还要继续接 PDF 渲染能力。
 - 后台还有更细的筛选、分页、账户权限和审计 diff 可继续补强。
 
 ### 下一步
 
-1. 配置 `WECHAT_PAY_PLATFORM_PUBLIC_KEY`，并确认 H5 支付还是微信内 JSAPI 支付。
-2. 用后台打开 `payment_enabled` 后，做一笔真实小额支付闭环验证：下单、跳转、回调、订单 paid、权益发放。
+1. 确认 H5 支付还是微信内 JSAPI 支付；微信内 JSAPI 需要补 `WECHAT_MP_APP_SECRET`。
+2. 做一笔真实小额支付闭环验证：下单、跳转、回调、订单 paid、权益发放。
 3. 用真实手机号验证阿里云短信发送与绑定流程。
 4. 继续补后台筛选分页、管理员改密码/角色权限、审计 diff 和服务端直出 PDF。
 5. 如果用户坚持语音输入也必须走 MiniMax，需要 MiniMax ASR/转写接口文档或已开通能力说明。

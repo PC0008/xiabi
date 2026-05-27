@@ -31,12 +31,73 @@ export type NormalizedWechatWebhook = {
   raw: unknown;
 };
 
+type WechatCertificateResponse = {
+  data?: Array<{
+    serial_no?: string;
+    encrypt_certificate?: {
+      algorithm?: string;
+      nonce?: string;
+      associated_data?: string;
+      ciphertext?: string;
+    };
+  }>;
+  message?: string;
+  code?: string;
+};
+
+const platformCertificateCache = new Map<string, string>();
+
 function pemToArrayBuffer(pem: string) {
   const base64 = pem.replace(/-----BEGIN [^-]+-----/g, "").replace(/-----END [^-]+-----/g, "").replace(/\s/g, "");
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes.buffer;
+}
+
+function readDerTlv(bytes: Uint8Array, offset: number) {
+  if (offset >= bytes.length) throw new Error("Invalid DER offset.");
+  const tag = bytes[offset];
+  const firstLengthByte = bytes[offset + 1];
+  if (firstLengthByte === undefined) throw new Error("Invalid DER length.");
+  let length = firstLengthByte;
+  let headerLength = 2;
+  if (firstLengthByte & 0x80) {
+    const lengthBytes = firstLengthByte & 0x7f;
+    if (!lengthBytes || lengthBytes > 4) throw new Error("Unsupported DER length.");
+    length = 0;
+    for (let i = 0; i < lengthBytes; i += 1) {
+      length = (length << 8) + bytes[offset + 2 + i];
+    }
+    headerLength += lengthBytes;
+  }
+  const valueStart = offset + headerLength;
+  const end = valueStart + length;
+  if (end > bytes.length) throw new Error("Invalid DER value.");
+  return { tag, start: offset, valueStart, end };
+}
+
+function extractSpkiFromCertificateDer(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer);
+  const cert = readDerTlv(bytes, 0);
+  if (cert.tag !== 0x30) throw new Error("Invalid X.509 certificate.");
+  const tbs = readDerTlv(bytes, cert.valueStart);
+  if (tbs.tag !== 0x30) throw new Error("Invalid X.509 certificate body.");
+  let offset = tbs.valueStart;
+  let item = readDerTlv(bytes, offset);
+  if (item.tag === 0xa0) offset = item.end;
+  for (let i = 0; i < 5; i += 1) {
+    item = readDerTlv(bytes, offset);
+    offset = item.end;
+  }
+  const spki = readDerTlv(bytes, offset);
+  if (spki.tag !== 0x30) throw new Error("Invalid certificate public key.");
+  return bytes.slice(spki.start, spki.end).buffer;
+}
+
+function pemToPublicKeyArrayBuffer(pem: string) {
+  const der = pemToArrayBuffer(pem);
+  return /BEGIN CERTIFICATE/.test(pem) ? extractSpkiFromCertificateDer(der) : der;
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer) {
@@ -70,6 +131,15 @@ function buildAuthHeader(input: { mchId: string; serialNo: string; nonce: string
   return `WECHATPAY2-SHA256-RSA2048 mchid="${input.mchId}",nonce_str="${input.nonce}",signature="${input.signature}",timestamp="${input.timestamp}",serial_no="${input.serialNo}"`;
 }
 
+function wechatApiHeaders(auth: string) {
+  return {
+    "Authorization": auth,
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+    "User-Agent": "xiabi-edgespark/1.0"
+  };
+}
+
 function getMerchantAuthConfig() {
   const mchId = vars.get("WECHAT_PAY_MCH_ID");
   const serialNo = secret.get("WECHAT_PAY_CERT_SERIAL_NO");
@@ -80,17 +150,21 @@ function getMerchantAuthConfig() {
 }
 
 export function getWechatPaymentReadiness() {
+  const merchantAuthReady = !!vars.get("WECHAT_PAY_MCH_ID") && !!secret.get("WECHAT_PAY_CERT_SERIAL_NO") && !!secret.get("WECHAT_PAY_PRIVATE_KEY");
+  const apiV3KeyReady = !!secret.get("WECHAT_PAY_API_V3_KEY");
+  const platformVerifierReady = !!secret.get("WECHAT_PAY_PLATFORM_PUBLIC_KEY" as any) || (merchantAuthReady && apiV3KeyReady);
   const items = {
     appId: !!vars.get("WECHAT_PAY_APP_ID"),
     mchId: !!vars.get("WECHAT_PAY_MCH_ID"),
     privateKey: !!secret.get("WECHAT_PAY_PRIVATE_KEY"),
     certSerialNo: !!secret.get("WECHAT_PAY_CERT_SERIAL_NO"),
-    apiV3Key: !!secret.get("WECHAT_PAY_API_V3_KEY"),
+    apiV3Key: apiV3KeyReady,
     platformPublicKey: !!secret.get("WECHAT_PAY_PLATFORM_PUBLIC_KEY" as any),
+    platformCertificateAutoFetch: merchantAuthReady && apiV3KeyReady,
     notifyUrl: !!(vars.get("PAYMENT_NOTIFY_URL") || vars.get("PUBLIC_BASE_URL"))
   };
   return {
-    configured: Object.values(items).every(Boolean),
+    configured: items.appId && merchantAuthReady && apiV3KeyReady && platformVerifierReady && items.notifyUrl,
     items,
     message: "微信支付、回调验签或回调解密配置还不完整。"
   };
@@ -168,11 +242,7 @@ export async function createWechatPayment(input: CreateWechatPaymentInput) {
   const signature = await signWithMerchantKey(`POST\n${path}\n${timestamp}\n${nonce}\n${body}\n`);
   const response = await fetch(`https://api.mch.weixin.qq.com${path}`, {
     method: "POST",
-    headers: {
-      "Authorization": buildAuthHeader({ mchId: authConfig.mchId, serialNo: authConfig.serialNo, nonce, timestamp, signature }),
-      "Accept": "application/json",
-      "Content-Type": "application/json"
-    },
+    headers: wechatApiHeaders(buildAuthHeader({ mchId: authConfig.mchId, serialNo: authConfig.serialNo, nonce, timestamp, signature })),
     body
   });
   const payload = await response.json().catch(() => ({})) as { h5_url?: string; message?: string; code?: string };
@@ -228,11 +298,7 @@ export async function createWechatJsapiPayment(input: CreateWechatPaymentInput &
   const signature = await signWithMerchantKey(`POST\n${path}\n${timestamp}\n${nonce}\n${body}\n`);
   const response = await fetch(`https://api.mch.weixin.qq.com${path}`, {
     method: "POST",
-    headers: {
-      "Authorization": buildAuthHeader({ mchId: authConfig.mchId, serialNo: authConfig.serialNo, nonce, timestamp, signature }),
-      "Accept": "application/json",
-      "Content-Type": "application/json"
-    },
+    headers: wechatApiHeaders(buildAuthHeader({ mchId: authConfig.mchId, serialNo: authConfig.serialNo, nonce, timestamp, signature })),
     body
   });
   const payload = await response.json().catch(() => ({})) as { prepay_id?: string; message?: string; code?: string };
@@ -277,7 +343,8 @@ export async function queryWechatPaymentByOutTradeNo(providerOrderNo: string) {
     method: "GET",
     headers: {
       "Authorization": buildAuthHeader({ mchId: authConfig.mchId, serialNo: authConfig.serialNo, nonce, timestamp, signature }),
-      "Accept": "application/json"
+      "Accept": "application/json",
+      "User-Agent": "xiabi-edgespark/1.0"
     }
   });
   const payload = await response.json().catch(() => ({})) as WechatOrderQueryResult & { message?: string; code?: string };
@@ -287,14 +354,63 @@ export async function queryWechatPaymentByOutTradeNo(providerOrderNo: string) {
   return { configured: true, transaction: payload };
 }
 
+async function decryptWechatAesGcm(input: { associatedData?: string; nonce: string; ciphertext: string }, apiV3Key: string) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(apiV3Key), "AES-GCM", false, ["decrypt"]);
+  const plain = await crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: new TextEncoder().encode(input.nonce),
+      additionalData: new TextEncoder().encode(input.associatedData || ""),
+      tagLength: 128
+    },
+    key,
+    base64ToArrayBuffer(input.ciphertext)
+  );
+  return new TextDecoder().decode(plain);
+}
+
+async function fetchWechatPlatformCertificate(serial: string) {
+  if (platformCertificateCache.has(serial)) return platformCertificateCache.get(serial) || "";
+  const authConfig = getMerchantAuthConfig();
+  const apiV3Key = secret.get("WECHAT_PAY_API_V3_KEY");
+  if (!authConfig || !apiV3Key) throw new Error("wechat_pay_certificate_fetch_config_missing");
+  const path = "/v3/certificates";
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const nonce = crypto.randomUUID().replace(/-/g, "");
+  const signature = await signWithMerchantKey(`GET\n${path}\n${timestamp}\n${nonce}\n\n`);
+  const response = await fetch(`https://api.mch.weixin.qq.com${path}`, {
+    method: "GET",
+    headers: {
+      "Authorization": buildAuthHeader({ mchId: authConfig.mchId, serialNo: authConfig.serialNo, nonce, timestamp, signature }),
+      "Accept": "application/json",
+      "User-Agent": "xiabi-edgespark/1.0"
+    }
+  });
+  const payload = await response.json().catch(() => ({})) as WechatCertificateResponse;
+  if (!response.ok || !Array.isArray(payload.data)) {
+    throw new Error(payload.message || payload.code || `WeChat Pay certificate request failed: ${response.status}`);
+  }
+  for (const item of payload.data) {
+    const certificate = item.encrypt_certificate;
+    if (!item.serial_no || !certificate?.nonce || !certificate.ciphertext) continue;
+    if (certificate.algorithm && certificate.algorithm !== "AEAD_AES_256_GCM") continue;
+    const pem = await decryptWechatAesGcm({
+      associatedData: certificate.associated_data,
+      nonce: certificate.nonce,
+      ciphertext: certificate.ciphertext
+    }, apiV3Key);
+    platformCertificateCache.set(item.serial_no, pem);
+  }
+  return platformCertificateCache.get(serial) || "";
+}
+
 export async function verifyWechatWebhook(headers: Headers, body: string) {
-  const publicKey = secret.get("WECHAT_PAY_PLATFORM_PUBLIC_KEY" as any);
   const signature = headers.get("wechatpay-signature");
   const timestamp = headers.get("wechatpay-timestamp");
   const nonce = headers.get("wechatpay-nonce");
   const serial = headers.get("wechatpay-serial");
-  if (!publicKey || !signature || !timestamp || !nonce || !serial) {
-    return { verified: false, reason: "wechat_pay_platform_public_key_or_headers_missing" };
+  if (!signature || !timestamp || !nonce || !serial) {
+    return { verified: false, reason: "wechatpay_signature_headers_missing" };
   }
   const timestampSeconds = Number(timestamp);
   if (!Number.isFinite(timestampSeconds) || Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds) > 5 * 60) {
@@ -304,9 +420,14 @@ export async function verifyWechatWebhook(headers: Headers, body: string) {
   if (expectedPlatformSerial && serial !== expectedPlatformSerial) {
     return { verified: false, reason: "wechatpay_serial_mismatch" };
   }
+  const configuredPublicKey = secret.get("WECHAT_PAY_PLATFORM_PUBLIC_KEY" as any);
+  const publicKey = configuredPublicKey || await fetchWechatPlatformCertificate(serial).catch(() => "");
+  if (!publicKey) {
+    return { verified: false, reason: "wechat_pay_platform_public_key_or_certificate_missing" };
+  }
   const key = await crypto.subtle.importKey(
     "spki",
-    pemToArrayBuffer(publicKey),
+    pemToPublicKeyArrayBuffer(publicKey),
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["verify"]

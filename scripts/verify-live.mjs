@@ -24,8 +24,9 @@ async function assertJson(pathname, init, expectedStatus, check) {
   } catch {
     // Keep the raw text for the error below.
   }
-  if (response.status !== expectedStatus) {
-    throw new Error(`${pathname} returned ${response.status}, expected ${expectedStatus}: ${text.slice(0, 160)}`);
+  const expectedStatuses = Array.isArray(expectedStatus) ? expectedStatus : [expectedStatus];
+  if (!expectedStatuses.includes(response.status)) {
+    throw new Error(`${pathname} returned ${response.status}, expected ${expectedStatuses.join(" or ")}: ${text.slice(0, 160)}`);
   }
   if (check && !check(payload, response)) throw new Error(`${pathname} returned unexpected JSON`);
   return { pathname, status: response.status };
@@ -71,7 +72,7 @@ checks.push(await assertJson(
 checks.push(await assertJson(
   "/api/public/orders",
   { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ productType: "single" }) },
-  403,
+  [400, 403],
   (payload) => ["payment_disabled", "missing_letter"].includes(payload?.error?.code)
 ));
 checks.push(await assertJson(

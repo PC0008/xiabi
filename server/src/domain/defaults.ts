@@ -19,7 +19,7 @@ export const defaultPricing = {
   single: 200,
   annual: 2000,
   payment_mode: "wechat",
-  payment_enabled: false,
+  payment_enabled: true,
   annual_enabled: true,
   single_enabled: true,
   pdf_upsell_enabled: true,
@@ -80,7 +80,7 @@ export const defaultTemplates = [
 
 export const defaultSystemConfig = {
   generation_enabled: true,
-  payment_enabled: false,
+  payment_enabled: true,
   sms_enabled: true,
   voice_enabled: true,
   file_export_enabled: true

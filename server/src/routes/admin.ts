@@ -136,6 +136,12 @@ async function buildDiagnostics() {
   const publicBaseUrl = getVar("PUBLIC_BASE_URL");
   const notifyUrl = getVar("PAYMENT_NOTIFY_URL");
   const voiceAsrSecretConfigured = hasSecret("VOICE_ASR_API_KEY") || hasSecret("VOICE_API_KEY");
+  const wechatPlatformVerifierConfigured = hasSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY") || (
+    hasVar("WECHAT_PAY_MCH_ID") &&
+    hasSecret("WECHAT_PAY_PRIVATE_KEY") &&
+    hasSecret("WECHAT_PAY_CERT_SERIAL_NO") &&
+    hasSecret("WECHAT_PAY_API_V3_KEY")
+  );
   const [paidOrders, entitlements, failedPaymentEvents, failedTasks] = await Promise.all([
     db.select().from(orders).where(and(eq(orders.tenantId, TENANT_ID), eq(orders.status, "paid"))).orderBy(desc(orders.createdAt)).limit(100),
     db.select().from(entitlementLedger).where(eq(entitlementLedger.tenantId, TENANT_ID)).orderBy(desc(entitlementLedger.createdAt)).limit(500),
@@ -163,10 +169,10 @@ async function buildDiagnostics() {
       status: diagnosticStatus([
         hasVar("WECHAT_PAY_APP_ID"),
         hasVar("WECHAT_PAY_MCH_ID"),
-        hasSecret("WECHAT_PAY_PRIVATE_KEY"),
+          hasSecret("WECHAT_PAY_PRIVATE_KEY"),
           hasSecret("WECHAT_PAY_CERT_SERIAL_NO"),
           hasSecret("WECHAT_PAY_API_V3_KEY"),
-          hasSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY")
+          wechatPlatformVerifierConfigured
         ], [hasVar("PAYMENT_PROVIDER"), !!publicBaseUrl, !!notifyUrl, hasSecret("WECHAT_MP_APP_SECRET")]),
         items: [
           diagnosticItem("PAYMENT_PROVIDER", hasVar("PAYMENT_PROVIDER"), false),
@@ -175,12 +181,13 @@ async function buildDiagnostics() {
         diagnosticItem("WECHAT_PAY_PRIVATE_KEY", hasSecret("WECHAT_PAY_PRIVATE_KEY")),
         diagnosticItem("WECHAT_PAY_CERT_SERIAL_NO", hasSecret("WECHAT_PAY_CERT_SERIAL_NO")),
           diagnosticItem("WECHAT_PAY_API_V3_KEY", hasSecret("WECHAT_PAY_API_V3_KEY")),
-          diagnosticItem("WECHAT_PAY_PLATFORM_PUBLIC_KEY", hasSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY")),
+          diagnosticItem("WECHAT_PAY_PLATFORM_PUBLIC_KEY", hasSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY"), false),
+          diagnosticItem("wechat_platform_certificate_auto_fetch", wechatPlatformVerifierConfigured, false),
           diagnosticItem("WECHAT_MP_APP_SECRET", hasSecret("WECHAT_MP_APP_SECRET"), false),
           diagnosticItem("PUBLIC_BASE_URL", !!publicBaseUrl, false),
           diagnosticItem("PAYMENT_NOTIFY_URL", !!notifyUrl, false)
         ],
-        note: "缺少平台公钥会导致正式回调验签失败；微信内支付会走 JSAPI/openid 授权链路。"
+        note: "可手动配置平台公钥，也可由服务端用商户凭据自动拉取微信平台证书完成回调验签；微信内支付会走 JSAPI/openid 授权链路。"
       },
     {
       key: "sms",
