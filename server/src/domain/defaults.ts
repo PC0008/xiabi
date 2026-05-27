@@ -81,8 +81,8 @@ export const defaultTemplates = [
 export const defaultSystemConfig = {
   generation_enabled: true,
   payment_enabled: false,
-  sms_enabled: false,
-  voice_enabled: false,
+  sms_enabled: true,
+  voice_enabled: true,
   file_export_enabled: true
 };
 

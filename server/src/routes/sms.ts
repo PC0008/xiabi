@@ -4,11 +4,15 @@ import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { smsCodes } from "@defs";
 import { sendSmsCode } from "../adapters/sms";
+import { getAdminConfig } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, readJson } from "../domain/http";
 import { sha256 } from "../domain/security";
 
 const SESSION_COOKIE = "xiabi_session";
+const RESEND_INTERVAL_MS = 60_000;
+const HOURLY_LIMIT = 5;
+const DAILY_LIMIT = 12;
 
 type SendCodeBody = {
   phone?: string;
@@ -24,6 +28,10 @@ function createCode() {
   return String(100000 + (value[0] % 900000));
 }
 
+function toTime(value: string) {
+  return new Date(value).getTime();
+}
+
 export const smsRoutes = new Hono()
   .post("/send-code", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
@@ -31,6 +39,11 @@ export const smsRoutes = new Hono()
     const body = await readJson<SendCodeBody>(c);
     const phone = normalizePhone(String(body.phone || ""));
     if (!/^1\d{10}$/.test(phone)) return fail(c, "invalid_phone", "请输入正确的手机号。", 400);
+    const config = await getAdminConfig(db);
+    const system = config.system as Record<string, unknown>;
+    if (system.sms_enabled === false) {
+      return fail(c, "sms_disabled", "短信服务暂未开启。", 503);
+    }
 
     const phoneHash = await sha256(`phone:${phone}`);
     const [latest] = await db
@@ -39,12 +52,31 @@ export const smsRoutes = new Hono()
       .where(and(eq(smsCodes.tenantId, TENANT_ID), eq(smsCodes.phoneHash, phoneHash), eq(smsCodes.status, "pending")))
       .orderBy(desc(smsCodes.createdAt))
       .limit(1);
-    if (latest && Date.now() - new Date(latest.createdAt).getTime() < 60_000) {
+    const now = Date.now();
+    if (latest && now - toTime(latest.createdAt) < RESEND_INTERVAL_MS) {
       return fail(c, "too_frequent", "验证码发送太频繁，请稍后再试。", 429);
     }
 
+    const recentCodes = await db
+      .select({ createdAt: smsCodes.createdAt })
+      .from(smsCodes)
+      .where(and(eq(smsCodes.tenantId, TENANT_ID), eq(smsCodes.phoneHash, phoneHash)))
+      .orderBy(desc(smsCodes.createdAt))
+      .limit(DAILY_LIMIT + 1);
+    const hourlyCount = recentCodes.filter((row) => now - toTime(row.createdAt) < 60 * 60 * 1000).length;
+    const dailyCount = recentCodes.filter((row) => now - toTime(row.createdAt) < 24 * 60 * 60 * 1000).length;
+    if (hourlyCount >= HOURLY_LIMIT || dailyCount >= DAILY_LIMIT) {
+      return fail(c, "too_many_codes", "验证码获取次数过多，请稍后再试。", 429);
+    }
+
     const code = createCode();
-    const result = await sendSmsCode({ phone, code });
+    let result;
+    try {
+      result = await sendSmsCode({ phone, code });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "短信发送失败，请稍后再试。";
+      return fail(c, "sms_send_failed", message, 502);
+    }
     if (!result.configured) {
       return fail(c, "sms_not_configured", result.message || "短信服务还没有完成配置。", 503);
     }

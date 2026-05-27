@@ -60,6 +60,13 @@ const adminState = {
     pdf_annual_title: "经常要写销售信，可以开通年卡",
     pdf_annual_desc: "一年内正常使用范围内不限次数生成、保存、继续完善和导出。"
   }, savedAdminConfig.pricing || {}),
+  system: Object.assign({
+    generation_enabled: true,
+    payment_enabled: false,
+    sms_enabled: true,
+    voice_enabled: true,
+    file_export_enabled: true
+  }, savedAdminConfig.system || {}),
   guideStages: savedAdminConfig.guideStages || defaultGuideStages,
   lists: {
     dashboard: null,
@@ -74,6 +81,14 @@ const adminState = {
   },
   templates: Array.isArray(savedAdminConfig.templates) ? savedAdminConfig.templates : [],
   selectedTemplateKey: Array.isArray(savedAdminConfig.templates) && savedAdminConfig.templates[0] ? savedAdminConfig.templates[0].key : "",
+  selectedGuideIndex: 0,
+  filters: {
+    lettersStatus: "",
+    tasksStatus: "",
+    ordersStatus: "",
+    entitlementsStatus: "",
+    paymentEventsStatus: ""
+  },
   detail: null
 };
 
@@ -81,6 +96,7 @@ function applyRemoteAdminConfig(config) {
   if (!config) return;
   Object.assign(adminState.homeConfig, config.homeConfig || config.home || {});
   Object.assign(adminState.pricing, config.pricing || {});
+  Object.assign(adminState.system, config.system || {});
   if (Array.isArray(config.guideStages) && config.guideStages.length) {
     adminState.guideStages = config.guideStages;
   }
@@ -102,12 +118,12 @@ async function loadAdminLists() {
     const [dashboard, usersData, lettersData, ordersData, entitlementData, logsData, tasksData, paymentEventsData, diagnosticsData] = await Promise.all([
       window.XiabiMockStore.adminFetch("/dashboard"),
       window.XiabiMockStore.adminFetch("/users"),
-      window.XiabiMockStore.adminFetch("/letters"),
-      window.XiabiMockStore.adminFetch("/orders"),
-      window.XiabiMockStore.adminFetch("/entitlements"),
+      window.XiabiMockStore.adminFetch(listPath("/letters", adminState.filters.lettersStatus)),
+      window.XiabiMockStore.adminFetch(listPath("/orders", adminState.filters.ordersStatus)),
+      window.XiabiMockStore.adminFetch(listPath("/entitlements", adminState.filters.entitlementsStatus)),
       window.XiabiMockStore.adminFetch("/audit-logs"),
-      window.XiabiMockStore.adminFetch("/tasks"),
-      window.XiabiMockStore.adminFetch("/payment-events"),
+      window.XiabiMockStore.adminFetch(listPath("/tasks", adminState.filters.tasksStatus)),
+      window.XiabiMockStore.adminFetch(listPath("/payment-events", adminState.filters.paymentEventsStatus)),
       window.XiabiMockStore.adminFetch("/diagnostics")
     ]);
     adminState.lists = {
@@ -124,6 +140,12 @@ async function loadAdminLists() {
   } catch (error) {
     showToast(error.message || "后台数据加载失败");
   }
+}
+
+function listPath(path, status) {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  return params.toString() ? `${path}?${params}` : path;
 }
 
 function formatDate(value) {
@@ -201,6 +223,21 @@ function commitTemplates(nextTemplates) {
   if (!adminState.templates.some((tpl) => tpl.key === adminState.selectedTemplateKey) && adminState.templates[0]) {
     adminState.selectedTemplateKey = adminState.templates[0].key;
   }
+}
+
+function updateSelectedGuideStage(fieldName, value) {
+  const index = Math.min(adminState.selectedGuideIndex || 0, Math.max(adminState.guideStages.length - 1, 0));
+  const current = adminState.guideStages[index];
+  if (!current) return;
+  const next = Object.assign({}, current);
+  if (fieldName === "stage_key") next.key = value.trim();
+  if (fieldName === "stage_title") next.title = value;
+  if (fieldName === "stage_question") next.question = value;
+  if (fieldName === "stage_desc") next.desc = value;
+  if (fieldName === "stage_options") next.options = value.split("\n").map((item) => item.trim()).filter(Boolean);
+  if (fieldName === "stage_required") next.required = value === "true";
+  if (fieldName === "stage_enabled") next.enabled = value === "true";
+  adminState.guideStages = adminState.guideStages.map((stage, stageIndex) => (stageIndex === index ? next : stage));
 }
 
 function updateSelectedTemplate(fieldName, value) {
@@ -444,42 +481,49 @@ function renderMiniapp() {
         <div class="panel-head"><div><div class="panel-title">入口开关</div><div class="panel-desc">所有影响转化的入口都由后台控制。</div></div></div>
         ${switchRow("游客可浏览首页", "游客能看首页，但进入通话需授权", adminState.homeConfig.allow_guest_preview, "homeConfig.allow_guest_preview")}
         ${switchRow("开始生成入口", "控制首页主按钮是否可点击", adminState.homeConfig.generation_entry_enabled, "homeConfig.generation_entry_enabled")}
+        ${switchRow("后端写信服务", "关闭后会保留页面入口，但不会创建新的写信任务", adminState.system.generation_enabled, "system.generation_enabled")}
         ${switchRow("打字模式入口", "通话页显示切换打字模式", adminState.homeConfig.text_mode_enabled, "homeConfig.text_mode_enabled")}
         ${switchRow("手机号授权入口", "排队生成页引导绑定手机号", adminState.homeConfig.phone_bind_enabled, "homeConfig.phone_bind_enabled")}
+        ${switchRow("短信绑定服务", "关闭后不发送验证码", adminState.system.sms_enabled, "system.sms_enabled")}
+        ${switchRow("语音服务", "关闭后用户端只保留打字模式", adminState.system.voice_enabled, "system.voice_enabled")}
       </div>
     </section>
   `);
 }
 
 function renderGuides() {
+  const selectedIndex = Math.min(adminState.selectedGuideIndex || 0, Math.max(adminState.guideStages.length - 1, 0));
+  const selected = adminState.guideStages[selectedIndex] || adminState.guideStages[0];
   return layout(`
     <section class="section split">
       <div class="panel card">
-        <div class="panel-head"><div><div class="panel-title">通话阶段顺序</div><div class="panel-desc">这些问题在通话页内部引导，不做独立三连页面。</div></div><button class="primary">新增阶段</button></div>
+        <div class="panel-head"><div><div class="panel-title">通话阶段顺序</div><div class="panel-desc">这些问题在通话页内部引导，不做独立三连页面。</div></div><button class="primary" data-action="add-guide-stage">新增阶段</button></div>
         <div class="list">
           ${adminState.guideStages.map((stage, index) => `
-            <div class="row-card guide-stage">
+            <button class="row-card row-button guide-stage ${index === selectedIndex ? "active-row" : ""}" data-action="select-guide-stage" data-guide-index="${index}">
               <div>
-                <div class="row-title">${index + 1}. ${stage.title}</div>
-                <div class="row-meta">${stage.question}</div>
-                <div class="row-meta">选项：${stage.options.join(" / ")}</div>
+                <div class="row-title">${index + 1}. ${h(stage.title)}</div>
+                <div class="row-meta">${h(stage.question)}</div>
+                <div class="row-meta">选项：${(stage.options || []).map(h).join(" / ")}</div>
               </div>
               <span class="tag ${stage.required ? "" : "warn"}">${stage.enabled === false ? "停用" : stage.required ? "必答" : "可跳过"}</span>
-            </div>
+            </button>
           `).join("")}
         </div>
       </div>
       <div class="panel card">
-        <div class="panel-head"><div><div class="panel-title">阶段配置示例</div><div class="panel-desc">当前选中：帮谁写。</div></div></div>
+        <div class="panel-head"><div><div class="panel-title">阶段配置</div><div class="panel-desc">当前选中：${h(selected?.title || "-")}</div></div></div>
+        ${selected ? `
         <div class="form-grid">
-          ${field("阶段 key", "stage_key", "recipient_scope")}
-          ${field("排序", "sort", "1")}
-          ${area("问题文案", "stage_question", adminState.guideStages[0].question)}
-          ${area("说明文案", "stage_desc", adminState.guideStages[0].desc)}
-          ${area("快捷选项", "stage_options", adminState.guideStages[0].options.join("\n"))}
-          ${field("写入位置", "write_to", "本次项目 / 产品档案")}
-          ${field("适用用户", "user_scope", "新用户 / 多产品用户 / 免费用户")}
+          ${field("阶段 key", "stage_key", selected.key || "")}
+          ${field("阶段标题", "stage_title", selected.title || "")}
+          ${area("问题文案", "stage_question", selected.question || "")}
+          ${area("说明文案", "stage_desc", selected.desc || "")}
+          ${area("快捷选项", "stage_options", (selected.options || []).join("\n"))}
+          <div class="field"><label>是否必答</label><select data-field="stage_required"><option value="true" ${selected.required !== false ? "selected" : ""}>必答</option><option value="false" ${selected.required === false ? "selected" : ""}>可跳过</option></select></div>
+          <div class="field"><label>是否启用</label><select data-field="stage_enabled"><option value="true" ${selected.enabled !== false ? "selected" : ""}>启用</option><option value="false" ${selected.enabled === false ? "selected" : ""}>停用</option></select></div>
         </div>
+        ` : `<div class="empty">还没有通话阶段。</div>`}
       </div>
     </section>
   `);
@@ -500,9 +544,9 @@ function renderTemplates() {
           ${editableTemplates.map((tpl) => `
             <button class="row-card row-button ${selected?.key === tpl.key ? "active-row" : ""}" data-action="select-template" data-template-key="${tpl.key}">
               <div>
-                <div class="row-title">${tpl.name || tpl.key}</div>
-                <div class="row-meta">${tpl.goal || "-"} · ${tpl.scene || "-"} · ${tpl.version || "v1.0"}</div>
-                <div class="row-meta">${Array.isArray(tpl.structure) ? tpl.structure.join(" -> ") : (tpl.structure || "")}</div>
+                <div class="row-title">${h(tpl.name || tpl.key)}</div>
+                <div class="row-meta">${h(tpl.goal || "-")} · ${h(tpl.scene || "-")} · ${h(tpl.version || "v1.0")}</div>
+                <div class="row-meta">${h(Array.isArray(tpl.structure) ? tpl.structure.join(" -> ") : (tpl.structure || ""))}</div>
               </div>
               <span class="tag ${tpl.status === "draft" ? "warn" : ""}">${tpl.status === "enabled" ? "启用" : "草稿"}</span>
             </button>
@@ -513,14 +557,14 @@ function renderTemplates() {
         <div class="panel-head"><div><div class="panel-title">模板规则</div><div class="panel-desc">这里保存的是实际写信规则，不会在用户端直接展示。</div></div></div>
         ${selected ? `
           <div class="form-grid">
-            <div class="field"><label>模板 key</label><input data-template-field="key" value="${selected.key || ""}" /></div>
-            <div class="field"><label>版本</label><input data-template-field="version" value="${selected.version || "v1.0"}" /></div>
-            <div class="field"><label>模板名称</label><input data-template-field="name" value="${selected.name || ""}" /></div>
+            <div class="field"><label>模板 key</label><input data-template-field="key" value="${h(selected.key || "")}" /></div>
+            <div class="field"><label>版本</label><input data-template-field="version" value="${h(selected.version || "v1.0")}" /></div>
+            <div class="field"><label>模板名称</label><input data-template-field="name" value="${h(selected.name || "")}" /></div>
             <div class="field"><label>状态</label><select data-template-field="status"><option value="enabled" ${selected.status === "enabled" ? "selected" : ""}>启用</option><option value="draft" ${selected.status !== "enabled" ? "selected" : ""}>草稿</option></select></div>
-            <div class="field"><label>适用目标</label><input data-template-field="goal" value="${selected.goal || ""}" /></div>
-            <div class="field"><label>适用场景</label><input data-template-field="scene" value="${selected.scene || ""}" /></div>
-            <div class="field full"><label>段落结构</label><textarea data-template-field="structure">${selectedStructure}</textarea></div>
-            <div class="field full"><label>写信要求</label><textarea data-template-field="rules">${selected.rules || selected.prompt || selected.requirement || ""}</textarea></div>
+            <div class="field"><label>适用目标</label><input data-template-field="goal" value="${h(selected.goal || "")}" /></div>
+            <div class="field"><label>适用场景</label><input data-template-field="scene" value="${h(selected.scene || "")}" /></div>
+            <div class="field full"><label>段落结构</label><textarea data-template-field="structure">${h(selectedStructure)}</textarea></div>
+            <div class="field full"><label>写信要求</label><textarea data-template-field="rules">${h(selected.rules || selected.prompt || selected.requirement || "")}</textarea></div>
           </div>
         ` : `<div class="empty">还没有可编辑模板。</div>`}
       </div>
@@ -586,17 +630,34 @@ function renderPricing() {
 
 function renderUsers() {
   const sessions = adminState.lists.users?.sessions || [];
-  const rows = sessions.map((item) => [
+  const realUsers = adminState.lists.users?.users || [];
+  const sessionsByUser = sessions.reduce((acc, item) => {
+    if (!item.userId) return acc;
+    acc[item.userId] = (acc[item.userId] || 0) + 1;
+    return acc;
+  }, {});
+  const userRows = realUsers.map((item) => [
     shortId(item.id),
-    item.userId ? shortId(item.userId) : "游客会话",
+    shortId(item.id),
+    item.phoneMasked || "-",
+    item.status,
+    String(sessionsByUser[item.id] || 0),
+    formatDate(item.updatedAt || item.createdAt),
+    formatDate(item.createdAt),
+    actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="users" data-detail-id="${h(item.id)}">详情</button>`)
+  ]);
+  const guestRows = sessions.filter((item) => !item.userId).map((item) => [
+    shortId(item.id),
+    "游客会话",
     "-",
     item.status,
     "1",
-    "-",
+    formatDate(item.updatedAt || item.createdAt),
     formatDate(item.createdAt),
-    actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="users" data-detail-id="${h(item.userId || item.id)}">详情</button>`)
+    actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="users" data-detail-id="${h(item.id)}">详情</button>`)
   ]);
-  return layout(tablePanel("用户列表", "查看用户基础信息和权益状态。", ["会话ID", "用户", "手机号", "状态", "会话", "信件", "最近访问", "操作"], rows.length ? rows : users));
+  const rows = [...userRows, ...guestRows];
+  return layout(tablePanel("用户列表", "查看用户基础信息和权益状态。", ["主体ID", "用户", "手机号", "状态", "会话", "最近更新", "创建时间", "操作"], rows.length ? rows : users));
 }
 
 function renderLetters() {
@@ -610,7 +671,8 @@ function renderLetters() {
     formatDate(item.createdAt),
     actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="letters" data-detail-id="${h(item.id)}">详情</button>`)
   ]) : letters;
-  return layout(tablePanel("销售信列表", "排查信件状态、模板版本和关联用户。", ["信件ID", "标题", "状态", "模板", "会话", "创建时间", "操作"], detailRows));
+  const controls = statusFilter("lettersStatus", adminState.filters.lettersStatus, [["", "全部状态"], ["ready", "待领取"], ["claimed", "已领取"], ["draft", "草稿"], ["archived", "已归档"]]);
+  return layout(tablePanel("销售信列表", "排查信件状态、模板版本和关联用户。", ["信件ID", "标题", "状态", "模板", "会话", "创建时间", "操作"], detailRows, controls));
 }
 
 function renderTasks() {
@@ -626,7 +688,8 @@ function renderTasks() {
       ${item.status === "failed" ? `<button class="mini-action warn-action" data-action="retry-task" data-task-id="${h(item.id)}">重试</button>` : ""}
     `)
   ]);
-  return layout(tablePanel("生成任务", "查看生成任务状态、失败原因，并对失败任务进行重试。", ["任务ID", "类型", "状态", "信件", "错误", "更新时间", "操作"], rows));
+  const controls = statusFilter("tasksStatus", adminState.filters.tasksStatus, [["", "全部状态"], ["queued", "排队中"], ["running", "生成中"], ["succeeded", "已完成"], ["failed", "失败"]]);
+  return layout(tablePanel("生成任务", "查看生成任务状态、失败原因，并对失败任务进行重试。", ["任务ID", "类型", "状态", "信件", "错误", "更新时间", "操作"], rows, controls));
 }
 
 function renderOrders() {
@@ -644,7 +707,8 @@ function renderOrders() {
       ${item.status === "paid" ? `<button class="mini-action" data-action="repair-order-entitlement" data-order-id="${h(item.id)}">补权益</button>` : ""}
     `)
   ]);
-  return layout(tablePanel("订单与支付", "真实支付接入后查看微信交易号、回调和补偿查询。", ["订单号", "会话", "商品", "金额", "模式", "订单状态", "交易号", "补偿"], rows.length ? rows : orders));
+  const controls = statusFilter("ordersStatus", adminState.filters.ordersStatus, [["", "全部状态"], ["pending", "待支付"], ["paid", "已支付"], ["payment_failed", "支付失败"], ["closed", "已关闭"], ["refunded", "已退款"]]);
+  return layout(tablePanel("订单与支付", "真实支付接入后查看微信交易号、回调和补偿查询。", ["订单号", "会话", "商品", "金额", "模式", "订单状态", "交易号", "补偿"], rows.length ? rows : orders, controls));
 }
 
 function renderLedger() {
@@ -657,7 +721,8 @@ function renderLedger() {
     formatDate(item.createdAt),
     actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="entitlements" data-detail-id="${h(item.id)}">详情</button>`)
   ]);
-  return layout(tablePanel("权益流水", "所有权限从这里计算，不从前端传参决定。", ["流水ID", "用户/会话", "权益类型", "来源", "状态", "时间", "操作"], rows.length ? rows : ledger));
+  const controls = statusFilter("entitlementsStatus", adminState.filters.entitlementsStatus, [["", "全部状态"], ["active", "有效"], ["consumed", "已使用"], ["expired", "已过期"], ["revoked", "已撤销"]]);
+  return layout(tablePanel("权益流水", "所有权限从这里计算，不从前端传参决定。", ["流水ID", "用户/会话", "权益类型", "来源", "状态", "时间", "操作"], rows.length ? rows : ledger, controls));
 }
 
 function renderLogs() {
@@ -685,7 +750,8 @@ function renderPaymentEvents() {
       ${item.status === "failed" ? `<button class="mini-action warn-action" data-action="reprocess-payment-event" data-event-id="${h(item.id)}">重处理</button>` : ""}
     `)
   ]);
-  return layout(tablePanel("支付回调", "查看微信支付回调事件、失败原因和关联订单。", ["事件ID", "渠道", "回调ID", "订单", "状态", "错误", "时间", "操作"], rows));
+  const controls = statusFilter("paymentEventsStatus", adminState.filters.paymentEventsStatus, [["", "全部状态"], ["received", "已接收"], ["processed", "已处理"], ["failed", "失败"]]);
+  return layout(tablePanel("支付回调", "查看微信支付回调事件、失败原因和关联订单。", ["事件ID", "渠道", "回调ID", "订单", "状态", "错误", "时间", "操作"], rows, controls));
 }
 
 function statusLabel(status) {
@@ -756,17 +822,31 @@ function switchRow(title, sub, on, path = "") {
 }
 
 function field(label, name, value, cls = "") {
-  return `<div class="field ${cls}"><label>${label}</label><input data-field="${name}" value="${value}" /></div>`;
+  return `<div class="field ${h(cls)}"><label>${h(label)}</label><input data-field="${h(name)}" value="${h(value)}" /></div>`;
 }
 
 function area(label, name, value) {
-  return `<div class="field full"><label>${label}</label><textarea data-field="${name}">${value}</textarea></div>`;
+  return `<div class="field full"><label>${h(label)}</label><textarea data-field="${h(name)}">${h(value)}</textarea></div>`;
 }
 
-function tablePanel(title, desc, heads, rows) {
+function statusFilter(name, value, options) {
+  return `
+    <div class="table-controls">
+      <label class="control-field">
+        <span>状态筛选</span>
+        <select data-filter="${h(name)}">
+          ${options.map(([optionValue, label]) => `<option value="${h(optionValue)}" ${value === optionValue ? "selected" : ""}>${h(label)}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+  `;
+}
+
+function tablePanel(title, desc, heads, rows, controls = "") {
   return `
     <section class="section panel card">
       <div class="panel-head"><div><div class="panel-title">${h(title)}</div><div class="panel-desc">${h(desc)}</div></div></div>
+      ${controls}
       <div class="table-wrap">
         <table>
           <thead><tr>${heads.map((head) => `<th>${h(head)}</th>`).join("")}</tr></thead>
@@ -966,6 +1046,7 @@ document.addEventListener("click", async (event) => {
       await window.XiabiMockStore.saveAdminConfig({
         homeConfig: adminState.homeConfig,
         pricing: adminState.pricing,
+        system: adminState.system,
         guideStages: adminState.guideStages,
         templates: getEditableTemplates(),
         updatedAt: new Date().toISOString()
@@ -993,6 +1074,24 @@ document.addEventListener("click", async (event) => {
     setPath(actionTarget.dataset.togglePath, actionTarget.classList.contains("on"));
   } else if (action === "select-template") {
     adminState.selectedTemplateKey = actionTarget.dataset.templateKey;
+    render();
+  } else if (action === "select-guide-stage") {
+    adminState.selectedGuideIndex = Number(actionTarget.dataset.guideIndex || 0);
+    render();
+  } else if (action === "add-guide-stage") {
+    adminState.guideStages = [
+      ...adminState.guideStages,
+      {
+        key: `custom_stage_${Date.now()}`,
+        title: "新的通话问题",
+        question: "这一步想让用户补充什么信息？",
+        desc: "写清楚后，用户端下一次会按这个阶段提问。",
+        required: false,
+        enabled: true,
+        options: ["先简单说明", "我想补充细节"]
+      }
+    ];
+    adminState.selectedGuideIndex = adminState.guideStages.length - 1;
     render();
   } else if (action === "add-template") {
     const nextKey = `custom_template_${Date.now()}`;
@@ -1050,6 +1149,33 @@ document.addEventListener("click", async (event) => {
   }
 });
 
+document.addEventListener("change", async (event) => {
+  const filterName = event.target.dataset.filter;
+  if (filterName && filterName in adminState.filters) {
+    adminState.filters[filterName] = event.target.value;
+    try {
+      await loadAdminLists();
+    } catch (error) {
+      showToast(error.message || "列表刷新失败");
+    }
+    render();
+    return;
+  }
+
+  const templateField = event.target.dataset.templateField;
+  if (templateField) {
+    updateSelectedTemplate(templateField, event.target.value);
+    render();
+    return;
+  }
+
+  const fieldName = event.target.dataset.field;
+  if (fieldName === "stage_required" || fieldName === "stage_enabled") {
+    updateSelectedGuideStage(fieldName, event.target.value);
+    render();
+  }
+});
+
 document.addEventListener("input", (event) => {
   const loginField = event.target.dataset.loginField;
   if (loginField === "username") {
@@ -1070,15 +1196,19 @@ document.addEventListener("input", (event) => {
   const fieldName = event.target.dataset.field;
   if (!fieldName) return;
   if (fieldName === "stage_question") {
-    adminState.guideStages[0].question = event.target.value;
+    updateSelectedGuideStage(fieldName, event.target.value);
     return;
   }
   if (fieldName === "stage_desc") {
-    adminState.guideStages[0].desc = event.target.value;
+    updateSelectedGuideStage(fieldName, event.target.value);
     return;
   }
   if (fieldName === "stage_options") {
-    adminState.guideStages[0].options = event.target.value.split("\n").map((item) => item.trim()).filter(Boolean);
+    updateSelectedGuideStage(fieldName, event.target.value);
+    return;
+  }
+  if (fieldName === "stage_key" || fieldName === "stage_title" || fieldName === "stage_required" || fieldName === "stage_enabled") {
+    updateSelectedGuideStage(fieldName, event.target.value);
     return;
   }
   if (fieldName in adminState.homeConfig) adminState.homeConfig[fieldName] = event.target.value;

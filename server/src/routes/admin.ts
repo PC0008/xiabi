@@ -12,6 +12,8 @@ import { fail, ok, parseJson, readJson } from "../domain/http";
 import { createToken, daysFromNow, hashPassword, hashToken, isFuture } from "../domain/security";
 
 const ADMIN_COOKIE = "xiabi_admin_session";
+const DEFAULT_LIST_LIMIT = 100;
+const MAX_LIST_LIMIT = 200;
 
 type AdminLoginBody = {
   username: string;
@@ -39,6 +41,17 @@ function hasVar(key: string) {
 
 function hasSecret(key: string) {
   return !!String(secret.get(key as any) || "").trim();
+}
+
+function listLimit(c: any) {
+  const parsed = Number(c.req.query("limit") || DEFAULT_LIST_LIMIT);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_LIST_LIMIT;
+  return Math.min(Math.floor(parsed), MAX_LIST_LIMIT);
+}
+
+function queryStatus(c: any, allowed: string[]) {
+  const status = String(c.req.query("status") || "").trim();
+  return allowed.includes(status) ? status : "";
 }
 
 function diagnosticStatus(required: boolean[], optional: boolean[] = []): DiagnosticStatus {
@@ -642,7 +655,9 @@ export const adminRoutes = new Hono()
     const admin = await requireAdmin(c);
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
-    const rows = await db.select().from(salesLetters).where(eq(salesLetters.tenantId, TENANT_ID)).orderBy(desc(salesLetters.createdAt)).limit(100);
+    const status = queryStatus(c, ["draft", "ready", "claimed", "archived"]);
+    const where = status ? and(eq(salesLetters.tenantId, TENANT_ID), eq(salesLetters.status, status)) : eq(salesLetters.tenantId, TENANT_ID);
+    const rows = await db.select().from(salesLetters).where(where).orderBy(desc(salesLetters.createdAt)).limit(listLimit(c));
     return ok(c, { letters: rows.map(publicLetter) });
   })
   .get("/letters/:id", async (c) => {
@@ -664,7 +679,9 @@ export const adminRoutes = new Hono()
     const admin = await requireAdmin(c);
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
-    const rows = await db.select().from(generationTasks).where(eq(generationTasks.tenantId, TENANT_ID)).orderBy(desc(generationTasks.createdAt)).limit(100);
+    const status = queryStatus(c, ["queued", "running", "succeeded", "failed"]);
+    const where = status ? and(eq(generationTasks.tenantId, TENANT_ID), eq(generationTasks.status, status)) : eq(generationTasks.tenantId, TENANT_ID);
+    const rows = await db.select().from(generationTasks).where(where).orderBy(desc(generationTasks.createdAt)).limit(listLimit(c));
     return ok(c, { tasks: rows.map(publicTask) });
   })
   .get("/tasks/:id", async (c) => {
@@ -746,7 +763,9 @@ export const adminRoutes = new Hono()
     const admin = await requireAdmin(c);
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
-    const rows = await db.select().from(orders).where(eq(orders.tenantId, TENANT_ID)).orderBy(desc(orders.createdAt)).limit(100);
+    const status = queryStatus(c, ["pending", "paid", "payment_failed", "closed", "refunded"]);
+    const where = status ? and(eq(orders.tenantId, TENANT_ID), eq(orders.status, status)) : eq(orders.tenantId, TENANT_ID);
+    const rows = await db.select().from(orders).where(where).orderBy(desc(orders.createdAt)).limit(listLimit(c));
     return ok(c, { orders: rows });
   })
   .post("/orders/:id/reconcile", async (c) => {
@@ -826,7 +845,9 @@ export const adminRoutes = new Hono()
     const admin = await requireAdmin(c);
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
-    const rows = await db.select().from(entitlementLedger).where(eq(entitlementLedger.tenantId, TENANT_ID)).orderBy(desc(entitlementLedger.createdAt)).limit(100);
+    const status = queryStatus(c, ["active", "consumed", "expired", "revoked"]);
+    const where = status ? and(eq(entitlementLedger.tenantId, TENANT_ID), eq(entitlementLedger.status, status)) : eq(entitlementLedger.tenantId, TENANT_ID);
+    const rows = await db.select().from(entitlementLedger).where(where).orderBy(desc(entitlementLedger.createdAt)).limit(listLimit(c));
     return ok(c, { entitlements: rows });
   })
   .get("/entitlements/:id", async (c) => {
@@ -848,7 +869,9 @@ export const adminRoutes = new Hono()
     const admin = await requireAdmin(c);
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
-    const rows = await db.select().from(paymentWebhookEvents).where(eq(paymentWebhookEvents.tenantId, TENANT_ID)).orderBy(desc(paymentWebhookEvents.createdAt)).limit(100);
+    const status = queryStatus(c, ["received", "processed", "failed"]);
+    const where = status ? and(eq(paymentWebhookEvents.tenantId, TENANT_ID), eq(paymentWebhookEvents.status, status)) : eq(paymentWebhookEvents.tenantId, TENANT_ID);
+    const rows = await db.select().from(paymentWebhookEvents).where(where).orderBy(desc(paymentWebhookEvents.createdAt)).limit(listLimit(c));
     return ok(c, { events: rows });
   })
   .get("/payment-events/:id", async (c) => {
