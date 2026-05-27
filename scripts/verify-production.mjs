@@ -734,6 +734,7 @@ const publicConfig = await api("/api/public/config");
 if (
   typeof publicConfig?.capabilities?.voice?.ttsConfigured !== "boolean" ||
   typeof publicConfig?.capabilities?.voice?.asrConfigured !== "boolean" ||
+  typeof publicConfig?.capabilities?.voice?.asrVerified !== "boolean" ||
   typeof publicConfig?.capabilities?.voice?.asrPreferred !== "boolean"
 ) {
   throw new Error("public config did not expose voice capability booleans");

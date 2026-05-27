@@ -242,16 +242,17 @@ async function buildDiagnostics() {
     {
       key: "voice_asr",
       title: "语音输入转写",
-      status: diagnosticStatus([hasVar("VOICE_ASR_ENDPOINT"), voiceAsrSecretConfigured], [hasVar("VOICE_ASR_PROVIDER"), hasVar("VOICE_ASR_MODEL"), hasVar("VOICE_ASR_REQUEST_FORMAT" as any), hasVar("VOICE_INPUT_MODE" as any)]),
+      status: diagnosticStatus([hasVar("VOICE_ASR_ENDPOINT"), voiceAsrSecretConfigured], [hasVar("VOICE_ASR_PROVIDER"), hasVar("VOICE_ASR_MODEL"), hasVar("VOICE_ASR_REQUEST_FORMAT" as any), hasVar("VOICE_INPUT_MODE" as any), hasVar("VOICE_ASR_VERIFIED" as any)]),
       items: [
         diagnosticItem("VOICE_ASR_ENDPOINT", hasVar("VOICE_ASR_ENDPOINT")),
         diagnosticItem("VOICE_ASR_API_KEY 或 VOICE_API_KEY", voiceAsrSecretConfigured),
         diagnosticItem("VOICE_ASR_PROVIDER", hasVar("VOICE_ASR_PROVIDER"), false),
         diagnosticItem("VOICE_ASR_MODEL", hasVar("VOICE_ASR_MODEL"), false),
         diagnosticItem("VOICE_ASR_REQUEST_FORMAT", hasVar("VOICE_ASR_REQUEST_FORMAT" as any), false),
-        diagnosticItem("VOICE_INPUT_MODE", hasVar("VOICE_INPUT_MODE" as any), false)
+        diagnosticItem("VOICE_INPUT_MODE", hasVar("VOICE_INPUT_MODE" as any), false),
+        diagnosticItem("VOICE_ASR_VERIFIED", hasVar("VOICE_ASR_VERIFIED" as any), false)
       ],
-      note: "浏览器不支持直接语音识别，或配置 VOICE_INPUT_MODE=server 时会走这里；支持 JSON base64 和 OpenAI-compatible multipart，未配置则提示用户切换打字模式。"
+      note: "浏览器不支持直接语音识别，或配置 VOICE_INPUT_MODE=server 时会走这里；支持 JSON base64 和 OpenAI-compatible multipart，真实音频验收通过并设置 VOICE_ASR_VERIFIED=1 后，用户端才会把服务端录音转写视为可用。"
     },
     {
       key: "admin",

@@ -93,6 +93,7 @@ test("call page falls back to typing when browser speech and server ASR are unav
             voice: {
               ttsConfigured: true,
               asrConfigured: false,
+              asrVerified: false,
               asrPreferred: false
             }
           },
@@ -116,4 +117,99 @@ test("call page falls back to typing when browser speech and server ASR are unav
   await expect(page.locator("#typedText")).toBeVisible();
   await expect(page.locator('[data-action="voice-answer"]')).toHaveCount(0);
   await expect(page.locator('[data-action="voice-mode"]')).toHaveCount(0);
+});
+
+test("call page records to server ASR when browser speech start fails", async ({ page }) => {
+  let transcribeCalled = false;
+  await page.addInitScript(() => {
+    class BrokenSpeechRecognition {
+      start() {
+        throw new Error("speech unavailable");
+      }
+      stop() {}
+    }
+    Object.defineProperty(window, "SpeechRecognition", { value: BrokenSpeechRecognition, configurable: true });
+    Object.defineProperty(window, "webkitSpeechRecognition", { value: undefined, configurable: true });
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: {
+        getUserMedia: async () => ({
+          getTracks: () => [{ stop() {} }]
+        })
+      },
+      configurable: true
+    });
+    class FakeMediaRecorder {
+      constructor() {
+        this.mimeType = "audio/webm";
+        this.state = "inactive";
+      }
+      start() {
+        this.state = "recording";
+        setTimeout(() => {
+          this.ondataavailable?.({ data: new Blob(["fake audio"], { type: "audio/webm" }) });
+        }, 0);
+      }
+      stop() {
+        this.state = "inactive";
+        this.onstop?.();
+      }
+    }
+    Object.defineProperty(window, "MediaRecorder", { value: FakeMediaRecorder, configurable: true });
+  });
+  await page.route("**/api/public/config", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          homeConfig: {},
+          pricing: {},
+          guideStages: [],
+          system: { voice_enabled: true, sms_enabled: true, file_export_enabled: true, generation_enabled: true },
+          capabilities: {
+            voice: {
+              ttsConfigured: true,
+              asrConfigured: true,
+              asrVerified: true,
+              asrPreferred: false
+            }
+          },
+          versions: {}
+        }
+      })
+    });
+  });
+  await page.route("**/api/public/voice/transcribe", async (route) => {
+    const body = route.request().postDataJSON();
+    transcribeCalled = !!body.audioBase64 && body.mimeType === "audio/webm";
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          configured: true,
+          transcript: "voice fallback answer"
+        }
+      })
+    });
+  });
+
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+
+  await page.locator('[data-action="auth"]').click();
+  await page.locator('[data-action="start-call"]').click();
+  await expect(page.locator(".question-card")).toBeVisible();
+  const voiceButton = page.locator('[data-action="voice-answer"]');
+  await expect(voiceButton).toBeVisible();
+  await voiceButton.dispatchEvent("pointerdown", { pointerType: "touch" });
+  await page.waitForTimeout(50);
+  await voiceButton.dispatchEvent("pointerup", { pointerType: "touch" });
+  await expect.poll(() => transcribeCalled).toBe(true);
 });

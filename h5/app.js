@@ -41,7 +41,9 @@ let appSystem = Object.assign({
 let runtimeCapabilities = Object.assign({
   voice: {
     ttsConfigured: false,
-    asrConfigured: false
+    asrConfigured: false,
+    asrVerified: false,
+    asrPreferred: false
   }
 }, adminMockConfig.capabilities || {});
 
@@ -453,6 +455,10 @@ function serverAsrConfigured() {
   return runtimeCapabilities.voice?.asrConfigured === true;
 }
 
+function serverAsrReady() {
+  return serverAsrConfigured() && runtimeCapabilities.voice?.asrVerified === true;
+}
+
 function serverAsrPreferred() {
   return runtimeCapabilities.voice?.asrPreferred === true;
 }
@@ -460,11 +466,15 @@ function serverAsrPreferred() {
 function voiceInputAvailable() {
   if (!voiceEnabled()) return false;
   if (speechSupported()) return true;
-  return recordingSupported() && serverAsrConfigured();
+  return recordingSupported() && serverAsrReady();
 }
 
 function shouldUseServerAsrFirst() {
-  return recordingSupported() && serverAsrConfigured() && serverAsrPreferred();
+  return recordingSupported() && serverAsrReady() && serverAsrPreferred();
+}
+
+function canFallbackToRecordedAsr() {
+  return recordingSupported() && serverAsrReady();
 }
 
 function voiceUnavailableMessage() {
@@ -1308,6 +1318,7 @@ function startVoiceInput() {
     startRecordedVoiceInput();
     return;
   }
+  let fallingBackToRecorder = false;
   speechRecognition = recognition;
   recognition.lang = "zh-CN";
   recognition.continuous = false;
@@ -1323,12 +1334,20 @@ function startVoiceInput() {
     if (state.route === "call") render();
   };
   recognition.onerror = (event) => {
+    if (canFallbackToRecordedAsr() && event.error !== "not-allowed") {
+      fallingBackToRecorder = true;
+      speechRecognition = null;
+      startRecordedVoiceInput();
+      return;
+    }
     const reason = event.error === "not-allowed" ? "没有麦克风权限，请允许后再试。" : "这次没有听清楚，可以再按住说一遍。";
     state.voiceError = reason;
     state.holding = false;
     if (state.route === "call") render();
   };
   recognition.onend = () => {
+    if (fallingBackToRecorder) return;
+    speechRecognition = null;
     state.holding = false;
     if (activeSpeechText) {
       const answer = activeSpeechText;
@@ -1345,6 +1364,12 @@ function startVoiceInput() {
     render();
     recognition.start();
   } catch (error) {
+    if (canFallbackToRecordedAsr()) {
+      fallingBackToRecorder = true;
+      speechRecognition = null;
+      startRecordedVoiceInput();
+      return;
+    }
     state.holding = false;
     state.voiceError = "语音入口启动失败，请再试一次或切换打字模式。";
     render();
@@ -1381,7 +1406,7 @@ async function startRecordedVoiceInput() {
   state.holding = true;
   state.voiceTranscript = "正在准备麦克风...";
   render();
-  if (!serverAsrConfigured()) {
+  if (!serverAsrReady()) {
     voiceRecordingRequested = false;
     state.inputMode = "text";
     state.holding = false;

@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 语音输入真实可用口径收紧：公开配置新增 `capabilities.voice.asrVerified`，用户端服务端录音转写只在 `VOICE_ASR_VERIFIED=1` 后视为可用；浏览器语音启动失败时，如果服务端 ASR 已验证，会自动退到录音上传识别，减少手机/微信环境“按了但不能说”的假体验。
+
 ## 2026-05-27 至 2026-05-28 补充进度
 
 - 已部署到 Edgespark 生产环境：`https://immortal-sponge-1728.edgespark.app`。

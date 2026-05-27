@@ -81,6 +81,7 @@ const checks = [
       ["voice_enabled", "sms_enabled", "file_export_enabled"].every((key) => key in system) &&
       typeof voiceCapabilities?.ttsConfigured === "boolean" &&
       typeof voiceCapabilities?.asrConfigured === "boolean" &&
+      typeof voiceCapabilities?.asrVerified === "boolean" &&
       typeof voiceCapabilities?.asrPreferred === "boolean";
   }),
   await assertJson("/api/public/tasks/not-a-task", undefined, 401, (payload) => payload?.error?.code === "missing_session")
