@@ -29,6 +29,7 @@
 - 微信支付回调验签补强：平台公钥不再是唯一方式；如果未配置 `WECHAT_PAY_PLATFORM_PUBLIC_KEY`，服务端会用商户号、商户证书序列号、商户私钥和 API v3 Key 调用微信 `/v3/certificates` 自动拉取平台证书验签。
 - 支付默认开关调整：默认配置已改为开放支付入口；后台仍可随时关闭 `payment_enabled`，微信支付凭据不完整时仍会 fail-fast，不创建脏订单。
 - 生产验收脚本补强：微信支付创建遇到“商户号产品权限未开通”时会输出结构化 `external_blocked` 和下一步处理建议，避免被误判为代码崩溃或普通 500。
+- 微信内支付验收补强：`verify:live` 新增微信浏览器 UA 下单检查，确认未取得 openid 时返回 `wechat_jsapi` 授权入口和公众号 OAuth 地址，不触发真实付款。
 - 交付文档补强：新增根 `README.md` 和 `docs/生产外部凭据交接清单.md`，明确线上地址、常用命令、验收分级和真实外部联调所需凭据。
 - 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run check:ui`、`npm run verify:journey`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式；线上公开配置已确认 `payment_enabled`、`annual_enabled`、`single_enabled`、`system.payment_enabled` 均为 `true`。
 - 仍需真实外部验收输入：后台账号密码、微信支付产品权限或微信内 JSAPI 授权配置、真实付款环境、可接收短信手机号、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。

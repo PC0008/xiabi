@@ -76,6 +76,22 @@ checks.push(await assertJson(
   (payload) => ["payment_disabled", "missing_letter"].includes(payload?.error?.code)
 ));
 checks.push(await assertJson(
+  "/api/public/orders",
+  {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "user-agent": "Mozilla/5.0 MicroMessenger/8.0 xiabi-production-smoke",
+      cookie
+    },
+    body: JSON.stringify({ productType: "annual" })
+  },
+  200,
+  (payload) => payload?.data?.requiresWechatAuth === true
+    && payload?.data?.payment?.provider === "wechat_jsapi"
+    && String(payload?.data?.oauthUrl || "").includes("open.weixin.qq.com/connect/oauth2/authorize")
+));
+checks.push(await assertJson(
   "/api/public/feedback",
   { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ category: "production-smoke", content: "自动验收：用户反馈链路可写入。" }) },
   200,
