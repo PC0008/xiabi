@@ -6,6 +6,7 @@
     "build": "npm --prefix web run build",
     "typecheck": "npm --prefix server run typecheck && npm --prefix web run typecheck",
     "verify:live": "node scripts/verify-live.mjs",
+    "verify:production": "node scripts/verify-production.mjs",
     "deploy:dry": "edgespark deploy --dry-run",
     "deploy": "edgespark deploy",
     "logs": "edgespark log tail"

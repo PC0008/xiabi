@@ -60,6 +60,8 @@
 - 后台已新增“系统自检”页和 `/api/public/admin/diagnostics` 接口，可检查 DeepSeek、微信支付、短信、MiniMax 说话、语音转写、管理员安全和公网运行地址的配置状态；接口只返回是否已配置，不返回任何密钥内容。
 - 支付下单已改为 fail-fast：微信支付、回调验签或回调解密配置不完整时，服务端直接返回 `wechat_pay_not_configured`，不会创建“待支付”脏订单，也不会让用户端误以为可以继续付款。
 - 短信验证码已增加错码次数控制：同一验证码连续错误会累加 `attempts`，达到上限后锁定并要求重新获取，避免无限撞码。
+- 新增 `npm run verify:production` 强验收脚本：可按环境变量显式触发后台自检严格校验、DeepSeek 真实生成、微信 H5 下单拉起、阿里云短信发送、MiniMax TTS 和服务端 ASR 转写验证；默认不主动触发会产生费用的外部调用。
+- `WECHAT_PAY_PLATFORM_PUBLIC_KEY`、`VOICE_ASR_*` 继续作为可选生产接入槽读取，避免 Edgespark 把未配置的可选项判定为部署必填；是否缺项由后台系统自检和 `verify:production` 严格模式判断。
 
 ### 本轮验证
 
@@ -68,6 +70,7 @@
 - `npm run deploy:dry` 通过。
 - `npm run deploy` 通过。
 - `npm run verify:live` 通过，线上入口、配置接口、会话隔离、无信件下单限制和截图验收正常。
+- `npm run verify:production` 基础模式通过，已验证线上健康接口与公开配置；真实短信、真实支付、真实 TTS/ASR、真实 DeepSeek 调用需显式设置对应环境变量后再执行。
 - 本地 Edgespark：`http://localhost:7775` 已启动并通过健康检查。
 - `node --check h5/app.js`、`node --check h5/admin.js` 通过。
 - 本地 API 验证：
