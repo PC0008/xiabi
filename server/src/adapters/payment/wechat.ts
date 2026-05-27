@@ -9,6 +9,13 @@ export type CreateWechatPaymentInput = {
   clientIp?: string;
 };
 
+export type WechatOrderQueryResult = {
+  out_trade_no?: string;
+  transaction_id?: string;
+  trade_state?: string;
+  trade_state_desc?: string;
+};
+
 export type NormalizedWechatWebhook = {
   eventId: string;
   providerOrderNo: string;
@@ -56,11 +63,19 @@ function buildAuthHeader(input: { mchId: string; serialNo: string; nonce: string
   return `WECHATPAY2-SHA256-RSA2048 mchid="${input.mchId}",nonce_str="${input.nonce}",signature="${input.signature}",timestamp="${input.timestamp}",serial_no="${input.serialNo}"`;
 }
 
-export async function createWechatPayment(input: CreateWechatPaymentInput) {
-  const appId = vars.get("WECHAT_PAY_APP_ID");
+function getMerchantAuthConfig() {
   const mchId = vars.get("WECHAT_PAY_MCH_ID");
   const serialNo = secret.get("WECHAT_PAY_CERT_SERIAL_NO");
-  if (!appId || !mchId || !serialNo || !secret.get("WECHAT_PAY_PRIVATE_KEY")) {
+  if (!mchId || !serialNo || !secret.get("WECHAT_PAY_PRIVATE_KEY")) {
+    return null;
+  }
+  return { mchId, serialNo };
+}
+
+export async function createWechatPayment(input: CreateWechatPaymentInput) {
+  const appId = vars.get("WECHAT_PAY_APP_ID");
+  const authConfig = getMerchantAuthConfig();
+  if (!appId || !authConfig) {
     return {
       provider: "wechat",
       configured: false,
@@ -73,7 +88,7 @@ export async function createWechatPayment(input: CreateWechatPaymentInput) {
   const path = "/v3/pay/transactions/h5";
   const body = JSON.stringify({
     appid: appId,
-    mchid: mchId,
+    mchid: authConfig.mchId,
     description: input.title.slice(0, 127),
     out_trade_no: input.providerOrderNo,
     notify_url: input.notifyUrl,
@@ -89,7 +104,7 @@ export async function createWechatPayment(input: CreateWechatPaymentInput) {
   const response = await fetch(`https://api.mch.weixin.qq.com${path}`, {
     method: "POST",
     headers: {
-      "Authorization": buildAuthHeader({ mchId, serialNo, nonce, timestamp, signature }),
+      "Authorization": buildAuthHeader({ mchId: authConfig.mchId, serialNo: authConfig.serialNo, nonce, timestamp, signature }),
       "Accept": "application/json",
       "Content-Type": "application/json"
     },
@@ -107,6 +122,33 @@ export async function createWechatPayment(input: CreateWechatPaymentInput) {
     amountCents: input.amountCents,
     h5Url: payload.h5_url
   };
+}
+
+export async function queryWechatPaymentByOutTradeNo(providerOrderNo: string) {
+  const authConfig = getMerchantAuthConfig();
+  if (!authConfig) {
+    return {
+      configured: false,
+      message: "微信支付商户号、证书序列号或商户私钥未配置完整。"
+    };
+  }
+  const path = `/v3/pay/transactions/out-trade-no/${encodeURIComponent(providerOrderNo)}`;
+  const query = `?mchid=${encodeURIComponent(authConfig.mchId)}`;
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const nonce = crypto.randomUUID().replace(/-/g, "");
+  const signature = await signWithMerchantKey(`GET\n${path}${query}\n${timestamp}\n${nonce}\n\n`);
+  const response = await fetch(`https://api.mch.weixin.qq.com${path}${query}`, {
+    method: "GET",
+    headers: {
+      "Authorization": buildAuthHeader({ mchId: authConfig.mchId, serialNo: authConfig.serialNo, nonce, timestamp, signature }),
+      "Accept": "application/json"
+    }
+  });
+  const payload = await response.json().catch(() => ({})) as WechatOrderQueryResult & { message?: string; code?: string };
+  if (!response.ok) {
+    throw new Error(payload.message || payload.code || `WeChat Pay query failed: ${response.status}`);
+  }
+  return { configured: true, transaction: payload };
 }
 
 export async function verifyWechatWebhook(headers: Headers, body: string) {

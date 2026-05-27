@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { adminSessions, adminUsers, auditLogs, entitlementLedger, generationTasks, guestSessions, orders, paymentWebhookEvents, salesLetters, users } from "@defs";
+import { queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { getAdminConfig, upsertConfigScope } from "../domain/config";
 import { ConfigScope, configScopes, TENANT_ID } from "../domain/defaults";
 import { fail, ok, parseJson, readJson } from "../domain/http";
@@ -118,6 +119,23 @@ function requireAdminOrFail(c: any, admin: typeof adminUsers.$inferSelect | null
   return null;
 }
 
+async function activateOrderEntitlement(order: typeof orders.$inferSelect) {
+  await db.insert(entitlementLedger).values({
+    id: crypto.randomUUID(),
+    tenantId: TENANT_ID,
+    userId: order.userId,
+    sessionId: order.sessionId,
+    orderId: order.id,
+    letterId: order.letterId,
+    type: order.productType,
+    status: "active",
+    quantity: 1,
+    dedupeKey: `order:${order.id}:${order.productType}`,
+    startsAt: new Date().toISOString(),
+    expiresAt: order.productType === "annual" ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() : null
+  }).onConflictDoNothing();
+}
+
 export const adminRoutes = new Hono()
   .post("/login", async (c) => {
     const body = await readJson<AdminLoginBody>(c);
@@ -228,6 +246,40 @@ export const adminRoutes = new Hono()
     if (denied) return denied;
     const rows = await db.select().from(orders).where(eq(orders.tenantId, TENANT_ID)).orderBy(desc(orders.createdAt)).limit(100);
     return ok(c, { orders: rows });
+  })
+  .post("/orders/:id/reconcile", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(and(eq(orders.tenantId, TENANT_ID), eq(orders.id, c.req.param("id"))))
+      .limit(1);
+    if (!order) return fail(c, "order_not_found", "没有找到订单。", 404);
+    if (!order.providerOrderNo) return fail(c, "missing_provider_order_no", "订单缺少微信商户订单号。", 400);
+
+    const query = await queryWechatPaymentByOutTradeNo(order.providerOrderNo);
+    if (!query.configured) return fail(c, "wechat_pay_not_configured", query.message || "微信支付未配置完整。", 400);
+    const transaction = query.transaction;
+    if (!transaction) return fail(c, "wechat_pay_empty_query", "微信支付查单没有返回交易数据。", 502);
+    if (transaction.trade_state === "SUCCESS" && order.status !== "paid") {
+      await db.update(orders).set({
+        status: "paid",
+        providerTransactionId: transaction.transaction_id || null,
+        paidAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }).where(eq(orders.id, order.id));
+      await activateOrderEntitlement(order);
+    }
+    await logAdmin(admin!.id, "order.reconcile", "order", {
+      orderId: order.id,
+      providerOrderNo: order.providerOrderNo,
+      tradeState: transaction.trade_state,
+      transactionId: transaction.transaction_id
+    });
+    const [updated] = await db.select().from(orders).where(eq(orders.id, order.id)).limit(1);
+    return ok(c, { order: updated || order, transaction });
   })
   .get("/entitlements", async (c) => {
     const admin = await requireAdmin(c);

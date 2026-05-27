@@ -544,8 +544,17 @@ function renderLetters() {
 }
 
 function renderOrders() {
-  const rows = (adminState.lists.orders?.orders || []).map((item) => [item.id.slice(0, 8), item.sessionId?.slice(0, 8) || "-", item.title, yuan(item.amountCents), item.provider, item.status, item.providerTransactionId || "-"]);
-  return layout(tablePanel("订单与支付", "真实支付接入后查看微信交易号、回调和补偿查询。", ["订单号", "会话", "商品", "金额", "模式", "订单状态", "交易号"], rows.length ? rows : orders));
+  const rows = (adminState.lists.orders?.orders || []).map((item) => [
+    item.id.slice(0, 8),
+    item.sessionId?.slice(0, 8) || "-",
+    item.title,
+    yuan(item.amountCents),
+    item.provider,
+    item.status,
+    item.providerTransactionId || item.providerOrderNo || "-",
+    item.status === "pending" ? `<button class="mini-action" data-action="reconcile-order" data-order-id="${item.id}">查单</button>` : "-"
+  ]);
+  return layout(tablePanel("订单与支付", "真实支付接入后查看微信交易号、回调和补偿查询。", ["订单号", "会话", "商品", "金额", "模式", "订单状态", "交易号", "补偿"], rows.length ? rows : orders));
 }
 
 function renderLedger() {
@@ -703,6 +712,14 @@ document.addEventListener("click", async (event) => {
     ]);
     adminState.selectedTemplateKey = nextKey;
     render();
+  } else if (action === "reconcile-order") {
+    try {
+      await window.XiabiMockStore.adminPost(`/orders/${actionTarget.dataset.orderId}/reconcile`);
+      await loadAdminLists();
+      showToast("查单完成，订单状态已刷新");
+    } catch (error) {
+      showToast(error.message || "查单失败");
+    }
   }
 });
 

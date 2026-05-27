@@ -219,6 +219,13 @@
     return apiFetch(`/admin${path}`);
   }
 
+  async function adminPost(path, body = {}) {
+    return apiFetch(`/admin${path}`, {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+  }
+
   function getAppState() {
     return {
       authed: readFlag(keys.authed),
@@ -298,6 +305,7 @@
     exportLetter,
     submitFeedback,
     adminFetch,
+    adminPost,
     getAppState,
     persistAppState,
     setAuthed,

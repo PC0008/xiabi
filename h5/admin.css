@@ -427,6 +427,18 @@ button {
   background: rgba(194, 58, 53, 0.10);
 }
 
+.mini-action {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(22, 161, 94, 0.28);
+  color: var(--green-strong);
+  background: rgba(22, 161, 94, 0.08);
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 .table-wrap {
   overflow-x: auto;
 }
