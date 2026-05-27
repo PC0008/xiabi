@@ -33,6 +33,7 @@
 - 用户端通话体验补强：通话页左侧“扬声器”改为真实播放控制，用户点击后由 MiniMax 朗读当前问题，再次点击可停止；默认不自动播放，避免自动验收和普通浏览器策略误触发。
 - 生产验收报告补强：`verify:production` 输出新增 `readiness` 验收矩阵，按基础运行、后台、DeepSeek、微信支付、短信、MiniMax、ASR 汇总 `verified`、`pending_input`、`external_blocked` 和 `failed` 状态。
 - 新增 `npm run verify:production:report`，可把生产验收矩阵写入 `docs/production-readiness-latest.md`，用于交付状态留档。
+- 生产验收补强：`XIABI_VERIFY_DEEPSEEK=1` 现在不仅验证 DeepSeek 生成，还会继续验证首次免费领取、权益流水和可打印 HTML 导出。
 - 交付文档补强：新增根 `README.md` 和 `docs/生产外部凭据交接清单.md`，明确线上地址、常用命令、验收分级和真实外部联调所需凭据。
 - 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run check:ui`、`npm run verify:journey`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式；线上公开配置已确认 `payment_enabled`、`annual_enabled`、`single_enabled`、`system.payment_enabled` 均为 `true`。
 - 仍需真实外部验收输入：后台账号密码、微信支付产品权限或微信内 JSAPI 授权配置、真实付款环境、可接收短信手机号、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。

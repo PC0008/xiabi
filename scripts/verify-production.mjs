@@ -47,6 +47,12 @@ function buildReadinessReport() {
       next: "设置 XIABI_VERIFY_DEEPSEEK=1 会真实消耗一次生成额度。"
     },
     {
+      requirement: "首次免费权益与导出",
+      status: readinessStatus(["first free entitlement and export"]),
+      evidence: ["first free entitlement and export"],
+      next: "设置 XIABI_VERIFY_DEEPSEEK=1 后会在同一会话内验证领取、权益流水和打印版导出。"
+    },
+    {
       requirement: "微信支付下单",
       status: readinessStatus(["wechat payment create"]),
       evidence: ["wechat payment create"],
@@ -271,6 +277,29 @@ async function verifyDeepSeek() {
   }
   if (current.status !== "succeeded" || !current.letterId) throw new Error("DeepSeek generation did not complete before timeout");
   addCheck("deepseek generation", "ok", { taskId, letterId: current.letterId });
+  const claimed = await api(`/api/public/letters/${current.letterId}/claim`, { method: "POST" }, cookie);
+  if (!claimed.access?.complete || !claimed.claimedAt) throw new Error("First free claim did not unlock the generated letter");
+  const entitlements = await api("/api/public/entitlements", {}, cookie);
+  const rows = Array.isArray(entitlements.entitlements) ? entitlements.entitlements : [];
+  const firstFree = rows.find((item) => item.type === "first_free_letter" && item.letterId === current.letterId);
+  if (!entitlements.summary?.firstFreeUsed || !firstFree) {
+    throw new Error("First free entitlement ledger was not created for the generated letter");
+  }
+  const exported = await api(`/api/public/exports/letters/${current.letterId}`, { method: "POST" }, cookie);
+  if (!exported.downloadUrl || exported.fileType !== "print_html") {
+    throw new Error("Printable export did not return a download URL");
+  }
+  const html = await fetch(exported.downloadUrl);
+  if (!html.ok) throw new Error(`Printable export URL returned ${html.status}`);
+  const text = await html.text();
+  if (!text.includes("<article") || !text.includes("智多星整理")) {
+    throw new Error("Printable export did not contain the expected letter HTML");
+  }
+  addCheck("first free entitlement and export", "ok", {
+    letterId: current.letterId,
+    entitlementId: firstFree.id,
+    objectKey: exported.objectKey
+  });
 }
 
 async function verifyPaymentCreate() {
