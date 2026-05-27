@@ -3,7 +3,7 @@ import { and, desc, eq, or } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { guestSessions, orders, salesLetters } from "@defs";
-import { buildWechatOAuthUrl, createWechatJsapiPayment, createWechatPayment, getWechatPaymentReadiness, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
+import { buildWechatOAuthUrl, createWechatJsapiPayment, createWechatPayment, getWechatOAuthReadiness, getWechatPaymentReadiness, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { getConfigScope } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { markOrderPaidAndGrantEntitlement } from "../domain/entitlements";
@@ -38,7 +38,13 @@ function getReturnUrl(c: any) {
   }
 }
 
-function wechatAuthResponse(c: any, returnUrl = getReturnUrl(c)) {
+async function wechatAuthResponse(c: any, sessionId: string, returnUrl = getReturnUrl(c)) {
+  const readiness = getWechatOAuthReadiness();
+  if (!readiness.configured) {
+    return fail(c, "wechat_oauth_not_configured", readiness.message, 503);
+  }
+  const oauthUrl = await buildWechatOAuthUrl(returnUrl, sessionId);
+  if (!oauthUrl) return fail(c, "wechat_oauth_not_configured", readiness.message, 503);
   return ok(c, {
     requiresWechatAuth: true,
     payment: {
@@ -46,7 +52,7 @@ function wechatAuthResponse(c: any, returnUrl = getReturnUrl(c)) {
       configured: false,
       message: "请先完成微信授权后再继续支付。"
     },
-    oauthUrl: buildWechatOAuthUrl(returnUrl)
+    oauthUrl
   });
 }
 
@@ -126,7 +132,7 @@ export const orderRoutes = new Hono()
     }
     const openid = getCookie(c, WECHAT_OPENID_COOKIE);
     const useJsapi = isWeChatBrowser(c);
-    if (useJsapi && !openid) return wechatAuthResponse(c, "/index.html#orders");
+    if (useJsapi && !openid) return await wechatAuthResponse(c, sessionId, "/index.html#orders");
     const orderId = crypto.randomUUID();
     const providerOrderNo = createProviderOrderNo();
     await db.insert(orders).values({
@@ -219,7 +225,7 @@ export const orderRoutes = new Hono()
     if (!readiness.configured) return fail(c, "wechat_pay_not_configured", readiness.message, 503);
     const openid = getCookie(c, WECHAT_OPENID_COOKIE);
     const useJsapi = isWeChatBrowser(c);
-    if (useJsapi && !openid) return wechatAuthResponse(c, "/index.html#orders");
+    if (useJsapi && !openid) return await wechatAuthResponse(c, sessionId, "/index.html#orders");
     let payment;
     try {
       if (useJsapi && openid) {

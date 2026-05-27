@@ -31,6 +31,7 @@
 - 支付默认开关调整：默认配置已改为开放支付入口；后台仍可随时关闭 `payment_enabled`，微信支付凭据不完整时仍会 fail-fast，不创建脏订单。
 - 生产验收脚本补强：微信支付创建遇到“商户号产品权限未开通”时会输出结构化 `external_blocked` 和下一步处理建议，避免被误判为代码崩溃或普通 500。
 - 微信内支付验收补强：`verify:live` 新增微信浏览器 UA 下单检查，确认未取得 openid 时返回 `wechat_jsapi` 授权入口和公众号 OAuth 地址，不触发真实付款。
+- 微信内支付授权加固：公众号 OAuth 现在要求 `WECHAT_MP_APP_SECRET` 和 `PUBLIC_BASE_URL` 配置完整后才返回授权地址；授权 `state` 已加入会话绑定、10 分钟过期和 HMAC 签名校验，缺配置时会 fail-fast 返回 `wechat_oauth_not_configured`，不再生成回调必失败的半授权链接。
 - 用户端通话体验补强：通话页左侧“扬声器”改为真实播放控制，用户点击后由 MiniMax 朗读当前问题，再次点击可停止；默认不自动播放，避免自动验收和普通浏览器策略误触发。
 - 生产验收报告补强：`verify:production` 输出新增 `readiness` 验收矩阵，按基础运行、后台、DeepSeek、微信支付、短信、MiniMax、ASR 汇总 `verified`、`pending_input`、`external_blocked` 和 `failed` 状态。
 - 新增 `npm run verify:production:report`，可把生产验收矩阵写入 `docs/production-readiness-latest.md`，用于交付状态留档。
@@ -80,7 +81,7 @@
 - 订单创建现在只认后台价格配置，前端不能传金额决定权益。
 - 服务端订单创建会尊重后台 `payment_enabled`、`annual_enabled`、`single_enabled` 开关。
 - 微信 H5 支付已接入下单位：`/v3/pay/transactions/h5`；用户端拿到 `h5_url` 后会跳转微信支付。
-- 微信内浏览器已补 JSAPI/openid 接入位：无 openid 时返回公众号 OAuth 地址，授权回调写入 httpOnly openid cookie；有 openid 时走 `/v3/pay/transactions/jsapi` 并返回 `WeixinJSBridge` 支付参数。
+- 微信内浏览器已补 JSAPI/openid 接入位：无 openid 且公众号授权配置完整时返回带签名 state 的公众号 OAuth 地址，授权回调写入 httpOnly openid cookie；有 openid 时走 `/v3/pay/transactions/jsapi` 并返回 `WeixinJSBridge` 支付参数。
 - 微信支付回调已做签名验签、AES-GCM 解密、订单置 paid、权益流水发放、重复回调幂等；失败回调允许同事件再次重试处理。
 - 管理后台订单列表已增加“查单”补偿入口，可通过微信商户订单号主动查询支付状态；查到支付成功后会置 paid 并幂等发放权益。
 - 短信已接入阿里云发送位，验证码写入 `sms_codes`，绑定手机号会校验验证码并写入 masked/hash。
@@ -151,7 +152,7 @@
 ### 还没完成 / 风险
 
 - MiniMax 官方公开文档未列出独立 ASR/语音转文字接口；如果必须“输入也走 MiniMax”，需要用户提供 MiniMax 对应语音识别接口文档或后台开通说明，或配置可用的 `VOICE_ASR_ENDPOINT`。
-- 微信 H5 支付适合普通手机浏览器，但当前商户号的 H5 支付产品权限未开通；如果用户在微信内打开 H5，正式付款需要 JSAPI + openid 授权链路和 `WECHAT_MP_APP_SECRET`。
+- 微信 H5 支付适合普通手机浏览器，但当前商户号的 H5 支付产品权限未开通；如果用户在微信内打开 H5，正式付款需要 JSAPI + openid 授权链路，并且必须补 `WECHAT_MP_APP_SECRET`，否则微信内下单会明确返回 `wechat_oauth_not_configured`。
 - 微信支付回调验签已支持自动拉取平台证书；如果商户证书/API v3 Key 无效，正式回调仍会失败。
 - 阿里云短信发送位已实现，但尚未用真实手机号发短信验证，避免产生费用。
 - 导出目前不是二进制 PDF 文件，而是服务端可打印 HTML；用户可以在浏览器内保存为 PDF，如需服务端直接生成 PDF 还要继续接 PDF 渲染能力。

@@ -108,10 +108,12 @@ checks.push(await assertJson(
     },
     body: JSON.stringify({ productType: "annual" })
   },
-  200,
-  (payload) => payload?.data?.requiresWechatAuth === true
-    && payload?.data?.payment?.provider === "wechat_jsapi"
-    && String(payload?.data?.oauthUrl || "").includes("open.weixin.qq.com/connect/oauth2/authorize")
+  [200, 503],
+  (payload, response) => response.status === 503
+    ? payload?.error?.code === "wechat_oauth_not_configured"
+    : payload?.data?.requiresWechatAuth === true
+      && payload?.data?.payment?.provider === "wechat_jsapi"
+      && String(payload?.data?.oauthUrl || "").includes("open.weixin.qq.com/connect/oauth2/authorize")
 ));
 checks.push(await assertJson(
   "/api/public/feedback",
@@ -148,6 +150,22 @@ checks.push(await assertJson(
   undefined,
   401,
   (payload) => payload?.error?.code === "missing_session"
+));
+checks.push(await assertJson(
+  "/api/public/wechat/oauth/start?returnUrl=%2Findex.html%23orders",
+  { headers: { cookie } },
+  [200, 503],
+  (payload, response) => response.status === 503
+    ? payload?.error?.code === "wechat_oauth_not_configured"
+    : String(payload?.data?.oauthUrl || "").includes("open.weixin.qq.com/connect/oauth2/authorize")
+));
+checks.push(await assertJson(
+  "/api/public/wechat/oauth/callback?code=fake-code&state=bad-state",
+  { headers: { cookie } },
+  [400, 503],
+  (payload, response) => response.status === 503
+    ? payload?.error?.code === "wechat_oauth_not_configured"
+    : payload?.error?.code === "invalid_wechat_oauth_state"
 ));
 
 if (process.env.XIABI_VERIFY_ADMIN_USERNAME && process.env.XIABI_VERIFY_ADMIN_PASSWORD) {

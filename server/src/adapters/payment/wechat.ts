@@ -47,6 +47,22 @@ type WechatCertificateResponse = {
 
 const platformCertificateCache = new Map<string, string>();
 
+function base64UrlEncode(value: string | ArrayBuffer) {
+  let binary = "";
+  const bytes = typeof value === "string" ? new TextEncoder().encode(value) : new Uint8Array(value);
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function base64UrlDecode(value: string) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = `${normalized}${"=".repeat((4 - normalized.length % 4) % 4)}`;
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
 function pemToArrayBuffer(pem: string) {
   const base64 = pem.replace(/-----BEGIN [^-]+-----/g, "").replace(/-----END [^-]+-----/g, "").replace(/\s/g, "");
   const binary = atob(base64);
@@ -149,6 +165,23 @@ function getMerchantAuthConfig() {
   return { mchId, serialNo };
 }
 
+function getWechatOAuthConfig() {
+  const appId = vars.get("WECHAT_PAY_APP_ID");
+  const appSecret = secret.get("WECHAT_MP_APP_SECRET" as any);
+  const baseUrl = (vars.get("PUBLIC_BASE_URL") || "").replace(/\/+$/, "");
+  if (!appId || !appSecret || !baseUrl) return null;
+  return { appId, appSecret, baseUrl };
+}
+
+async function signOAuthState(payload: string, appSecret: string) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(appSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return base64UrlEncode(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload)));
+}
+
+function sanitizeOAuthReturnUrl(returnUrl: string) {
+  return returnUrl.startsWith("/") && !returnUrl.startsWith("//") ? returnUrl : "/index.html#orders";
+}
+
 export function getWechatPaymentReadiness() {
   const merchantAuthReady = !!vars.get("WECHAT_PAY_MCH_ID") && !!secret.get("WECHAT_PAY_CERT_SERIAL_NO") && !!secret.get("WECHAT_PAY_PRIVATE_KEY");
   const apiV3KeyReady = !!secret.get("WECHAT_PAY_API_V3_KEY");
@@ -171,20 +204,44 @@ export function getWechatPaymentReadiness() {
 }
 
 export function getWechatOAuthReadiness() {
+  const items = {
+    appId: !!vars.get("WECHAT_PAY_APP_ID"),
+    appSecret: !!secret.get("WECHAT_MP_APP_SECRET" as any),
+    publicBaseUrl: !!vars.get("PUBLIC_BASE_URL")
+  };
   return {
-    configured: !!vars.get("WECHAT_PAY_APP_ID") && !!secret.get("WECHAT_MP_APP_SECRET" as any),
+    configured: items.appId && items.appSecret && items.publicBaseUrl,
+    items,
     message: "微信公众号授权配置还不完整。"
   };
 }
 
-export function buildWechatOAuthUrl(returnUrl = "/index.html#orders") {
-  const appId = vars.get("WECHAT_PAY_APP_ID");
-  if (!appId) return "";
-  const baseUrl = (vars.get("PUBLIC_BASE_URL") || "").replace(/\/+$/, "");
+export async function buildWechatOAuthUrl(returnUrl = "/index.html#orders", sessionId = "") {
+  const config = getWechatOAuthConfig();
+  if (!config || !sessionId) return "";
+  const { appId, appSecret, baseUrl } = config;
   const redirectUri = `${baseUrl}/api/public/wechat/oauth/callback`;
-  const safeReturnUrl = returnUrl.startsWith("/") && !returnUrl.startsWith("//") ? returnUrl : "/index.html#orders";
-  const state = btoa(unescape(encodeURIComponent(safeReturnUrl))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const statePayload = base64UrlEncode(JSON.stringify({
+    returnUrl: sanitizeOAuthReturnUrl(returnUrl),
+    sessionId,
+    nonce: crypto.randomUUID(),
+    expiresAt: Date.now() + 10 * 60 * 1000
+  }));
+  const state = `${statePayload}.${await signOAuthState(statePayload, appSecret)}`;
   return `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=snsapi_base&state=${encodeURIComponent(state)}#wechat_redirect`;
+}
+
+export async function verifyWechatOAuthState(value: string, sessionId = "") {
+  const config = getWechatOAuthConfig();
+  if (!config) return { configured: false, message: "微信公众号授权配置还不完整。" };
+  const [payload, signature] = value.split(".");
+  if (!payload || !signature) throw new Error("invalid_wechat_oauth_state");
+  const expected = await signOAuthState(payload, config.appSecret);
+  if (signature !== expected) throw new Error("invalid_wechat_oauth_state_signature");
+  const parsed = JSON.parse(base64UrlDecode(payload)) as { returnUrl?: string; sessionId?: string; expiresAt?: number };
+  if (!parsed.sessionId || parsed.sessionId !== sessionId) throw new Error("wechat_oauth_session_mismatch");
+  if (!parsed.expiresAt || parsed.expiresAt < Date.now()) throw new Error("wechat_oauth_state_expired");
+  return { configured: true, returnUrl: sanitizeOAuthReturnUrl(parsed.returnUrl || "/index.html#orders") };
 }
 
 export async function exchangeWechatOAuthCode(code: string) {
