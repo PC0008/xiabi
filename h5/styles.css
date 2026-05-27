@@ -116,7 +116,8 @@ button {
   box-shadow: 0 16px 30px rgba(22, 161, 94, 0.23);
 }
 
-.primary-btn.disabled {
+.primary-btn.disabled,
+.primary-btn:disabled {
   background: #b9c4bf;
   box-shadow: none;
   cursor: not-allowed;
@@ -960,6 +961,11 @@ button {
   background: rgba(22, 161, 94, 0.08);
   font-size: 15px;
   line-height: 1.55;
+}
+
+.error-note {
+  color: #a13d2d;
+  background: #fff1ed;
 }
 
 .later-link {

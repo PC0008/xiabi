@@ -144,7 +144,9 @@ const state = {
   selectedPlan: "annual",
   letter: storedState.letter,
   mockOrders: storedState.mockOrders,
-  mockLedger: storedState.mockLedger
+  mockLedger: storedState.mockLedger,
+  generationPending: false,
+  generationError: ""
 };
 
 let speechRecognition = null;
@@ -501,6 +503,8 @@ function renderGenerating() {
     "写完整信件",
     "排版"
   ];
+  const letterReady = !!state.letter;
+  const waitingForLetter = state.generationPending && !letterReady && !state.generationError;
   return shell(`
     ${topbar()}
     <img class="generating-hero" src="${ASSETS.generating}" alt="智多星正在整理" />
@@ -515,12 +519,14 @@ function renderGenerating() {
       `).join("")}
     </div>
     <div class="contact-note">${homePage.phone_bind_enabled === false ? "这封信会先保存到你的记录里，后续可以回来领取和导出。" : "手机号仅用于确认首次免费权益、保存销售信和结果提醒，不会公开展示。"}</div>
-    ${homePage.phone_bind_enabled === false ? `
+    ${state.generationError ? `<div class="contact-note error-note">${state.generationError}</div><button class="secondary-btn" data-action="generate">重新整理</button>` : ""}
+    ${waitingForLetter ? `<button class="primary-btn" disabled>智多星正在写信...</button>` : ""}
+    ${letterReady && homePage.phone_bind_enabled === false ? `
       <button class="primary-btn" data-action="skip-phone">保存到我的销售信</button>
-    ` : `
+    ` : letterReady ? `
       <button class="primary-btn" data-action="bind-phone">授权手机号，生成好后提醒我</button>
       <div class="later-link" data-action="skip-phone">先不绑定，稍后再领取</div>
-    `}
+    ` : ""}
   `);
 }
 
@@ -1113,17 +1119,25 @@ document.addEventListener("click", async (event) => {
     state.inputMode = "text";
     render();
   } else if (action === "generate") {
-    generateLetter(false);
+    state.letter = null;
+    state.pendingLetter = false;
+    state.generationPending = true;
+    state.generationError = "";
     state.generationStep = 0;
     go("generating");
     startGenerationTicker();
     window.XiabiMockStore.createGenerationTask(state.answers)
       .then((task) => window.XiabiMockStore.getLetter(task.letterId))
       .then((remoteLetter) => {
+        state.generationPending = false;
         applyRemoteLetter(remoteLetter);
         if (state.route === "generating" || state.route === "letter") render();
       })
-      .catch(() => {});
+      .catch(() => {
+        state.generationPending = false;
+        state.generationError = "写信服务暂时没有完成，请稍后再试。";
+        if (state.route === "generating") render();
+      });
   } else if (action === "bind-phone") {
     if (state.letter?.id) {
       try {
