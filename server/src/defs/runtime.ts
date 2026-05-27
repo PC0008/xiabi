@@ -17,5 +17,4 @@ export type SecretKey =
   | "WECHAT_PAY_CERT_SERIAL_NO"
   | "SMS_API_KEY"
   | "SMS_API_SECRET"
-  | "VOICE_API_KEY"
-  | "VOICE_API_SECRET";
+  | "VOICE_API_KEY";
