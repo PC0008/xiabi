@@ -55,7 +55,11 @@
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || payload.ok === false) {
-      throw new Error(payload.error?.message || "请求失败");
+      const error = new Error(payload.error?.message || "请求失败");
+      error.code = payload.error?.code || "";
+      error.status = response.status;
+      error.payload = payload;
+      throw error;
     }
     return payload.data ?? payload;
   }

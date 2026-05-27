@@ -237,6 +237,30 @@ function paymentOpen() {
   return commerceConfig.payment_enabled !== false;
 }
 
+function userPaymentErrorMessage(error, fallback) {
+  if (error?.code === "wechat_pay_external_blocked") {
+    return "微信支付暂时还没有开通完成，这封信和订单已保留。请稍后再试或联系管理员。";
+  }
+  if (error?.code === "wechat_pay_not_configured" || error?.code === "wechat_oauth_not_configured") {
+    return "微信支付暂时还没有配置完成，这封信会继续保存在你的记录里。";
+  }
+  if (["payment_disabled", "annual_disabled", "single_disabled"].includes(error?.code)) {
+    return error.message || "支付入口暂未开放。";
+  }
+  return error?.message || fallback;
+}
+
+function shouldClearPaymentIntent(error) {
+  return [
+    "wechat_pay_external_blocked",
+    "wechat_pay_not_configured",
+    "wechat_oauth_not_configured",
+    "payment_disabled",
+    "annual_disabled",
+    "single_disabled"
+  ].includes(error?.code);
+}
+
 function continueWechatPayment(result) {
   if (result?.requiresWechatAuth && result.oauthUrl) {
     state.paymentNotice = "正在打开微信授权，完成后请继续支付。";
@@ -315,8 +339,9 @@ async function resumePaymentIntent() {
     state.paymentNotice = result.payment?.message || "支付暂时无法拉起，请稍后再试。";
     await loadAccountData();
   } catch (error) {
-    clearPaymentIntent();
-    state.paymentNotice = error.message || "继续支付失败，请稍后再试。";
+    if (shouldClearPaymentIntent(error)) clearPaymentIntent();
+    state.paymentNotice = userPaymentErrorMessage(error, "继续支付失败，请稍后再试。");
+    await loadAccountData();
   } finally {
     state.paymentRefreshing = false;
     if (state.route === "orders") render();
@@ -1946,7 +1971,9 @@ document.addEventListener("click", async (event) => {
       if (continueWechatPayment(result)) return;
       state.paymentNotice = result.payment?.message || "支付暂时无法拉起，请稍后再试。";
     } catch (error) {
-      state.paymentNotice = error.message || "继续支付失败，请稍后再试。";
+      if (shouldClearPaymentIntent(error)) clearPaymentIntent();
+      state.paymentNotice = userPaymentErrorMessage(error, "继续支付失败，请稍后再试。");
+      await loadAccountData();
     }
     render();
   } else if (action === "skip-phone") {
@@ -1985,8 +2012,14 @@ document.addEventListener("click", async (event) => {
       await loadAccountData();
       go("orders");
     } catch (error) {
-      state.paymentNotice = error.message || "订单创建失败，请稍后再试。";
-      render();
+      if (shouldClearPaymentIntent(error)) clearPaymentIntent();
+      state.paymentNotice = userPaymentErrorMessage(error, "订单创建失败，请稍后再试。");
+      if (error?.code === "wechat_pay_external_blocked") {
+        await loadAccountData();
+        go("orders");
+      } else {
+        render();
+      }
     }
   } else if (action === "save-letter") {
     if (!exportEnabled()) {
@@ -2007,8 +2040,14 @@ document.addEventListener("click", async (event) => {
       await loadAccountData();
       go("orders");
     } catch (error) {
-      state.paymentNotice = error.message || "订单创建失败，请稍后再试。";
-      render();
+      if (shouldClearPaymentIntent(error)) clearPaymentIntent();
+      state.paymentNotice = userPaymentErrorMessage(error, "订单创建失败，请稍后再试。");
+      if (error?.code === "wechat_pay_external_blocked") {
+        await loadAccountData();
+        go("orders");
+      } else {
+        render();
+      }
     }
   } else if (action === "export-print") {
     if (!exportEnabled()) {

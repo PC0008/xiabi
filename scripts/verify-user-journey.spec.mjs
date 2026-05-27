@@ -258,3 +258,102 @@ test("start call waits for latest public config", async ({ page }) => {
   await expect(page.locator(".home-title")).toBeVisible();
   await expect(page.locator("button", { hasText: "生成入口暂未开放" })).toBeVisible();
 });
+
+test("payment product-permission blocker clears pending payment intent", async ({ page }) => {
+  let paymentBlocked = false;
+  await page.addInitScript(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.route("**/api/public/config", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          homeConfig: {},
+          pricing: { payment_enabled: true, annual_enabled: true, single_enabled: true, annual: 2000, single: 200 },
+          guideStages: [],
+          system: { voice_enabled: true, sms_enabled: true, file_export_enabled: true, generation_enabled: true },
+          capabilities: { voice: { ttsConfigured: true, asrConfigured: false, asrVerified: false, asrPreferred: false } },
+          versions: {}
+        }
+      })
+    });
+  });
+  await page.route("**/api/public/session/guest", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: { sessionId: "test-session" } })
+    });
+  });
+  await page.route("**/api/public/session/me", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: { user: null } })
+    });
+  });
+  await page.route("**/api/public/letters", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: { letters: [] } })
+    });
+  });
+  await page.route("**/api/public/orders", async (route) => {
+    if (route.request().method() === "POST") {
+      paymentBlocked = true;
+      await route.fulfill({
+        status: 424,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: false,
+          error: {
+            code: "wechat_pay_external_blocked",
+            message: "微信支付商户号缺少当前支付产品权限，请到微信支付商户平台产品中心开通 H5 支付或 JSAPI 支付后再试。"
+          }
+        })
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          orders: paymentBlocked
+            ? [{ id: "order-blocked", title: "年卡会员", status: "payment_failed", productType: "annual", provider: "wechat", amountCents: 200000, createdAt: new Date().toISOString() }]
+            : []
+        }
+      })
+    });
+  });
+  await page.route("**/api/public/entitlements", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: { entitlements: [], summary: { annualActive: false, singleCredits: 0, firstFreeUsed: false } } })
+    });
+  });
+  await page.route("**/api/public/profiles", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: { profiles: [] } })
+    });
+  });
+
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+  await page.locator('[data-action="auth"]').click();
+  await page.goto(`${baseUrl}/index.html#paywall`, { waitUntil: "domcontentloaded" });
+  await page.locator('[data-action="create-order"]').click();
+
+  await expect(page.locator(".record-title", { hasText: "订单记录" })).toBeVisible();
+  await expect(page.locator(".contact-note", { hasText: "微信支付暂时还没有开通完成" })).toBeVisible();
+  await expect(page.locator(".order-title", { hasText: "年卡" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("h5PaymentIntent"))).toBeNull();
+});

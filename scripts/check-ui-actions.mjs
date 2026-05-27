@@ -88,6 +88,11 @@ const requiredMarkers = [
     file: "server/src/routes/orders.ts",
     marker: "wechat_pay_external_blocked",
     message: "WeChat product permission errors must be classified as external blockers"
+  },
+  {
+    file: "h5/app.js",
+    marker: "userPaymentErrorMessage",
+    message: "payment provider setup errors must be shown as user-facing order recovery copy"
   }
 ];
 
