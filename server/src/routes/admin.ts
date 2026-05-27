@@ -923,6 +923,18 @@ export const adminRoutes = new Hono()
       return fail(c, "payment_event_reprocess_failed", "重新处理回调失败。", 502);
     }
   })
+  .get("/feedback", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const rows = await db
+      .select()
+      .from(auditLogs)
+      .where(and(eq(auditLogs.tenantId, TENANT_ID), eq(auditLogs.targetType, "feedback")))
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(listLimit(c));
+    return ok(c, { feedback: rows.map((row) => ({ ...row, detail: parseJson(row.detailJson, {}) })) });
+  })
   .get("/audit-logs", async (c) => {
     const admin = await requireAdmin(c);
     const denied = requireAdminOrFail(c, admin);

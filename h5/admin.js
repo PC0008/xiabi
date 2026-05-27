@@ -77,6 +77,7 @@ const adminState = {
     logs: null,
     tasks: null,
     paymentEvents: null,
+    feedback: null,
     diagnostics: null
   },
   templates: Array.isArray(savedAdminConfig.templates) ? savedAdminConfig.templates : [],
@@ -115,7 +116,7 @@ function readSavedAdminConfig() {
 async function loadAdminLists() {
   if (!adminState.adminUser) return;
   try {
-    const [dashboard, usersData, lettersData, ordersData, entitlementData, logsData, tasksData, paymentEventsData, diagnosticsData] = await Promise.all([
+    const [dashboard, usersData, lettersData, ordersData, entitlementData, logsData, tasksData, paymentEventsData, feedbackData, diagnosticsData] = await Promise.all([
       window.XiabiMockStore.adminFetch("/dashboard"),
       window.XiabiMockStore.adminFetch("/users"),
       window.XiabiMockStore.adminFetch(listPath("/letters", adminState.filters.lettersStatus)),
@@ -124,6 +125,7 @@ async function loadAdminLists() {
       window.XiabiMockStore.adminFetch("/audit-logs"),
       window.XiabiMockStore.adminFetch(listPath("/tasks", adminState.filters.tasksStatus)),
       window.XiabiMockStore.adminFetch(listPath("/payment-events", adminState.filters.paymentEventsStatus)),
+      window.XiabiMockStore.adminFetch("/feedback"),
       window.XiabiMockStore.adminFetch("/diagnostics")
     ]);
     adminState.lists = {
@@ -135,6 +137,7 @@ async function loadAdminLists() {
       logs: logsData,
       tasks: tasksData,
       paymentEvents: paymentEventsData,
+      feedback: feedbackData,
       diagnostics: diagnosticsData
     };
   } catch (error) {
@@ -168,6 +171,7 @@ const navItems = [
   ["orders", "订单支付", "order"],
   ["paymentEvents", "支付回调", "log"],
   ["ledger", "权益流水", "ledger"],
+  ["feedback", "用户反馈", "doc"],
   ["logs", "日志审计", "log"],
   ["diagnostics", "系统自检", "settings"]
 ];
@@ -365,6 +369,7 @@ function pageDescription(route) {
     orders: "查看订单、支付状态、回调和补偿入口。",
     paymentEvents: "查看微信支付回调事件、失败原因和原始数据。",
     ledger: "权益只从订单和权益流水计算，前端不直接决定权限。",
+    feedback: "查看用户提交的问题、建议和异常反馈。",
     logs: "记录配置修改、支付回调、生成失败和敏感操作。",
     diagnostics: "检查真实服务配置是否齐全，只显示状态，不显示密钥内容。"
   };
@@ -736,6 +741,17 @@ function renderLogs() {
   return layout(tablePanel("日志审计", "记录谁在什么时候改了什么，以及支付和生成关键事件。", ["类型", "操作人", "内容", "时间", "操作"], rows.length ? rows : logs));
 }
 
+function renderFeedback() {
+  const rows = (adminState.lists.feedback?.feedback || []).map((item) => [
+    item.detail?.category || "用户反馈",
+    item.detail?.content || "-",
+    shortId(item.actorId),
+    formatDate(item.createdAt),
+    actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="audit-logs" data-detail-id="${h(item.id)}">详情</button>`)
+  ]);
+  return layout(tablePanel("用户反馈", "集中查看用户端提交的问题、建议和异常描述。", ["类型", "内容", "会话", "时间", "操作"], rows));
+}
+
 function renderPaymentEvents() {
   const rows = (adminState.lists.paymentEvents?.events || []).map((item) => [
     shortId(item.id),
@@ -1007,6 +1023,7 @@ function render() {
     orders: renderOrders,
     paymentEvents: renderPaymentEvents,
     ledger: renderLedger,
+    feedback: renderFeedback,
     logs: renderLogs,
     diagnostics: renderDiagnostics
   };
