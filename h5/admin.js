@@ -376,8 +376,8 @@ function renderLogin() {
           <div class="brand-sub">总后台登录</div>
         </div>
         <div class="form-grid login-form">
-          <div class="field full"><label>账号</label><input data-login-field="username" value="${h(adminState.loginUsername)}" autocomplete="username" /></div>
-          <div class="field full"><label>密码</label><input data-login-field="password" type="password" value="${h(adminState.loginPassword)}" autocomplete="current-password" /></div>
+          <div class="field full"><label>账号</label><input data-login-field="username" value="${h(adminState.loginUsername)}" autocomplete="username" maxlength="64" /></div>
+          <div class="field full"><label>密码</label><input data-login-field="password" type="password" value="${h(adminState.loginPassword)}" autocomplete="current-password" maxlength="256" /></div>
         </div>
         ${adminState.loginError ? `<div class="login-error">${h(adminState.loginError)}</div>` : ""}
         <button class="primary login-submit" data-action="admin-login">登录后台</button>
@@ -812,9 +812,9 @@ function renderSecurity() {
       <div class="panel card">
         <div class="panel-head"><div><div class="panel-title">修改后台密码</div><div class="panel-desc">修改成功后，当前账号的所有登录会话都会失效，需要用新密码重新登录。</div></div></div>
         <div class="form-grid">
-          <div class="field full"><label>当前密码</label><input type="password" data-security-field="currentPassword" value="${h(adminState.security.currentPassword)}" autocomplete="current-password" /></div>
-          <div class="field"><label>新密码</label><input type="password" data-security-field="newPassword" value="${h(adminState.security.newPassword)}" autocomplete="new-password" /></div>
-          <div class="field"><label>确认新密码</label><input type="password" data-security-field="confirmPassword" value="${h(adminState.security.confirmPassword)}" autocomplete="new-password" /></div>
+          <div class="field full"><label>当前密码</label><input type="password" data-security-field="currentPassword" value="${h(adminState.security.currentPassword)}" autocomplete="current-password" maxlength="256" /></div>
+          <div class="field"><label>新密码</label><input type="password" data-security-field="newPassword" value="${h(adminState.security.newPassword)}" autocomplete="new-password" maxlength="256" /></div>
+          <div class="field"><label>确认新密码</label><input type="password" data-security-field="confirmPassword" value="${h(adminState.security.confirmPassword)}" autocomplete="new-password" maxlength="256" /></div>
         </div>
         <div class="detail-actions">
           <button class="primary" data-action="change-admin-password">保存新密码</button>

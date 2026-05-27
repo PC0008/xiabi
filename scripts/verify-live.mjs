@@ -188,6 +188,16 @@ checks.push(await assertJson(
   401,
   (payload) => payload?.error?.code === "not_authenticated"
 ));
+checks.push(await assertJson(
+  "/api/public/admin/login",
+  {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username: "u".repeat(65), password: "p" })
+  },
+  413,
+  (payload) => payload?.error?.code === "admin_credentials_too_long"
+));
 const rateLimitUsername = `codex-rate-limit-${Date.now()}`;
 for (let index = 0; index < 9; index += 1) {
   checks.push(await assertJson(

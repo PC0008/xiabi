@@ -57,6 +57,11 @@ const requiredMarkers = [
     file: "server/src/routes/admin.ts",
     marker: "ADMIN_LOGIN_FAILURE_LIMIT",
     message: "admin login must rate-limit repeated failed attempts"
+  },
+  {
+    file: "server/src/routes/admin.ts",
+    marker: "ADMIN_USERNAME_MAX_LENGTH",
+    message: "admin login must reject oversized credentials before hashing or auditing"
   }
 ];
 

@@ -16,6 +16,8 @@ const DEFAULT_LIST_LIMIT = 100;
 const MAX_LIST_LIMIT = 200;
 const ADMIN_LOGIN_FAILURE_LIMIT = 8;
 const ADMIN_LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+const ADMIN_USERNAME_MAX_LENGTH = 64;
+const ADMIN_PASSWORD_MAX_LENGTH = 256;
 
 type AdminLoginBody = {
   username: string;
@@ -648,6 +650,9 @@ export const adminRoutes = new Hono()
     const username = String(body.username || "").trim();
     const password = String(body.password || "");
     if (!username || !password) return fail(c, "missing_credentials", "请输入账号和密码。", 400);
+    if (username.length > ADMIN_USERNAME_MAX_LENGTH || password.length > ADMIN_PASSWORD_MAX_LENGTH) {
+      return fail(c, "admin_credentials_too_long", "账号或密码长度超出限制。", 413);
+    }
     if (await recentLoginFailureCount(username) >= ADMIN_LOGIN_FAILURE_LIMIT) {
       await logAdminFailure("admin.login_rate_limited", { username, windowMinutes: ADMIN_LOGIN_FAILURE_WINDOW_MS / 60000 });
       return fail(c, "admin_login_rate_limited", "登录尝试过于频繁，请稍后再试。", 429);
@@ -695,6 +700,9 @@ export const adminRoutes = new Hono()
     const newPassword = String(body.newPassword || "");
     if (!currentPassword || !newPassword) return fail(c, "missing_password", "请输入当前密码和新密码。", 400);
     if (newPassword.length < 10) return fail(c, "weak_password", "新密码至少需要 10 位。", 400);
+    if (currentPassword.length > ADMIN_PASSWORD_MAX_LENGTH || newPassword.length > ADMIN_PASSWORD_MAX_LENGTH) {
+      return fail(c, "admin_password_too_long", "密码长度超出限制。", 413);
+    }
     const pepper = secret.get("ADMIN_PASSWORD_PEPPER");
     if (!pepper) return fail(c, "admin_pepper_missing", "后台密码安全配置缺失。", 500);
     if (await hashPassword(currentPassword, pepper) !== admin.passwordHash) {
