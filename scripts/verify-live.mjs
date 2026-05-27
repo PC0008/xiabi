@@ -15,6 +15,27 @@ async function assertHttp(pathname, check) {
   return { pathname, status: response.status };
 }
 
+async function assertJson(pathname, init, expectedStatus, check) {
+  const response = await fetch(`${baseUrl}${pathname}`, init);
+  const text = await response.text();
+  let payload = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    // Keep the raw text for the error below.
+  }
+  if (response.status !== expectedStatus) {
+    throw new Error(`${pathname} returned ${response.status}, expected ${expectedStatus}: ${text.slice(0, 160)}`);
+  }
+  if (check && !check(payload, response)) throw new Error(`${pathname} returned unexpected JSON`);
+  return { pathname, status: response.status };
+}
+
+function getCookie(headers) {
+  const value = headers.get("set-cookie") || "";
+  return value.split(";")[0];
+}
+
 async function screenshot(url, output, viewport) {
   const command = `npx --yes playwright screenshot --wait-for-timeout=3000 --viewport-size=${viewport} "${url}" "${output}"`;
   await execAsync(command, { windowsHide: true });
@@ -29,8 +50,26 @@ const checks = [
   await assertHttp("/api/public/health", (text) => text.includes("\"status\":\"ok\"")),
   await assertHttp("/index.html", (text) => text.includes("app.js")),
   await assertHttp("/admin.html", (text) => text.includes("admin.js")),
-  await assertHttp("/api/public/config", (text) => text.includes("pricing"))
+  await assertHttp("/api/public/config", (text) => text.includes("pricing")),
+  await assertJson("/api/public/tasks/not-a-task", undefined, 401, (payload) => payload?.error?.code === "missing_session")
 ];
+
+const guest = await fetch(`${baseUrl}/api/public/session/guest`, { method: "POST" });
+if (!guest.ok) throw new Error(`guest session returned ${guest.status}`);
+const cookie = getCookie(guest.headers);
+if (!cookie) throw new Error("guest session did not set a cookie");
+checks.push(await assertJson(
+  "/api/public/tasks/not-a-task",
+  { headers: { cookie } },
+  404,
+  (payload) => payload?.error?.code === "task_not_found"
+));
+checks.push(await assertJson(
+  "/api/public/orders",
+  { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ productType: "single" }) },
+  403,
+  (payload) => ["payment_disabled", "missing_letter"].includes(payload?.error?.code)
+));
 
 const screenshots = [
   await screenshot(`${baseUrl}/index.html`, path.join(assetsDir, "verify-home-mobile.png"), "390,844"),

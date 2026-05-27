@@ -37,22 +37,6 @@ function selectTemplateMeta(templates: unknown) {
   };
 }
 
-function buildDraftLetter(answers: string[]): SalesLetterContent {
-  const goal = answers[1] || "让潜在客户理解产品价值，并愿意预约一次沟通。";
-  const concern = answers[3] || "客户担心效果不稳定，也担心投入后没有持续跟进。";
-  return {
-    title: "给潜在客户的一封成交销售信",
-    scene: "成交邀约",
-    paragraphs: [
-      "你好，我认真整理了你现在想推进的目标。真正重要的不是把产品介绍得更复杂，而是让对方在短时间内明白：这件事和他当下的处境有什么关系。",
-      `这封信会围绕“${goal}”来展开，把客户最关心的结果、行动理由和下一步安排讲清楚。`,
-      `我也会提前回应客户的顾虑：${concern}。当这些顾虑被看见，对方才更容易继续往下聊。`,
-      "如果你愿意，我们可以先从一次轻量沟通开始。你不用马上做很重的决定，只需要先判断这件事是否值得继续推进。"
-    ],
-    provider: "local_fallback"
-  };
-}
-
 export const taskRoutes = new Hono()
   .post("/", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
@@ -65,26 +49,32 @@ export const taskRoutes = new Hono()
     const templates = (await getConfigScope(db, "templates")).data;
     const templateMeta = selectTemplateMeta(templates);
 
+    await db.insert(generationTasks).values({
+      id: taskId,
+      tenantId: TENANT_ID,
+      sessionId,
+      type: "sales_letter",
+      status: "running",
+      inputJson: JSON.stringify({ answers, input }),
+      progressJson: JSON.stringify({ percent: 20, stage: "writing", provider: "deepseek" }),
+      attempts: 1
+    });
+
     let content: SalesLetterContent | null = null;
     try {
       content = await generateSalesLetterWithDeepSeek({ answers, input, templates });
+      if (!content) throw new Error("DeepSeek provider is not configured.");
     } catch (error) {
-      await db.insert(generationTasks).values({
-        id: taskId,
-        tenantId: TENANT_ID,
-        sessionId,
-        type: "sales_letter",
+      await db.update(generationTasks).set({
         status: "failed",
-        inputJson: JSON.stringify({ answers, input }),
         progressJson: JSON.stringify({ percent: 0, stage: "failed", provider: "deepseek" }),
         errorCode: "deepseek_generation_failed",
         errorMessage: error instanceof Error ? error.message.slice(0, 500) : "DeepSeek generation failed.",
-        attempts: 1
-      });
+        updatedAt: new Date().toISOString()
+      }).where(eq(generationTasks.id, taskId));
       return fail(c, "generation_failed", "写信服务暂时没有完成，请稍后再试。", 502);
     }
 
-    content = content || buildDraftLetter(answers);
     const letterId = crypto.randomUUID();
     await db.insert(salesLetters).values({
       id: letterId,
@@ -98,17 +88,12 @@ export const taskRoutes = new Hono()
       templateKey: templateMeta.key,
       templateVersion: templateMeta.version
     });
-    await db.insert(generationTasks).values({
-      id: taskId,
-      tenantId: TENANT_ID,
-      sessionId,
+    await db.update(generationTasks).set({
       letterId,
-      type: "sales_letter",
       status: "succeeded",
-      inputJson: JSON.stringify({ answers, input }),
       progressJson: JSON.stringify({ percent: 100, stage: "ready", provider: content.provider || "deepseek" }),
-      attempts: 1
-    });
+      updatedAt: new Date().toISOString()
+    }).where(eq(generationTasks.id, taskId));
     return ok(c, { taskId, letterId, status: "succeeded" });
   })
   .get("/:id", async (c) => {

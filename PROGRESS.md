@@ -23,7 +23,7 @@
 ### 本轮已完成
 
 - 已建立本轮本地 checkpoint：`checkpoint-before-5stage-20260527-201129`。
-- 用户端生成流程接入真实 `/api/public/tasks`，本地验证 DeepSeek 写信任务可成功创建信件。
+- 用户端生成流程接入真实 `/api/public/tasks`，本地验证 DeepSeek 写信任务可成功创建信件；DeepSeek 不可用时不再生成本地兜底信件，而是把任务置为 failed 并返回明确失败。
 - 信件读取、列表、领取已按当前会话做服务端校验，不再允许跨会话读取。
 - 首次免费领取会写入 `entitlement_ledger`，并用 dedupe key 防止重复发放。
 - 订单创建现在只认后台价格配置，前端不能传金额决定权益。
@@ -50,7 +50,7 @@
 - `npm run build` 通过，输出 `web/dist`。
 - `npm run deploy:dry` 通过。
 - `npm run deploy` 通过。
-- `npm run verify:live` 通过，线上入口、配置接口和截图验收正常。
+- `npm run verify:live` 通过，线上入口、配置接口、会话隔离、无信件下单限制和截图验收正常。
 - 本地 Edgespark：`http://localhost:7776` 已启动。
 - 本地 API 验证：
   - `POST /api/public/session/guest` 成功。
@@ -63,6 +63,10 @@
   - 手机用户端截图：`docs/assets/verify-home-mobile.png`
   - 后台登录页截图：`docs/assets/verify-admin-login.png`
 - Edgespark dry-run 通过，当前线上部署通过。
+- 线上接口补充验证：
+  - 无会话访问 `GET /api/public/tasks/not-a-task` 返回 401。
+  - 有会话访问不存在任务返回 404。
+  - 没有关联当前会话销售信时创建单封订单返回 403。
 
 ### 还没完成 / 风险
 
@@ -79,4 +83,4 @@
 2. 用后台打开 `payment_enabled` 后，做一笔真实小额支付闭环验证：下单、跳转、回调、订单 paid、权益发放。
 3. 用真实手机号验证阿里云短信发送与绑定流程。
 4. 补 PDF/打印版导出和后台详情/补偿操作。
-5. 完成 Edgespark dry-run、部署、线上手机端验收。
+5. 继续补强后台二级详情页、任务重试和正式 PDF/打印版导出。
