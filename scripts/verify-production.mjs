@@ -150,10 +150,23 @@ async function verifyPaymentCreate() {
     return;
   }
   const cookie = await createGuestSession();
-  const order = await api("/api/public/orders", {
-    method: "POST",
-    body: JSON.stringify({ productType: "annual" })
-  }, cookie);
+  let order;
+  try {
+    order = await api("/api/public/orders", {
+      method: "POST",
+      body: JSON.stringify({ productType: "annual" })
+    }, cookie);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || "");
+    if (message.includes("产品权限未开通")) {
+      addCheck("wechat payment create", "external_blocked", {
+        reason: message,
+        next: "在微信商户平台产品中心开通 H5 支付，或补齐公众号网页授权后改用微信内 JSAPI 支付。"
+      });
+      return;
+    }
+    throw error;
+  }
   if (!order.payment?.configured || !order.payment?.h5Url) throw new Error("WeChat payment create did not return h5Url");
   addCheck("wechat payment create", "ok", { orderId: order.orderId, providerOrderNo: order.providerOrderNo });
 }
@@ -272,7 +285,7 @@ await verifySmsSend();
 await verifyTts();
 await verifyAsr();
 
-const failed = checks.filter((item) => item.status === "missing" || item.status === "failed");
+const failed = checks.filter((item) => ["missing", "failed", "external_blocked"].includes(item.status));
 if (failed.length) {
   console.error(JSON.stringify({ ok: false, baseUrl, checks }, null, 2));
   process.exit(1);
