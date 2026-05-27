@@ -668,7 +668,7 @@ function renderCall() {
     </div>
     ${(state.voiceTranscript || state.voiceError) ? `
       <div class="speech-live ${state.voiceError ? "error" : ""}">
-        ${state.voiceError || (state.speakerOn ? h(state.voiceTranscript) : `我听到：${h(state.voiceTranscript)}`)}
+        ${state.voiceError ? h(state.voiceError) : (state.speakerOn ? h(state.voiceTranscript) : `我听到：${h(state.voiceTranscript)}`)}
       </div>
     ` : ""}
     ${activeInputMode === "voice" ? `
@@ -683,7 +683,7 @@ function renderCall() {
     ` : `
       <div class="text-controls">
         <div class="text-input-row">
-          <input id="typedText" value="${state.typedText}" placeholder="打字告诉智多星" />
+          <input id="typedText" value="${h(state.typedText)}" placeholder="打字告诉智多星" />
           <button class="send-btn" data-action="send-text">发送</button>
         </div>
         ${homePage.text_mode_enabled !== false && canUseVoice ? `<div class="switch-mode" data-action="voice-mode">切回语音模式 〉</div>` : ""}
@@ -702,7 +702,7 @@ function renderMicSheet() {
         <div class="sheet-icon">麦</div>
         <div>
           <div class="sheet-title">麦克风权限没有开启</div>
-          <div class="sheet-desc">${state.voiceError || (voiceInputAvailable() ? "开启后才能按住说话。你也可以先切换打字模式。" : voiceUnavailableMessage())}</div>
+          <div class="sheet-desc">${h(state.voiceError || (voiceInputAvailable() ? "开启后才能按住说话。你也可以先切换打字模式。" : voiceUnavailableMessage()))}</div>
         </div>
       </div>
       <div class="sheet-note">系统弹窗拒绝后，需要到设置里重新开启。</div>
@@ -770,18 +770,18 @@ function renderGenerating() {
     </div>
     <div class="contact-note">${phoneBindingOpen ? "手机号仅用于确认首次免费权益、保存销售信和结果提醒，不会公开展示。" : "这封信会先保存到你的记录里，后续可以回来领取和导出。"}</div>
     ${homePage.phone_bind_enabled !== false && !smsEnabled() ? `<div class="contact-note">短信绑定暂未开启，可以先保存并稍后领取。</div>` : ""}
-    ${state.generationError ? `<div class="contact-note error-note">${state.generationError}</div><button class="secondary-btn" data-action="generate">重新整理</button>` : ""}
+    ${state.generationError ? `<div class="contact-note error-note">${h(state.generationError)}</div><button class="secondary-btn" data-action="generate">重新整理</button>` : ""}
     ${waitingForLetter ? `<button class="primary-btn" disabled>智多星正在写信...</button>` : ""}
     ${letterReady && !phoneBindingOpen ? `
       <button class="primary-btn" data-action="skip-phone">保存到我的销售信</button>
     ` : letterReady ? `
       <div class="phone-bind-card card">
-        <div class="field-line"><input id="phoneInput" inputmode="tel" value="${state.phoneInput}" placeholder="输入手机号，用于保存和提醒" /></div>
+        <div class="field-line"><input id="phoneInput" inputmode="tel" value="${h(state.phoneInput)}" placeholder="输入手机号，用于保存和提醒" /></div>
         <div class="code-line">
-          <input id="smsCode" inputmode="numeric" value="${state.smsCode}" placeholder="验证码" />
+          <input id="smsCode" inputmode="numeric" value="${h(state.smsCode)}" placeholder="验证码" />
           <button class="secondary-btn inline-btn" data-action="send-sms">发送验证码</button>
         </div>
-        ${state.smsNotice ? `<div class="small-note">${state.smsNotice}</div>` : ""}
+        ${state.smsNotice ? `<div class="small-note">${h(state.smsNotice)}</div>` : ""}
       </div>
       <button class="primary-btn" data-action="bind-phone">绑定手机号并领取</button>
       <div class="later-link" data-action="skip-phone">先不绑定，稍后再领取</div>
@@ -1098,7 +1098,7 @@ function renderOrders() {
     <h1 class="record-title">订单记录</h1>
     <p class="page-desc">这里记录你的开通、解锁和免费领取记录。正式支付后，以微信支付结果为准。</p>
     ${state.accountLoadError ? `<div class="contact-note">${h(state.accountLoadError)}</div>` : ""}
-    ${state.paymentNotice ? `<div class="contact-note">${state.paymentNotice}</div>` : ""}
+    ${state.paymentNotice ? `<div class="contact-note">${h(state.paymentNotice)}</div>` : ""}
     <button class="secondary-btn" data-action="refresh-orders">${state.paymentRefreshing ? "正在刷新..." : "刷新支付结果"}</button>
     ${orders.length ? "" : `
       <div class="empty-card card">
@@ -1151,7 +1151,7 @@ function renderFeedback() {
         ${quick.map((item) => `<button class="feedback-tag" data-feedback-tag="${item}">${item}</button>`).join("")}
       </div>
       <div class="feedback-label">补充说明</div>
-      <textarea id="feedbackText" class="feedback-input" placeholder="把问题写在这里，比如哪一步不顺、哪句话不满意、希望怎么改。">${state.feedbackText}</textarea>
+      <textarea id="feedbackText" class="feedback-input" placeholder="把问题写在这里，比如哪一步不顺、哪句话不满意、希望怎么改。">${h(state.feedbackText)}</textarea>
       <button class="primary-btn" data-action="submit-feedback">${uiIcon("help", "btn-svg")}提交反馈</button>
     </div>
   `, { tab: "profile" });

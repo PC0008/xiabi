@@ -8,7 +8,15 @@ const forbiddenRuntimeMarkers = [
   "phoneBound: readFlag(keys.phoneBound)",
   "annualActive: readFlag(keys.annualActive)",
   "writeFlag(keys.phoneBound",
-  "writeFlag(keys.annualActive"
+  "writeFlag(keys.annualActive",
+  "${state.generationError}",
+  "${state.smsNotice}",
+  "${state.paymentNotice}",
+  "${state.feedbackText}",
+  "${state.typedText}",
+  "${state.phoneInput}",
+  "${state.smsCode}",
+  "${state.voiceError ||"
 ];
 
 function unique(values) {
@@ -40,7 +48,7 @@ for (const file of files) {
 }
 
 for (const marker of forbiddenRuntimeMarkers) {
-  for (const file of ["h5/admin.js", "h5/store.js", "server/src/adapters/task/index.ts", "server/src/routes/tasks.ts"]) {
+  for (const file of ["h5/app.js", "h5/admin.js", "h5/store.js", "server/src/adapters/task/index.ts", "server/src/routes/tasks.ts"]) {
     const source = fs.readFileSync(file, "utf8");
     if (source.includes(marker)) failures.push(`${file} still contains runtime placeholder marker: ${marker}`);
   }
