@@ -382,6 +382,17 @@ button {
   background: #fff;
 }
 
+.row-button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-button.active-row {
+  border-color: rgba(22, 161, 94, 0.48);
+  background: rgba(22, 161, 94, 0.06);
+}
+
 .row-title {
   font-size: 15px;
   font-weight: 900;

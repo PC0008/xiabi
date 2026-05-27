@@ -52,7 +52,7 @@ const adminState = {
   pricing: Object.assign({
     single: 200,
     annual: 2000,
-    payment_mode: "mock",
+    payment_mode: "wechat",
     payment_enabled: true,
     annual_enabled: true,
     single_enabled: true,
@@ -60,7 +60,18 @@ const adminState = {
     pdf_annual_title: "经常要写销售信，可以开通年卡",
     pdf_annual_desc: "一年内正常使用范围内不限次数生成、保存、继续完善和导出。"
   }, savedAdminConfig.pricing || {}),
-  guideStages: savedAdminConfig.guideStages || defaultGuideStages
+  guideStages: savedAdminConfig.guideStages || defaultGuideStages,
+  lists: {
+    dashboard: null,
+    users: null,
+    letters: null,
+    orders: null,
+    entitlements: null,
+    logs: null,
+    tasks: null
+  },
+  templates: Array.isArray(savedAdminConfig.templates) ? savedAdminConfig.templates : [],
+  selectedTemplateKey: Array.isArray(savedAdminConfig.templates) && savedAdminConfig.templates[0] ? savedAdminConfig.templates[0].key : ""
 };
 
 function applyRemoteAdminConfig(config) {
@@ -70,10 +81,50 @@ function applyRemoteAdminConfig(config) {
   if (Array.isArray(config.guideStages) && config.guideStages.length) {
     adminState.guideStages = config.guideStages;
   }
+  if (Array.isArray(config.templates) && config.templates.length) {
+    adminState.templates = config.templates;
+    if (!adminState.selectedTemplateKey || !adminState.templates.some((tpl) => tpl.key === adminState.selectedTemplateKey)) {
+      adminState.selectedTemplateKey = adminState.templates[0].key;
+    }
+  }
 }
 
 function readSavedAdminConfig() {
   return window.XiabiMockStore.getAdminConfig();
+}
+
+async function loadAdminLists() {
+  if (!adminState.adminUser) return;
+  try {
+    const [dashboard, usersData, lettersData, ordersData, entitlementData, logsData, tasksData] = await Promise.all([
+      window.XiabiMockStore.adminFetch("/dashboard"),
+      window.XiabiMockStore.adminFetch("/users"),
+      window.XiabiMockStore.adminFetch("/letters"),
+      window.XiabiMockStore.adminFetch("/orders"),
+      window.XiabiMockStore.adminFetch("/entitlements"),
+      window.XiabiMockStore.adminFetch("/audit-logs"),
+      window.XiabiMockStore.adminFetch("/tasks")
+    ]);
+    adminState.lists = {
+      dashboard,
+      users: usersData,
+      letters: lettersData,
+      orders: ordersData,
+      entitlements: entitlementData,
+      logs: logsData,
+      tasks: tasksData
+    };
+  } catch (error) {
+    showToast(error.message || "后台数据加载失败");
+  }
+}
+
+function formatDate(value) {
+  return value ? new Date(value).toLocaleString() : "-";
+}
+
+function yuan(cents) {
+  return `¥${(Number(cents || 0) / 100).toFixed(2).replace(/\.00$/, "")}`;
 }
 
 const navItems = [
@@ -116,6 +167,49 @@ const templates = [
   }
 ];
 
+function getEditableTemplates() {
+  return adminState.templates.length ? adminState.templates : templates.map((tpl, index) => ({
+    key: tpl.key || `template_${index + 1}`,
+    name: tpl.name,
+    goal: tpl.goal,
+    scene: tpl.scene,
+    status: tpl.status === "草稿" || tpl.status === "draft" ? "draft" : "enabled",
+    version: tpl.version,
+    structure: Array.isArray(tpl.structure) ? tpl.structure : String(tpl.structure || "").split("->").map((item) => item.trim()).filter(Boolean),
+    rules: tpl.rules || ""
+  }));
+}
+
+function getSelectedTemplate() {
+  const editableTemplates = getEditableTemplates();
+  if (!adminState.selectedTemplateKey && editableTemplates[0]) adminState.selectedTemplateKey = editableTemplates[0].key;
+  return editableTemplates.find((tpl) => tpl.key === adminState.selectedTemplateKey) || editableTemplates[0] || null;
+}
+
+function commitTemplates(nextTemplates) {
+  adminState.templates = nextTemplates;
+  if (!adminState.templates.some((tpl) => tpl.key === adminState.selectedTemplateKey) && adminState.templates[0]) {
+    adminState.selectedTemplateKey = adminState.templates[0].key;
+  }
+}
+
+function updateSelectedTemplate(fieldName, value) {
+  const current = getSelectedTemplate();
+  if (!current) return;
+  const nextTemplates = getEditableTemplates().map((tpl) => {
+    if (tpl.key !== current.key) return tpl;
+    const next = Object.assign({}, tpl);
+    if (fieldName === "structure") {
+      next.structure = value.split("\n").map((item) => item.trim()).filter(Boolean);
+    } else {
+      next[fieldName] = value;
+    }
+    if (fieldName === "key") adminState.selectedTemplateKey = value;
+    return next;
+  });
+  commitTemplates(nextTemplates);
+}
+
 const users = [
   ["U10021", "王总", "未绑定", "免费体验", "4", "1", "今天 11:42"],
   ["U10020", "陈女士", "已绑定", "年卡", "12", "6", "今天 10:18"],
@@ -129,9 +223,9 @@ const letters = [
 ];
 
 const orders = [
-  ["O20260523001", "王总", "年卡", "¥2000", "mock", "待支付", "未回调"],
-  ["O20260522011", "陈女士", "年卡", "¥2000", "mock", "已支付", "已处理"],
-  ["O20260521008", "李经理", "单封解锁", "¥200", "mock", "已支付", "已处理"]
+  ["O20260523001", "王总", "年卡", "¥2000", "wechat", "待支付", "未回调"],
+  ["O20260522011", "陈女士", "年卡", "¥2000", "wechat", "已支付", "已处理"],
+  ["O20260521008", "李经理", "单封解锁", "¥200", "wechat", "已支付", "已处理"]
 ];
 
 const ledger = [
@@ -226,7 +320,7 @@ function renderLogin() {
         </div>
         ${adminState.loginError ? `<div class="login-error">${adminState.loginError}</div>` : ""}
         <button class="primary login-submit" data-action="admin-login">登录后台</button>
-        <div class="login-hint">本地预览默认账号：admin / ChangeMe123!；正式环境请在 Edgespark 密钥中配置。</div>
+        <div class="login-hint">首次部署后，用 Edgespark 密钥里配置的管理员账号和初始密码登录。</div>
       </section>
     </div>
   `;
@@ -249,20 +343,24 @@ function pageDescription(route) {
 }
 
 function renderDashboard() {
+  const metrics = adminState.lists.dashboard?.metrics || {};
+  const todo = adminState.lists.dashboard?.todo || [];
   return layout(`
     <section class="section grid cols-4">
-      ${metric("今日新增用户", "28", "+16%")}
-      ${metric("通话会话数", "64", "正常")}
-      ${metric("销售信生成", "41", "失败 2")}
-      ${metric("支付金额", "¥4,400", "成功率 92%")}
+      ${metric("会话数", metrics.sessions ?? "0", "实时数据")}
+      ${metric("销售信", metrics.letters ?? "0", `失败 ${metrics.failedTasks ?? 0}`)}
+      ${metric("订单数", metrics.orders ?? "0", `待支付 ${metrics.pendingOrders ?? 0}`)}
+      ${metric("异常任务", metrics.failedTasks ?? "0", "需要处理")}
     </section>
     <section class="section split">
       <div class="panel card">
         <div class="panel-head"><div><div class="panel-title">待处理事项</div><div class="panel-desc">先处理会影响领取、支付和生成的问题。</div></div></div>
         <div class="list">
-          ${row("2 个生成失败任务", "需要查看失败原因并决定是否重试", "danger")}
-          ${row("1 个支付待回调订单", "等待回调或触发补偿查询", "warn")}
-          ${row("3 个手机号未绑定待领取", "用户已生成但尚未领取完整内容", "")}
+          ${(todo.length ? todo : [
+            { title: "生成失败任务", count: 0, level: "danger" },
+            { title: "待支付订单", count: 0, level: "warn" },
+            { title: "待领取销售信", count: 0, level: "normal" }
+          ]).map((item) => row(`${item.count} 个${item.title}`, item.count ? "需要尽快处理" : "当前没有待处理项", item.level === "danger" ? "danger" : item.level === "warn" ? "warn" : "")).join("")}
         </div>
       </div>
       <div class="panel card">
@@ -336,6 +434,46 @@ function renderGuides() {
 }
 
 function renderTemplates() {
+  const editableTemplates = getEditableTemplates();
+  const selected = getSelectedTemplate();
+  const selectedStructure = Array.isArray(selected?.structure) ? selected.structure.join("\n") : String(selected?.structure || "");
+  return layout(`
+    <section class="section split">
+      <div class="panel card">
+        <div class="panel-head">
+          <div><div class="panel-title">模板列表</div><div class="panel-desc">后台保存后，会直接影响用户端下一次整理销售信。</div></div>
+          <button class="primary" data-action="add-template">新增模板</button>
+        </div>
+        <div class="list">
+          ${editableTemplates.map((tpl) => `
+            <button class="row-card row-button ${selected?.key === tpl.key ? "active-row" : ""}" data-action="select-template" data-template-key="${tpl.key}">
+              <div>
+                <div class="row-title">${tpl.name || tpl.key}</div>
+                <div class="row-meta">${tpl.goal || "-"} · ${tpl.scene || "-"} · ${tpl.version || "v1.0"}</div>
+                <div class="row-meta">${Array.isArray(tpl.structure) ? tpl.structure.join(" -> ") : (tpl.structure || "")}</div>
+              </div>
+              <span class="tag ${tpl.status === "draft" ? "warn" : ""}">${tpl.status === "enabled" ? "启用" : "草稿"}</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+      <div class="panel card">
+        <div class="panel-head"><div><div class="panel-title">模板规则</div><div class="panel-desc">这里保存的是实际写信规则，不会在用户端直接展示。</div></div></div>
+        ${selected ? `
+          <div class="form-grid">
+            <div class="field"><label>模板 key</label><input data-template-field="key" value="${selected.key || ""}" /></div>
+            <div class="field"><label>版本</label><input data-template-field="version" value="${selected.version || "v1.0"}" /></div>
+            <div class="field"><label>模板名称</label><input data-template-field="name" value="${selected.name || ""}" /></div>
+            <div class="field"><label>状态</label><select data-template-field="status"><option value="enabled" ${selected.status === "enabled" ? "selected" : ""}>启用</option><option value="draft" ${selected.status !== "enabled" ? "selected" : ""}>草稿</option></select></div>
+            <div class="field"><label>适用目标</label><input data-template-field="goal" value="${selected.goal || ""}" /></div>
+            <div class="field"><label>适用场景</label><input data-template-field="scene" value="${selected.scene || ""}" /></div>
+            <div class="field full"><label>段落结构</label><textarea data-template-field="structure">${selectedStructure}</textarea></div>
+            <div class="field full"><label>写信要求</label><textarea data-template-field="rules">${selected.rules || selected.prompt || selected.requirement || ""}</textarea></div>
+          </div>
+        ` : `<div class="empty">还没有可编辑模板。</div>`}
+      </div>
+    </section>
+  `);
   return layout(`
     <section class="section split">
       <div class="panel card">
@@ -372,11 +510,11 @@ function renderPricing() {
   return layout(`
     <section class="section grid cols-2">
       <div class="panel card">
-        <div class="panel-head"><div><div class="panel-title">价格与支付模式</div><div class="panel-desc">测试阶段用 mock，正式阶段接真实微信支付。</div></div></div>
+        <div class="panel-head"><div><div class="panel-title">价格与支付模式</div><div class="panel-desc">用户端下单金额以这里为准，支付完成后由服务端回调发放权益。</div></div></div>
         <div class="form-grid">
           ${field("单封解锁价格", "single", adminState.pricing.single)}
           ${field("年卡价格", "annual", adminState.pricing.annual)}
-          <div class="field"><label>支付模式</label><select data-field="payment_mode"><option ${adminState.pricing.payment_mode === "mock" ? "selected" : ""}>mock</option><option ${adminState.pricing.payment_mode === "wechat" ? "selected" : ""}>wechat</option></select></div>
+          <div class="field"><label>支付模式</label><select data-field="payment_mode"><option ${adminState.pricing.payment_mode === "wechat" ? "selected" : ""}>wechat</option></select></div>
           <div class="field"><label>年卡推荐标签</label><input value="更划算" /></div>
           ${field("PDF 导出页年卡标题", "pdf_annual_title", adminState.pricing.pdf_annual_title, "full")}
           ${area("PDF 导出页年卡说明", "pdf_annual_desc", adminState.pricing.pdf_annual_desc)}
@@ -395,23 +533,29 @@ function renderPricing() {
 }
 
 function renderUsers() {
-  return layout(tablePanel("用户列表", "查看用户基础信息和权益状态。", ["用户ID", "昵称", "手机号", "权益", "会话", "信件", "最近访问"], users));
+  const sessions = adminState.lists.users?.sessions || [];
+  const rows = sessions.map((item) => [item.id.slice(0, 8), item.userId || "游客会话", "-", item.status, "1", "-", formatDate(item.createdAt)]);
+  return layout(tablePanel("用户列表", "查看用户基础信息和权益状态。", ["会话ID", "用户", "手机号", "状态", "会话", "信件", "最近访问"], rows.length ? rows : users));
 }
 
 function renderLetters() {
-  return layout(tablePanel("销售信列表", "排查信件状态、模板版本和关联用户。", ["信件ID", "标题", "状态", "模板", "用户", "创建时间"], letters));
+  const rows = (adminState.lists.letters?.letters || []).map((item) => [item.id.slice(0, 8), item.title, item.status, `${item.templateKey || "-"} ${item.templateVersion || ""}`, item.sessionId?.slice(0, 8) || "-", formatDate(item.createdAt)]);
+  return layout(tablePanel("销售信列表", "排查信件状态、模板版本和关联用户。", ["信件ID", "标题", "状态", "模板", "会话", "创建时间"], rows.length ? rows : letters));
 }
 
 function renderOrders() {
-  return layout(tablePanel("订单与支付", "真实支付接入后查看微信交易号、回调和补偿查询。", ["订单号", "用户", "商品", "金额", "模式", "订单状态", "回调"], orders));
+  const rows = (adminState.lists.orders?.orders || []).map((item) => [item.id.slice(0, 8), item.sessionId?.slice(0, 8) || "-", item.title, yuan(item.amountCents), item.provider, item.status, item.providerTransactionId || "-"]);
+  return layout(tablePanel("订单与支付", "真实支付接入后查看微信交易号、回调和补偿查询。", ["订单号", "会话", "商品", "金额", "模式", "订单状态", "交易号"], rows.length ? rows : orders));
 }
 
 function renderLedger() {
-  return layout(tablePanel("权益流水", "所有权限从这里计算，不从前端传参决定。", ["流水ID", "用户", "权益类型", "来源", "状态", "时间"], ledger));
+  const rows = (adminState.lists.entitlements?.entitlements || []).map((item) => [item.id.slice(0, 8), item.sessionId?.slice(0, 8) || item.userId?.slice(0, 8) || "-", item.type, item.orderId?.slice(0, 8) || item.letterId?.slice(0, 8) || "-", item.status, formatDate(item.createdAt)]);
+  return layout(tablePanel("权益流水", "所有权限从这里计算，不从前端传参决定。", ["流水ID", "用户/会话", "权益类型", "来源", "状态", "时间"], rows.length ? rows : ledger));
 }
 
 function renderLogs() {
-  return layout(tablePanel("日志审计", "记录谁在什么时候改了什么，以及支付和生成关键事件。", ["类型", "操作人", "内容", "时间"], logs));
+  const rows = (adminState.lists.logs?.logs || []).map((item) => [item.action, item.actorType || "-", item.targetType || JSON.stringify(item.detail || {}), formatDate(item.createdAt)]);
+  return layout(tablePanel("日志审计", "记录谁在什么时候改了什么，以及支付和生成关键事件。", ["类型", "操作人", "内容", "时间"], rows.length ? rows : logs));
 }
 
 function metric(label, value, note) {
@@ -498,6 +642,7 @@ document.addEventListener("click", async (event) => {
   const routeTarget = event.target.closest("[data-route]");
   if (routeTarget) {
     setRoute(routeTarget.dataset.route);
+    loadAdminLists().then(() => render());
     return;
   }
 
@@ -509,6 +654,7 @@ document.addEventListener("click", async (event) => {
       adminState.loginError = "";
       adminState.adminUser = await window.XiabiMockStore.adminLogin(adminState.loginUsername.trim(), adminState.loginPassword);
       applyRemoteAdminConfig(await window.XiabiMockStore.syncAdminConfig());
+      await loadAdminLists();
       showToast("登录成功");
     } catch (error) {
       adminState.loginError = error.message || "登录失败";
@@ -520,18 +666,43 @@ document.addEventListener("click", async (event) => {
     adminState.loginPassword = "";
     render();
   } else if (action === "save") {
-    await window.XiabiMockStore.saveAdminConfig({
-      homeConfig: adminState.homeConfig,
-      pricing: adminState.pricing,
-      guideStages: adminState.guideStages,
-      updatedAt: new Date().toISOString()
-    });
-    showToast("配置已保存");
+    try {
+      await window.XiabiMockStore.saveAdminConfig({
+        homeConfig: adminState.homeConfig,
+        pricing: adminState.pricing,
+        guideStages: adminState.guideStages,
+        templates: getEditableTemplates(),
+        updatedAt: new Date().toISOString()
+      });
+      showToast("配置已保存");
+    } catch (error) {
+      showToast(error.message || "配置保存失败");
+    }
   } else if (action === "preview-user") {
     window.open("./index.html#home", "_blank");
   } else if (action === "toggle") {
     actionTarget.classList.toggle("on");
     setPath(actionTarget.dataset.togglePath, actionTarget.classList.contains("on"));
+  } else if (action === "select-template") {
+    adminState.selectedTemplateKey = actionTarget.dataset.templateKey;
+    render();
+  } else if (action === "add-template") {
+    const nextKey = `custom_template_${Date.now()}`;
+    commitTemplates([
+      ...getEditableTemplates(),
+      {
+        key: nextKey,
+        name: "新销售信模板",
+        goal: "促进购买/付款",
+        scene: "微信私聊",
+        status: "draft",
+        version: "v1.0",
+        structure: ["开头共鸣", "问题拆解", "解决方案", "下一步行动"],
+        rules: "语气真诚、具体、克制，避免夸张承诺。"
+      }
+    ]);
+    adminState.selectedTemplateKey = nextKey;
+    render();
   }
 });
 
@@ -543,6 +714,12 @@ document.addEventListener("input", (event) => {
   }
   if (loginField === "password") {
     adminState.loginPassword = event.target.value;
+    return;
+  }
+
+  const templateField = event.target.dataset.templateField;
+  if (templateField) {
+    updateSelectedTemplate(templateField, event.target.value);
     return;
   }
 
@@ -570,6 +747,7 @@ async function initAdmin() {
   adminState.adminUser = await window.XiabiMockStore.getAdminSession();
   if (adminState.adminUser) {
     applyRemoteAdminConfig(await window.XiabiMockStore.syncAdminConfig());
+    await loadAdminLists();
   }
   adminState.authChecked = true;
   render();

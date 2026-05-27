@@ -38,8 +38,10 @@ edgespark var set PUBLIC_BASE_URL=https://你的域名 PAYMENT_PROVIDER=wechat P
 密钥：
 
 ```powershell
-edgespark secret set ADMIN_INITIAL_PASSWORD ADMIN_PASSWORD_PEPPER WECHAT_PAY_API_V3_KEY WECHAT_PAY_PRIVATE_KEY WECHAT_PAY_CERT_SERIAL_NO SMS_API_KEY SMS_API_SECRET VOICE_API_KEY DEEPSEEK_API_KEY
+edgespark secret set ADMIN_INITIAL_PASSWORD ADMIN_PASSWORD_PEPPER WECHAT_PAY_API_V3_KEY WECHAT_PAY_PRIVATE_KEY WECHAT_PAY_CERT_SERIAL_NO WECHAT_PAY_PLATFORM_PUBLIC_KEY SMS_API_KEY SMS_API_SECRET VOICE_API_KEY DEEPSEEK_API_KEY
 ```
+
+> `WECHAT_PAY_PLATFORM_PUBLIC_KEY` 用于微信支付回调验签。没有它时可以创建订单，但正式回调不会被确认为有效。
 
 配置完成后验证：
 
@@ -60,8 +62,8 @@ edgespark deploy
 ## 当前注意事项
 
 - 写信生成已接入 DeepSeek 适配器；后台 `templates` 配置会作为写信规则进入服务端生成流程。
-- MiniMax 当前已配置语音服务接入位和克隆音色 ID；下一步要继续补 MiniMax 语音合成/输入接口实现。
-- 微信支付、短信目前已有服务端适配器边界，待补真实供应商请求和回调验签。
-- 订单、支付回调、权益流水已经建表；支付回调已做事件幂等表，下一步要把微信验签、回调解密、订单状态更新和权益发放接上。
+- MiniMax 当前已接入语音合成接口位和克隆音色 ID；官方公开文档未确认可用 ASR 接口，语音输入暂由浏览器语音识别承担。
+- 微信 H5 支付已接入下单、签名、回调验签、回调解密、订单状态更新和权益发放；微信内打开 H5 如需支付，后续要补 JSAPI + openid 链路。
+- 短信已接入阿里云发送位，验证码校验和手机号 masked/hash 入库已完成；真实手机号发送需谨慎验证费用。
 - 用户端会优先创建服务端任务和信件记录；API 不可用时本地预览仍保留兜底体验。
 - 后台保存配置已经优先调用服务端；本地静态预览不可用时才保留本地兜底。

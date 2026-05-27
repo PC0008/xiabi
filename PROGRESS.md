@@ -4,13 +4,14 @@
 
 时间：2026-05-27
 
-### 当前口径
+### 项目口径
 
 - 当前按手机端响应式 H5/Web + H5 总后台推进，部署目标是 Edgespark.dev。
-- `h5/` 是当前有效开发目录；`pages/`、`cloudfunctions/` 只作为历史参考。
+- `h5/` 是当前有效开发目录；`pages/`、`cloudfunctions/` 只作历史参考。
 - 用户端统一称呼“智多星”，用户端不暴露 AI、大模型、prompt、智能体等技术概念。
-- 写信生成走 DeepSeek `deepseek-v4-pro`；语音互动、输入和智多星说话声音走 MiniMax 接入位。
-- 微信支付、短信、语音、DeepSeek Key 都只能放服务端密钥，不进入前端文件。
+- 写信生成走 DeepSeek，默认模型 `deepseek-v4-pro`。
+- MiniMax 当前已接入 TTS 说话接口位和克隆音色 ID；官方公开文档未确认可用 ASR 接口，因此用户端语音输入目前仍使用浏览器语音识别能力，服务端保留 MiniMax 语音处理边界。
+- 微信支付、短信、语音、DeepSeek Key 都只放服务端密钥，不进入前端文件。
 
 ### 当前线上地址
 
@@ -19,33 +20,51 @@
 - 管理后台：`https://immortal-sponge-1728.edgespark.app/admin.html`
 - 健康检查：`https://immortal-sponge-1728.edgespark.app/api/public/health`
 
-### 已完成
+### 本轮已完成
 
-- 已初始化 Git，远程仓库：`https://github.com/PC0008/xiabi.git`。
-- 已创建 EdgeSpark 项目 `xiabi`，`project_id = 2a5ef7af-ba13-444e-8972-d4e663f0156d`。
-- 已建立 `server/` Hono API、`web/` 静态构建层、`edgespark.toml`、`configs/auth-config.yaml`。
-- 已建立数据库 schema 和迁移：租户、管理员、后台配置、用户、会话、销售信、生成任务、订单、权益流水、支付回调事件、文件、短信验证码、审计日志。
-- 已执行远端数据库迁移、创建 `xiabi-files` 存储桶、应用 Auth 配置。
-- 已实现管理员账号密码登录、后台配置读取/保存、用户端配置读取、用户会话、写信任务、信件读取/领取、订单创建、支付回调入口。
-- 已把 H5 用户端和后台接入 API 优先、本地兜底的数据层。
-- 已配置微信支付 AppID/商户号、阿里云短信签名/模板、MiniMax 音色 ID、支付回调地址等运行变量。
-- 已移除公开开发支付标记接口。
-- 已给手机端增加按住说话输入入口；当前浏览器能力可用时会把语音转成输入文本。
-- 已接入 DeepSeek 写信适配器：`/api/public/tasks` 会优先调用 DeepSeek，后台 `templates` 配置会进入写信规则。
-- 已收紧用户端生成流程：服务端真实信件返回前，生成页不再允许直接领取本地兜底信件。
-- 已更新 `.env.example` 和 `docs/Edgespark真实版本接入清单_v0.1.md`，补充 DeepSeek 变量和密钥。
+- 已建立本轮本地 checkpoint：`checkpoint-before-5stage-20260527-201129`。
+- 用户端生成流程接入真实 `/api/public/tasks`，本地验证 DeepSeek 写信任务可成功创建信件。
+- 信件读取、列表、领取已按当前会话做服务端校验，不再允许跨会话读取。
+- 首次免费领取会写入 `entitlement_ledger`，并用 dedupe key 防止重复发放。
+- 订单创建现在只认后台价格配置，前端不能传金额决定权益。
+- 服务端订单创建会尊重后台 `payment_enabled`、`annual_enabled`、`single_enabled` 开关。
+- 微信 H5 支付已接入下单位：`/v3/pay/transactions/h5`；用户端拿到 `h5_url` 后会跳转微信支付。
+- 微信支付回调已做签名验签、AES-GCM 解密、订单置 paid、权益流水发放、重复回调幂等；失败回调允许同事件再次重试处理。
+- 短信已接入阿里云发送位，验证码写入 `sms_codes`，绑定手机号会校验验证码并写入 masked/hash。
+- 用户端领取完整内容前加入手机号验证码绑定流程。
+- 后台配置保存失败不再静默兜底；后台模板可编辑、可新增、可保存，并会进入服务端写信规则。
+- 后台用户、信件、订单、权益、日志、任务列表已改为优先读取真实 API 数据。
+- 用户端订单页、权益判断不再依赖本地伪造支付流水。
+- 导出、反馈接口已建立：反馈写入审计日志，导出当前为服务端生成文本文件并返回下载地址。
+- 已更新 `.env.example`，补充 `WECHAT_PAY_PLATFORM_PUBLIC_KEY`。
 
 ### 本轮验证
 
 - `npm run typecheck` 通过。
 - `npm run build` 通过，输出 `web/dist`。
-- 已启动 EdgeSpark `DEEPSEEK_API_KEY` 密钥配置流程，待在浏览器保存后继续 `edgespark deploy --dry-run` 和 `edgespark deploy`。
+- 本地 Edgespark：`http://localhost:7776` 已启动。
+- 本地 API 验证：
+  - `POST /api/public/session/guest` 成功。
+  - `POST /api/public/tasks` 成功创建任务和信件。
+  - `GET /api/public/letters/:id` 成功读取当前会话信件。
+  - `POST /api/public/letters/:id/claim` 成功领取并写入权益流水。
+  - `GET /api/public/entitlements` 返回 `firstFreeUsed: true`。
+  - 后台未开启支付时，`POST /api/public/orders` 返回 403，服务端开关生效。
+- 未完成浏览器自动化截图：当前环境没有可用 Playwright/Puppeteer/browser 工具，已用 HTTP 和构建检查替代，后续仍需真实手机浏览器复验 UI。
+
+### 还没完成 / 风险
+
+- MiniMax 官方公开文档未确认 ASR/语音转文字接口；如果必须“输入也走 MiniMax”，需要用户提供 MiniMax 对应语音识别接口文档或后台开通说明。
+- 微信 H5 支付适合普通手机浏览器；如果用户在微信内打开 H5，正式付款通常还需要 JSAPI + openid 授权链路。
+- 微信支付回调验签需要配置 `WECHAT_PAY_PLATFORM_PUBLIC_KEY`，否则正式回调会失败。
+- 阿里云短信发送位已实现，但尚未用真实手机号发短信验证，避免产生费用。
+- 导出目前不是严格 PDF 文件，而是服务端文本下载；如需正式 PDF，需要继续做 PDF/HTML 打印版方案。
+- 后台还有二级详情和补偿操作可继续补强：订单详情、回调事件详情、任务重试、信件详情、用户详情。
 
 ### 下一步
 
-1. 在 EdgeSpark 密钥页面填写并保存 `DEEPSEEK_API_KEY`。
-2. 执行 `edgespark deploy --dry-run`，通过后执行 `edgespark deploy`。
-3. 补 MiniMax 服务端语音输入/语音合成真实接口，替换当前浏览器语音识别兜底。
-4. 补微信支付真实下单、验签、回调解密、订单状态更新、权益发放。
-5. 补阿里云短信发送、验证码校验、手机号 hash/masked 入库和频率限制。
-6. 继续把后台用户、信件、订单、权益、日志列表从静态数组改成真实 API 数据。
+1. 配置 `WECHAT_PAY_PLATFORM_PUBLIC_KEY`，并确认 H5 支付还是微信内 JSAPI 支付。
+2. 用后台打开 `payment_enabled` 后，做一笔真实小额支付闭环验证：下单、跳转、回调、订单 paid、权益发放。
+3. 用真实手机号验证阿里云短信发送与绑定流程。
+4. 补 PDF/打印版导出和后台详情/补偿操作。
+5. 完成 Edgespark dry-run、部署、线上手机端验收。

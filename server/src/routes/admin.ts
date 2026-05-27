@@ -1,11 +1,11 @@
 import { db, secret, vars } from "edgespark";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { adminSessions, adminUsers, auditLogs } from "@defs";
+import { adminSessions, adminUsers, auditLogs, entitlementLedger, generationTasks, guestSessions, orders, paymentWebhookEvents, salesLetters, users } from "@defs";
 import { getAdminConfig, upsertConfigScope } from "../domain/config";
 import { ConfigScope, configScopes, TENANT_ID } from "../domain/defaults";
-import { fail, ok, readJson } from "../domain/http";
+import { fail, ok, parseJson, readJson } from "../domain/http";
 import { createToken, daysFromNow, hashPassword, hashToken, isFuture } from "../domain/security";
 
 const ADMIN_COOKIE = "xiabi_admin_session";
@@ -113,6 +113,11 @@ function publicAdmin(admin: typeof adminUsers.$inferSelect) {
   };
 }
 
+function requireAdminOrFail(c: any, admin: typeof adminUsers.$inferSelect | null) {
+  if (!admin) return fail(c, "not_authenticated", "请先登录后台。", 401);
+  return null;
+}
+
 export const adminRoutes = new Hono()
   .post("/login", async (c) => {
     const body = await readJson<AdminLoginBody>(c);
@@ -167,4 +172,81 @@ export const adminRoutes = new Hono()
     }
     await logAdmin(admin.id, "config.update", "app_config", { scopes: Object.keys(updates) });
     return ok(c, await getAdminConfig(db));
+  })
+  .get("/dashboard", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const [sessionRows, letterRows, orderRows, taskRows] = await Promise.all([
+      db.select().from(guestSessions).where(eq(guestSessions.tenantId, TENANT_ID)).limit(200),
+      db.select().from(salesLetters).where(eq(salesLetters.tenantId, TENANT_ID)).limit(200),
+      db.select().from(orders).where(eq(orders.tenantId, TENANT_ID)).limit(200),
+      db.select().from(generationTasks).where(eq(generationTasks.tenantId, TENANT_ID)).limit(200)
+    ]);
+    return ok(c, {
+      metrics: {
+        sessions: sessionRows.length,
+        letters: letterRows.length,
+        orders: orderRows.length,
+        failedTasks: taskRows.filter((task) => task.status === "failed").length,
+        pendingOrders: orderRows.filter((order) => order.status === "pending").length
+      },
+      todo: [
+        { title: "生成失败任务", count: taskRows.filter((task) => task.status === "failed").length, level: "danger" },
+        { title: "待支付订单", count: orderRows.filter((order) => order.status === "pending").length, level: "warn" },
+        { title: "待领取销售信", count: letterRows.filter((letter) => letter.status === "ready").length, level: "normal" }
+      ]
+    });
+  })
+  .get("/users", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const [sessionRows, userRows] = await Promise.all([
+      db.select().from(guestSessions).where(eq(guestSessions.tenantId, TENANT_ID)).orderBy(desc(guestSessions.createdAt)).limit(100),
+      db.select().from(users).where(eq(users.tenantId, TENANT_ID)).orderBy(desc(users.createdAt)).limit(100)
+    ]);
+    return ok(c, { users: userRows, sessions: sessionRows });
+  })
+  .get("/letters", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const rows = await db.select().from(salesLetters).where(eq(salesLetters.tenantId, TENANT_ID)).orderBy(desc(salesLetters.createdAt)).limit(100);
+    return ok(c, { letters: rows.map((letter) => ({ ...letter, input: parseJson(letter.inputJson, {}), content: parseJson(letter.contentJson, null) })) });
+  })
+  .get("/tasks", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const rows = await db.select().from(generationTasks).where(eq(generationTasks.tenantId, TENANT_ID)).orderBy(desc(generationTasks.createdAt)).limit(100);
+    return ok(c, { tasks: rows.map((task) => ({ ...task, input: parseJson(task.inputJson, {}), progress: parseJson(task.progressJson, null) })) });
+  })
+  .get("/orders", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const rows = await db.select().from(orders).where(eq(orders.tenantId, TENANT_ID)).orderBy(desc(orders.createdAt)).limit(100);
+    return ok(c, { orders: rows });
+  })
+  .get("/entitlements", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const rows = await db.select().from(entitlementLedger).where(eq(entitlementLedger.tenantId, TENANT_ID)).orderBy(desc(entitlementLedger.createdAt)).limit(100);
+    return ok(c, { entitlements: rows });
+  })
+  .get("/payment-events", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const rows = await db.select().from(paymentWebhookEvents).where(eq(paymentWebhookEvents.tenantId, TENANT_ID)).orderBy(desc(paymentWebhookEvents.createdAt)).limit(100);
+    return ok(c, { events: rows });
+  })
+  .get("/audit-logs", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const rows = await db.select().from(auditLogs).where(eq(auditLogs.tenantId, TENANT_ID)).orderBy(desc(auditLogs.createdAt)).limit(100);
+    return ok(c, { logs: rows.map((log) => ({ ...log, detail: parseJson(log.detailJson, null) })) });
   });

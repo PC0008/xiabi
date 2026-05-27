@@ -83,20 +83,12 @@
   }
 
   async function adminLogin(username, password) {
-    try {
-      const data = await apiFetch("/admin/login", {
-        method: "POST",
-        body: JSON.stringify({ username, password })
-      });
-      writeFlag(adminAuthKey, true);
-      return data.admin || data;
-    } catch (error) {
-      if (username === "admin" && password === "ChangeMe123!") {
-        writeFlag(adminAuthKey, true);
-        return { username: "admin", displayName: "Owner", role: "owner", localFallback: true };
-      }
-      throw error;
-    }
+    const data = await apiFetch("/admin/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password })
+    });
+    writeFlag(adminAuthKey, true);
+    return data.admin || data;
   }
 
   async function adminLogout() {
@@ -114,7 +106,8 @@
       writeFlag(adminAuthKey, true);
       return data.admin || data;
     } catch (error) {
-      return readFlag(adminAuthKey) ? { username: "admin", displayName: "Owner", role: "owner", localFallback: true } : null;
+      localStorage.removeItem(adminAuthKey);
+      return null;
     }
   }
 
@@ -130,22 +123,18 @@
 
   async function saveAdminConfig(config) {
     setAdminConfig(config);
-    try {
-      const remote = normalizeRemoteConfig(await apiFetch("/admin/config", {
-        method: "PATCH",
-        body: JSON.stringify({
-          home: config.homeConfig || {},
-          pricing: config.pricing || {},
-          guideStages: config.guideStages || [],
-          templates: config.templates || [],
-          system: config.system || {}
-        })
-      }));
-      setAdminConfig(Object.assign({}, config, remote));
-      return remote;
-    } catch (error) {
-      return config;
-    }
+    const remote = normalizeRemoteConfig(await apiFetch("/admin/config", {
+      method: "PATCH",
+      body: JSON.stringify({
+        home: config.homeConfig || {},
+        pricing: config.pricing || {},
+        guideStages: config.guideStages || [],
+        templates: config.templates || [],
+        system: config.system || {}
+      })
+    }));
+    setAdminConfig(Object.assign({}, config, remote));
+    return remote;
   }
 
   async function ensureGuestSession() {
@@ -164,6 +153,10 @@
     return apiFetch(`/letters/${letterId}`);
   }
 
+  async function listLetters() {
+    return apiFetch("/letters");
+  }
+
   async function claimLetter(letterId) {
     return apiFetch(`/letters/${letterId}/claim`, { method: "POST" });
   }
@@ -174,6 +167,56 @@
       method: "POST",
       body: JSON.stringify(order)
     });
+  }
+
+  async function listOrders() {
+    await ensureGuestSession();
+    return apiFetch("/orders");
+  }
+
+  async function getEntitlements() {
+    await ensureGuestSession();
+    return apiFetch("/entitlements");
+  }
+
+  async function sendSmsCode(phone) {
+    await ensureGuestSession();
+    return apiFetch("/sms/send-code", {
+      method: "POST",
+      body: JSON.stringify({ phone })
+    });
+  }
+
+  async function bindPhone(phone, code) {
+    await ensureGuestSession();
+    return apiFetch("/users/bind-phone", {
+      method: "POST",
+      body: JSON.stringify({ phone, code })
+    });
+  }
+
+  async function speak(text) {
+    await ensureGuestSession();
+    return apiFetch("/voice/speak", {
+      method: "POST",
+      body: JSON.stringify({ text })
+    });
+  }
+
+  async function exportLetter(letterId) {
+    return apiFetch(`/exports/letters/${letterId}`, { method: "POST" });
+  }
+
+  async function submitFeedback(content, category = "用户反馈") {
+    await ensureGuestSession();
+    return apiFetch("/feedback", {
+      method: "POST",
+      body: JSON.stringify({ content, category })
+    });
+  }
+
+  async function adminFetch(path) {
+    return apiFetch(`/admin${path}`);
   }
 
   function getAppState() {
@@ -244,8 +287,17 @@
     ensureGuestSession,
     createGenerationTask,
     getLetter,
+    listLetters,
     claimLetter,
     createOrder,
+    listOrders,
+    getEntitlements,
+    sendSmsCode,
+    bindPhone,
+    speak,
+    exportLetter,
+    submitFeedback,
+    adminFetch,
     getAppState,
     persistAppState,
     setAuthed,

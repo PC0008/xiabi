@@ -9,7 +9,7 @@ let adminMockConfig = readAdminMockConfig();
 let commerceConfig = Object.assign({
   single: 200,
   annual: 2000,
-  payment_mode: "mock",
+  payment_mode: "wechat",
   payment_enabled: true,
   annual_enabled: true,
   single_enabled: true,
@@ -145,28 +145,48 @@ const state = {
   letter: storedState.letter,
   mockOrders: storedState.mockOrders,
   mockLedger: storedState.mockLedger,
+  remoteLetters: [],
+  remoteOrders: [],
+  entitlements: [],
+  entitlementSummary: { annualActive: false, singleCredits: 0, firstFreeUsed: false },
   generationPending: false,
-  generationError: ""
+  generationError: "",
+  paymentNotice: "",
+  phoneInput: "",
+  smsCode: "",
+  smsNotice: ""
 };
 
 let speechRecognition = null;
 let activeSpeechText = "";
 let suppressVoiceClick = false;
+let assistantAudio = null;
 
 function persist() {
   window.XiabiMockStore.persistAppState(state);
 }
 
 function hasAnnualEntitlement() {
-  return state.annualActive || state.mockLedger.some((item) => item.type === "annual" && item.status === "active");
+  return state.entitlementSummary.annualActive;
 }
 
 function hasSingleEntitlement() {
-  return state.mockLedger.some((item) => item.type === "single" && item.status === "active");
+  return state.entitlementSummary.singleCredits > 0;
 }
 
 function paymentOpen() {
   return commerceConfig.payment_enabled !== false;
+}
+
+function continueWechatPayment(result) {
+  const h5Url = result?.payment?.h5Url;
+  if (!h5Url) return false;
+  state.paymentNotice = "订单已创建，正在打开微信支付。支付完成后回到订单页查看结果。";
+  persist();
+  const redirectUrl = `${location.origin}${location.pathname}#orders`;
+  const separator = h5Url.includes("?") ? "&" : "?";
+  window.location.href = `${h5Url}${separator}redirect_url=${encodeURIComponent(redirectUrl)}`;
+  return true;
 }
 
 function addMockPayment(plan, source) {
@@ -252,6 +272,25 @@ function getSpeechRecognition() {
   return Recognition ? new Recognition() : null;
 }
 
+async function playAssistantVoice(text) {
+  const content = String(text || "").trim();
+  if (!content) return;
+  try {
+    const result = await window.XiabiMockStore.speak(content);
+    if (!result.audioUrl) {
+      state.voiceError = result.message || "语音播放暂时不可用，请继续按住说话或切换打字模式。";
+      render();
+      return;
+    }
+    if (assistantAudio) assistantAudio.pause();
+    assistantAudio = new Audio(result.audioUrl);
+    await assistantAudio.play();
+  } catch (error) {
+    state.voiceError = error.message || "语音播放暂时不可用，请继续按住说话或切换打字模式。";
+    render();
+  }
+}
+
 function speechSupported() {
   return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 }
@@ -268,9 +307,30 @@ function money(value) {
 }
 
 function paymentModeLabel(mode) {
-  return mode === "wechat" ? "微信支付" : "测试支付";
+  return mode === "wechat" ? "微信支付" : "支付记录";
 }
 
+
+function moneyFromCents(cents) {
+  return `¥${(Number(cents || 0) / 100).toFixed(2).replace(/\.00$/, "")}`;
+}
+
+async function loadAccountData() {
+  try {
+    const [lettersData, ordersData, entitlementData] = await Promise.all([
+      window.XiabiMockStore.listLetters(),
+      window.XiabiMockStore.listOrders(),
+      window.XiabiMockStore.getEntitlements()
+    ]);
+    state.remoteLetters = lettersData.letters || [];
+    state.remoteOrders = ordersData.orders || [];
+    state.entitlements = entitlementData.entitlements || [];
+    state.entitlementSummary = entitlementData.summary || state.entitlementSummary;
+    if (!state.letter && state.remoteLetters[0]) applyRemoteLetter(state.remoteLetters[0]);
+  } catch (error) {
+    // Keep the current screen usable if the network drops.
+  }
+}
 
 function uiIcon(type, extraClass = "") {
   const cls = `ui-icon ${extraClass}`.trim();
@@ -524,7 +584,15 @@ function renderGenerating() {
     ${letterReady && homePage.phone_bind_enabled === false ? `
       <button class="primary-btn" data-action="skip-phone">保存到我的销售信</button>
     ` : letterReady ? `
-      <button class="primary-btn" data-action="bind-phone">授权手机号，生成好后提醒我</button>
+      <div class="phone-bind-card card">
+        <div class="field-line"><input id="phoneInput" inputmode="tel" value="${state.phoneInput}" placeholder="输入手机号，用于保存和提醒" /></div>
+        <div class="code-line">
+          <input id="smsCode" inputmode="numeric" value="${state.smsCode}" placeholder="验证码" />
+          <button class="secondary-btn inline-btn" data-action="send-sms">发送验证码</button>
+        </div>
+        ${state.smsNotice ? `<div class="small-note">${state.smsNotice}</div>` : ""}
+      </div>
+      <button class="primary-btn" data-action="bind-phone">绑定手机号并领取</button>
       <div class="later-link" data-action="skip-phone">先不绑定，稍后再领取</div>
     ` : ""}
   `);
@@ -589,7 +657,7 @@ function renderPaywall() {
     </div>
     ${commerceConfig.single_enabled !== false ? offerCard("single", "doc", "单封解锁", "解锁当前这封销售信，7 天内升级年卡可抵扣。", money(commerceConfig.single)) : ""}
     ${commerceConfig.annual_enabled !== false ? offerCard("annual", "crown", "年卡会员", "一年内正常使用范围内不限次数生成、保存和继续完善。", `${money(commerceConfig.annual)}/年`) : ""}
-    ${canPay ? `<button class="primary-btn" data-action="mock-pay">${buttonText}</button>` : `<button class="primary-btn disabled">支付入口暂未开放</button>`}
+    ${canPay ? `<button class="primary-btn" data-action="create-order">${buttonText}</button>` : `<button class="primary-btn disabled">支付入口暂未开放</button>`}
     <div class="pay-safe">${paymentOpen() ? "支付安全由微信支付保障" : "支付入口维护中，已生成内容会保留在记录里"}</div>
   `);
 }
@@ -600,9 +668,9 @@ function renderExport() {
   const canPayAnnual = paymentOpen() && commerceConfig.annual_enabled !== false;
   return shell(`
     ${topbar()}
-    <div class="tag">${uiIcon("pdf", "tag-svg")} PDF 带走</div>
-    <h1 class="page-title">把这封销售信保存成 PDF</h1>
-    <p class="page-desc">适合发给客户、团队或自己存档。你可以先导出这封，再决定要不要开通年卡继续使用。</p>
+    <div class="tag">${uiIcon("pdf", "tag-svg")} 打印版带走</div>
+    <h1 class="page-title">把这封销售信保存成打印版</h1>
+    <p class="page-desc">适合发给客户、团队或自己存档。打开后可直接打印或保存为 PDF。</p>
     <div class="pdf-card card">
       <div class="pdf-sheet">
         <div class="pdf-topline"></div>
@@ -611,7 +679,7 @@ function renderExport() {
         <div class="pdf-line wide"></div>
         <div class="pdf-line"></div>
         <div class="pdf-line short"></div>
-        <div class="pdf-stamp">PDF 已准备好</div>
+        <div class="pdf-stamp">打印版已准备好</div>
       </div>
       <div class="pdf-info">
         <div class="pdf-info-title">这封可以直接导出</div>
@@ -619,7 +687,7 @@ function renderExport() {
       </div>
     </div>
     <div class="export-actions">
-      <button class="primary-btn" data-action="export-pdf">${uiIcon("download", "btn-svg")}导出 PDF</button>
+      <button class="primary-btn" data-action="export-pdf">${uiIcon("download", "btn-svg")}打开打印版</button>
       <button class="secondary-btn" data-go="records">先保存到我的销售信</button>
     </div>
     ${commerceConfig.pdf_upsell_enabled !== false && commerceConfig.annual_enabled !== false ? `
@@ -638,7 +706,7 @@ function renderExport() {
     ` : `
       <button class="secondary-btn annual-pay-btn" data-action="annual-pay">${uiIcon("crown", "btn-svg")}微信支付开通年卡 ${money(commerceConfig.annual)}/年</button>
     `}
-    <div class="pay-safe">${paymentOpen() ? "支付安全由微信支付保障" : "支付入口维护中，PDF 导出不受影响"}</div>
+    <div class="pay-safe">${paymentOpen() ? "支付安全由微信支付保障" : "支付入口维护中，打印版导出不受影响"}</div>
     ` : ""}
   `);
 }
@@ -660,20 +728,19 @@ function offerCard(plan, icon, name, note, price) {
 }
 
 function getRecords() {
-  const letter = state.letter;
-  const records = [];
-  if (letter) {
-    const completed = letter.exported || letter.claimed;
+  const source = state.remoteLetters.length ? state.remoteLetters : (state.letter ? [state.letter] : []);
+  return source.map((letter) => {
+    const completed = !!(letter.exported || letter.exportedAt || letter.claimed || letter.claimedAt);
     const unlocked = letter.unlockPlan === "single" || hasSingleEntitlement();
-    records.unshift({
+    return {
+      id: letter.id,
       title: letter.title,
-      scene: letter.scene,
-      status: letter.exported ? "已导出" : unlocked ? "已解锁" : letter.claimed ? "已领取" : "待领取",
+      scene: letter.scene || letter.content?.scene || "销售信",
+      status: letter.exported || letter.exportedAt ? "已导出" : unlocked ? "已解锁" : letter.claimed || letter.claimedAt ? "已领取" : "待领取",
       claimed: completed,
-      meta: letter.exported ? "刚刚导出 PDF" : letter.claimed ? "刚刚领取" : "刚刚生成 · 未绑定手机号"
-    });
-  }
-  return records;
+      meta: letter.createdAt ? new Date(letter.createdAt).toLocaleString() : "刚刚生成"
+    };
+  });
 }
 
 function renderRecords() {
@@ -701,7 +768,7 @@ function renderRecords() {
 function recordCard(item) {
   const pending = !["已领取", "已导出", "已解锁"].includes(item.status);
   return `
-    <div class="record-card card" data-open-letter="${item.claimed ? "true" : "false"}">
+    <div class="record-card card" data-letter-id="${item.id || ""}" data-open-letter="${item.claimed ? "true" : "false"}">
       <div class="doc-thumb ${pending ? "orange" : ""}">${uiIcon("doc")}</div>
       <div class="record-main">
         <div class="record-name">${item.title}</div>
@@ -745,22 +812,23 @@ function renderProfile() {
 }
 
 function renderOrders() {
-  const paidOrders = state.mockOrders.map((order) => ({
+  const remoteOrders = state.remoteOrders.map((order) => ({
     title: order.title,
-    amount: money(order.amount),
-    status: order.status,
-    time: `${order.time} · ${paymentModeLabel(order.mode)}`,
-    icon: order.plan === "annual" ? "crown" : "doc",
-    highlight: order.plan === "annual"
+    amount: moneyFromCents(order.amountCents),
+    status: order.status === "paid" ? "已支付" : order.status === "pending" ? "待支付" : order.status,
+    time: `${order.createdAt ? new Date(order.createdAt).toLocaleString() : "刚刚"} · ${paymentModeLabel(order.provider)}`,
+    icon: order.productType === "annual" ? "crown" : "doc",
+    highlight: order.productType === "annual"
   }));
   const orders = [
-    ...paidOrders,
+    ...remoteOrders,
     ...(state.letter ? [{ title: "首次免费销售信", amount: "¥0", status: state.letter?.claimed ? "已领取" : "可领取", time: state.letter?.claimed ? "刚刚" : "生成后领取", icon: "check" }] : [])
   ];
   return shell(`
     ${topbar()}
     <h1 class="record-title">订单记录</h1>
     <p class="page-desc">这里记录你的开通、解锁和免费领取记录。正式支付后，以微信支付结果为准。</p>
+    ${state.paymentNotice ? `<div class="contact-note">${state.paymentNotice}</div>` : ""}
     ${orders.length ? "" : `
       <div class="empty-card card">
         <div class="empty-title">还没有付费订单</div>
@@ -782,7 +850,7 @@ function renderOrders() {
     </div>
     <div class="status-card">
       <div class="status-head">订单说明</div>
-      <div class="legend-row"><span class="dot green"></span><span>已支付</span><span>已完成支付或测试开通，可继续使用对应权益。</span></div>
+      <div class="legend-row"><span class="dot green"></span><span>已支付</span><span>已完成支付并写入权益流水，可继续使用对应权益。</span></div>
       <div class="legend-row"><span class="dot orange"></span><span>待支付</span><span>还没有完成支付，不会发放年卡权益。</span></div>
     </div>
   `, { tab: "profile" });
@@ -1030,6 +1098,11 @@ document.addEventListener("click", async (event) => {
   const goTarget = event.target.closest("[data-go]");
   if (goTarget) {
     go(goTarget.dataset.go);
+    if (["records", "orders", "profile"].includes(goTarget.dataset.go)) {
+      loadAccountData().then(() => {
+        if (["records", "orders", "profile"].includes(state.route)) render();
+      });
+    }
     return;
   }
 
@@ -1055,9 +1128,18 @@ document.addEventListener("click", async (event) => {
 
   const openLetter = event.target.closest("[data-open-letter]");
   if (openLetter) {
-    if (!state.letter) state.letter = buildLetter();
-    state.letter.claimed = openLetter.dataset.openLetter === "true";
-    persist();
+    const letterId = openLetter.dataset.letterId;
+    if (letterId) {
+      try {
+        applyRemoteLetter(await window.XiabiMockStore.getLetter(letterId));
+      } catch (error) {
+        return;
+      }
+    } else {
+      if (!state.letter) state.letter = buildLetter();
+      state.letter.claimed = openLetter.dataset.openLetter === "true";
+      persist();
+    }
     go("letter");
     return;
   }
@@ -1106,6 +1188,10 @@ document.addEventListener("click", async (event) => {
   } else if (action === "speaker") {
     state.speakerOn = !state.speakerOn;
     render();
+    if (state.speakerOn && state.route === "call") {
+      const question = currentQuestion();
+      playAssistantVoice(question?.title || question?.stage || "");
+    } 
   } else if (action === "hangup") {
     go("home");
   } else if (action === "show-mic-sheet") {
@@ -1131,6 +1217,7 @@ document.addEventListener("click", async (event) => {
       .then((remoteLetter) => {
         state.generationPending = false;
         applyRemoteLetter(remoteLetter);
+        loadAccountData();
         if (state.route === "generating" || state.route === "letter") render();
       })
       .catch(() => {
@@ -1139,62 +1226,107 @@ document.addEventListener("click", async (event) => {
         if (state.route === "generating") render();
       });
   } else if (action === "bind-phone") {
+    try {
+      const result = await window.XiabiMockStore.bindPhone(state.phoneInput, state.smsCode);
+      state.phoneBound = true;
+      state.smsNotice = `已绑定 ${result.phoneMasked}`;
+    } catch (error) {
+      state.smsNotice = error.message || "手机号绑定失败，请检查验证码。";
+      render();
+      return;
+    }
     if (state.letter?.id) {
       try {
         const remoteLetter = await window.XiabiMockStore.claimLetter(state.letter.id);
         applyRemoteLetter(remoteLetter);
       } catch (error) {
-        generateLetter(true);
+        state.generationError = error.message || "领取失败，请稍后再试。";
+        render();
+        return;
       }
     } else {
-      generateLetter(true);
+      state.generationError = "还没有可领取的销售信。";
+      render();
+      return;
     }
-    state.phoneBound = true;
     state.pendingLetter = false;
     persist();
     go("letter");
+  } else if (action === "send-sms") {
+    try {
+      const result = await window.XiabiMockStore.sendSmsCode(state.phoneInput);
+      state.smsNotice = `验证码已发送到 ${result.phoneMasked}`;
+    } catch (error) {
+      state.smsNotice = error.message || "验证码发送失败。";
+    }
+    render();
   } else if (action === "skip-phone") {
-    generateLetter(false);
+    if (!state.letter) {
+      state.generationError = "还没有可保存的销售信。";
+      render();
+      return;
+    }
     state.pendingLetter = true;
     persist();
     go("letter");
-  } else if (action === "mock-pay") {
+  } else if (action === "create-order") {
     if (!paymentOpen() || (state.selectedPlan === "single" && commerceConfig.single_enabled === false) || (state.selectedPlan === "annual" && commerceConfig.annual_enabled === false)) return;
     try {
-      await window.XiabiMockStore.createOrder({
+      const result = await window.XiabiMockStore.createOrder({
         productType: state.selectedPlan,
-        letterId: state.letter?.id || null,
-        amount: state.selectedPlan === "annual" ? commerceConfig.annual : commerceConfig.single,
-        title: state.selectedPlan === "annual" ? "年卡会员" : "单封解锁"
+        letterId: state.letter?.id || null
       });
+      if (continueWechatPayment(result)) return;
+      state.paymentNotice = result.payment?.message || "订单已创建，请等待支付结果。";
+      await loadAccountData();
+      go("orders");
     } catch (error) {
-      // Keep local preview usable when API is not running.
+      state.paymentNotice = error.message || "订单创建失败，请稍后再试。";
+      render();
     }
-    const order = addMockPayment(state.selectedPlan, "paywall");
-    if (!order && state.selectedPlan !== "annual") return;
-    generateLetter(true, { unlockPlan: state.selectedPlan });
-    state.pendingLetter = false;
-    persist();
-    go("letter");
   } else if (action === "save-letter") {
     go("export");
   } else if (action === "annual-pay") {
     if (!paymentOpen() || commerceConfig.annual_enabled === false) return;
-    addMockPayment("annual", "export");
-    persist();
-    go("export");
+    try {
+      const result = await window.XiabiMockStore.createOrder({ productType: "annual", letterId: state.letter?.id || null });
+      if (continueWechatPayment(result)) return;
+      state.paymentNotice = result.payment?.message || "订单已创建，请等待支付结果。";
+      await loadAccountData();
+      go("orders");
+    } catch (error) {
+      state.paymentNotice = error.message || "订单创建失败，请稍后再试。";
+      render();
+    }
   } else if (action === "export-pdf") {
-    if (!state.letter) state.letter = buildLetter();
-    state.letter.claimed = true;
-    state.letter.exported = true;
-    state.pendingLetter = false;
-    persist();
-    go("records");
+    if (!state.letter) {
+      state.generationError = "还没有可导出的销售信。";
+      go("generating");
+      return;
+    }
+    try {
+      const result = await window.XiabiMockStore.exportLetter(state.letter.id);
+      state.letter.exported = true;
+      state.pendingLetter = false;
+      persist();
+      if (result.downloadUrl) window.open(result.downloadUrl, "_blank");
+      await loadAccountData();
+      go("records");
+    } catch (error) {
+      state.generationError = error.message || "导出失败，请稍后再试。";
+      render();
+    }
   } else if (action === "submit-feedback") {
     const input = document.getElementById("feedbackText");
     state.feedbackText = input ? input.value.trim() : state.feedbackText;
-    state.feedbackSent = true;
-    render();
+    try {
+      await window.XiabiMockStore.submitFeedback(state.feedbackText);
+      state.feedbackSent = true;
+      render();
+    } catch (error) {
+      state.feedbackText = error.message || state.feedbackText;
+      render();
+    }
   } else if (action === "clear-mock") {
     window.XiabiMockStore.clearAppState();
     state.authed = false;
@@ -1220,6 +1352,10 @@ document.addEventListener("input", (event) => {
     state.typedText = event.target.value;
   } else if (event.target.id === "feedbackText") {
     state.feedbackText = event.target.value;
+  } else if (event.target.id === "phoneInput") {
+    state.phoneInput = event.target.value;
+  } else if (event.target.id === "smsCode") {
+    state.smsCode = event.target.value;
   }
 });
 
@@ -1238,3 +1374,4 @@ if (!location.hash) {
 }
 render();
 window.XiabiMockStore.syncPublicConfig();
+loadAccountData().then(() => render());

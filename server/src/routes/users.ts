@@ -1,0 +1,63 @@
+import { db } from "edgespark";
+import { and, desc, eq } from "drizzle-orm";
+import { getCookie } from "hono/cookie";
+import { Hono } from "hono";
+import { guestSessions, smsCodes, users } from "@defs";
+import { TENANT_ID } from "../domain/defaults";
+import { fail, ok, readJson } from "../domain/http";
+import { sha256 } from "../domain/security";
+
+const SESSION_COOKIE = "xiabi_session";
+
+type BindPhoneBody = {
+  phone?: string;
+  code?: string;
+};
+
+function normalizePhone(phone: string) {
+  return phone.replace(/\D/g, "");
+}
+
+function maskPhone(phone: string) {
+  return phone.replace(/^(\d{3})\d+(\d{4})$/, "$1****$2");
+}
+
+export const userRoutes = new Hono()
+  .post("/bind-phone", async (c) => {
+    const sessionId = getCookie(c, SESSION_COOKIE);
+    if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const body = await readJson<BindPhoneBody>(c);
+    const phone = normalizePhone(String(body.phone || ""));
+    const code = String(body.code || "").trim();
+    if (!/^1\d{10}$/.test(phone)) return fail(c, "invalid_phone", "请输入正确的手机号。", 400);
+    if (!/^\d{6}$/.test(code)) return fail(c, "invalid_code", "请输入 6 位验证码。", 400);
+
+    const phoneHash = await sha256(`phone:${phone}`);
+    const codeHash = await sha256(`sms:${phone}:${code}`);
+    const [row] = await db
+      .select()
+      .from(smsCodes)
+      .where(and(eq(smsCodes.tenantId, TENANT_ID), eq(smsCodes.phoneHash, phoneHash), eq(smsCodes.status, "pending")))
+      .orderBy(desc(smsCodes.createdAt))
+      .limit(1);
+    if (!row || row.codeHash !== codeHash || new Date(row.expiresAt).getTime() < Date.now()) {
+      return fail(c, "code_not_match", "验证码不正确或已过期。", 400);
+    }
+
+    const [existing] = await db.select().from(users).where(eq(users.phoneHash, phoneHash)).limit(1);
+    const userId = existing?.id || crypto.randomUUID();
+    if (existing) {
+      await db.update(users).set({ phoneMasked: maskPhone(phone), updatedAt: new Date().toISOString() }).where(eq(users.id, existing.id));
+    } else {
+      await db.insert(users).values({
+        id: userId,
+        tenantId: TENANT_ID,
+        phoneMasked: maskPhone(phone),
+        phoneHash,
+        status: "active"
+      });
+    }
+    await db.update(guestSessions).set({ userId, updatedAt: new Date().toISOString() }).where(eq(guestSessions.id, sessionId));
+    await db.update(smsCodes).set({ status: "verified" }).where(eq(smsCodes.id, row.id));
+    return ok(c, { userId, phoneMasked: maskPhone(phone), bound: true });
+  });

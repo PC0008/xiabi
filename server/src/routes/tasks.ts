@@ -15,6 +15,28 @@ type CreateTaskBody = {
   input?: Record<string, unknown>;
 };
 
+function cleanString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function selectTemplateMeta(templates: unknown) {
+  if (!Array.isArray(templates) || !templates.length) {
+    return { key: "wechat_private_sales_letter", version: "v1.0" };
+  }
+  const template = templates.find((item) => {
+    if (!item || typeof item !== "object") return false;
+    return cleanString((item as Record<string, unknown>).status) === "enabled";
+  }) || templates[0];
+  if (!template || typeof template !== "object") {
+    return { key: "wechat_private_sales_letter", version: "v1.0" };
+  }
+  const data = template as Record<string, unknown>;
+  return {
+    key: cleanString(data.key) || "wechat_private_sales_letter",
+    version: cleanString(data.version) || "v1.0"
+  };
+}
+
 function buildDraftLetter(answers: string[]): SalesLetterContent {
   const goal = answers[1] || "让潜在客户理解产品价值，并愿意预约一次沟通。";
   const concern = answers[3] || "客户担心效果不稳定，也担心投入后没有持续跟进。";
@@ -41,6 +63,7 @@ export const taskRoutes = new Hono()
     const input = body.input || {};
     const taskId = crypto.randomUUID();
     const templates = (await getConfigScope(db, "templates")).data;
+    const templateMeta = selectTemplateMeta(templates);
 
     let content: SalesLetterContent | null = null;
     try {
@@ -72,8 +95,8 @@ export const taskRoutes = new Hono()
       status: "ready",
       inputJson: JSON.stringify({ answers, input }),
       contentJson: JSON.stringify({ ...content, version: 1 }),
-      templateKey: "wechat_private_sales_letter",
-      templateVersion: "v1.0"
+      templateKey: templateMeta.key,
+      templateVersion: templateMeta.version
     });
     await db.insert(generationTasks).values({
       id: taskId,

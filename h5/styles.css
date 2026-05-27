@@ -963,6 +963,41 @@ button {
   line-height: 1.55;
 }
 
+.phone-bind-card {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.field-line input,
+.code-line input {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+  border: 1px solid rgba(17, 24, 22, 0.10);
+  padding: 0 14px;
+  font-size: 16px;
+  background: #fff;
+}
+
+.code-line {
+  display: grid;
+  grid-template-columns: 1fr 118px;
+  gap: 10px;
+}
+
+.inline-btn {
+  min-height: 48px;
+  border-radius: 14px;
+  font-size: 14px;
+}
+
+.small-note {
+  color: #68736e;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .error-note {
   color: #a13d2d;
   background: #fff1ed;
