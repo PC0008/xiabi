@@ -7,7 +7,8 @@
     pendingLetter: "h5PendingLetter",
     phoneBound: "h5PhoneBound",
     annualActive: "h5AnnualActive",
-    letter: "h5Letter"
+    letter: "h5Letter",
+    paymentIntent: "h5PaymentIntent"
   };
   const adminAuthKey = "xiabiAdminAuthed";
   const apiBase = window.XIABI_API_BASE || "/api/public";
@@ -259,7 +260,8 @@
       pendingLetter: readFlag(keys.pendingLetter),
       phoneBound: readFlag(keys.phoneBound),
       annualActive: readFlag(keys.annualActive),
-      letter: readJson(keys.letter, null)
+      letter: readJson(keys.letter, null),
+      paymentIntent: readJson(keys.paymentIntent, null)
     };
   }
 
@@ -268,6 +270,8 @@
     writeFlag(keys.pendingLetter, !!state.pendingLetter);
     writeFlag(keys.phoneBound, !!state.phoneBound);
     writeFlag(keys.annualActive, !!state.annualActive);
+    if (state.paymentIntent) writeJson(keys.paymentIntent, state.paymentIntent);
+    else localStorage.removeItem(keys.paymentIntent);
     if (state.letter) writeJson(keys.letter, state.letter);
     else localStorage.removeItem(keys.letter);
   }
@@ -297,7 +301,8 @@
       keys.pendingLetter,
       keys.phoneBound,
       keys.annualActive,
-      keys.letter
+      keys.letter,
+      keys.paymentIntent
     ].forEach((key) => localStorage.removeItem(key));
   }
 

@@ -138,6 +138,7 @@ const state = {
   annualActive: storedState.annualActive,
   generationStep: 0,
   selectedPlan: "annual",
+  paymentIntent: storedState.paymentIntent,
   letter: storedState.letter,
   remoteLetters: [],
   remoteOrders: [],
@@ -237,10 +238,54 @@ function continueWechatPayment(result) {
   return true;
 }
 
+function setPaymentIntent(productType, letterId = null) {
+  state.paymentIntent = {
+    productType,
+    letterId,
+    createdAt: new Date().toISOString()
+  };
+  persist();
+}
+
+function clearPaymentIntent() {
+  state.paymentIntent = null;
+  persist();
+}
+
+async function resumePaymentIntent() {
+  const intent = state.paymentIntent;
+  if (!intent || state.paymentRefreshing) return;
+  const age = Date.now() - new Date(intent.createdAt || 0).getTime();
+  if (!Number.isFinite(age) || age > 15 * 60 * 1000) {
+    clearPaymentIntent();
+    return;
+  }
+  state.paymentRefreshing = true;
+  state.paymentNotice = "正在继续刚才的微信支付。";
+  render();
+  try {
+    const result = await window.XiabiMockStore.createOrder({
+      productType: intent.productType,
+      letterId: intent.letterId || null
+    });
+    clearPaymentIntent();
+    if (continueWechatPayment(result)) return;
+    state.paymentNotice = result.payment?.message || "支付暂时无法拉起，请稍后再试。";
+    await loadAccountData();
+  } catch (error) {
+    clearPaymentIntent();
+    state.paymentNotice = error.message || "继续支付失败，请稍后再试。";
+  } finally {
+    state.paymentRefreshing = false;
+    if (state.route === "orders") render();
+  }
+}
+
 function go(route) {
   state.route = route;
   location.hash = route;
   render();
+  if (route === "orders") setTimeout(() => resumePaymentIntent(), 0);
 }
 
 window.addEventListener("hashchange", () => {
@@ -1475,10 +1520,12 @@ document.addEventListener("click", async (event) => {
   } else if (action === "create-order") {
     if (!paymentOpen() || (state.selectedPlan === "single" && commerceConfig.single_enabled === false) || (state.selectedPlan === "annual" && commerceConfig.annual_enabled === false)) return;
     try {
+      setPaymentIntent(state.selectedPlan, state.letter?.id || null);
       const result = await window.XiabiMockStore.createOrder({
         productType: state.selectedPlan,
         letterId: state.letter?.id || null
       });
+      clearPaymentIntent();
       if (continueWechatPayment(result)) return;
       state.paymentNotice = result.payment?.message || "订单已创建，请等待支付结果。";
       await loadAccountData();
@@ -1492,7 +1539,9 @@ document.addEventListener("click", async (event) => {
   } else if (action === "annual-pay") {
     if (!paymentOpen() || commerceConfig.annual_enabled === false) return;
     try {
+      setPaymentIntent("annual", state.letter?.id || null);
       const result = await window.XiabiMockStore.createOrder({ productType: "annual", letterId: state.letter?.id || null });
+      clearPaymentIntent();
       if (continueWechatPayment(result)) return;
       state.paymentNotice = result.payment?.message || "订单已创建，请等待支付结果。";
       await loadAccountData();
@@ -1539,6 +1588,7 @@ document.addEventListener("click", async (event) => {
     state.phoneBound = false;
     state.phoneMasked = "";
     state.sessionUser = null;
+    state.paymentIntent = null;
     state.annualActive = false;
     state.letter = null;
     go("auth");
@@ -1549,6 +1599,7 @@ document.addEventListener("click", async (event) => {
     state.phoneBound = false;
     state.phoneMasked = "";
     state.sessionUser = null;
+    state.paymentIntent = null;
     go("auth");
   }
 });
@@ -1581,3 +1632,4 @@ if (!location.hash) {
 render();
 window.XiabiMockStore.syncPublicConfig();
 loadAccountData().then(() => render());
+if (state.route === "orders") setTimeout(() => resumePaymentIntent(), 0);
