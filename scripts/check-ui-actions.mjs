@@ -35,6 +35,16 @@ const requiredMarkers = [
     file: "server/src/adapters/letter/deepseek.ts",
     marker: "input.input?.answerItems",
     message: "DeepSeek brief must read structured question/answer context"
+  },
+  {
+    file: "server/src/routes/tasks.ts",
+    marker: "HOURLY_GENERATION_LIMIT",
+    message: "public generation task creation must be rate-limited"
+  },
+  {
+    file: "server/src/routes/tasks.ts",
+    marker: "answer_too_long",
+    message: "public generation task creation must reject oversized answers before queuing"
   }
 ];
 

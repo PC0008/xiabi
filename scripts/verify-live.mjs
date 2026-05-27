@@ -98,6 +98,29 @@ checks.push(await assertJson(
   (payload) => payload?.error?.code === "task_not_found"
 ));
 checks.push(await assertJson(
+  "/api/public/tasks",
+  {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ answers: ["x".repeat(1201)] })
+  },
+  413,
+  (payload) => payload?.error?.code === "answer_too_long"
+));
+checks.push(await assertJson(
+  "/api/public/tasks",
+  {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({
+      answers: ["short"],
+      input: { answerItems: [{ question: "q".repeat(201), answer: "short" }] }
+    })
+  },
+  413,
+  (payload) => payload?.error?.code === "answer_item_too_long"
+));
+checks.push(await assertJson(
   "/api/public/orders",
   { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ productType: "single" }) },
   [400, 403],
