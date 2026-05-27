@@ -39,9 +39,14 @@
 - 生产验收补强：`XIABI_VERIFY_PAID_ORDER_ID` 现在会在确认已支付和权益到账后，连续调用两次后台补权益，验证重复补发不会增加重复权益流水。
 - 生产验收补强：同一轮设置 `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_SMS_PHONE`、`XIABI_VERIFY_SMS_CODE` 时，会在已生成/领取信件的会话内绑定手机号，并验证信件、首次免费权益归属到绑定用户。
 - 语音输入接入槽补强：服务端 `/api/public/voice/transcribe` 现在同时支持 JSON base64 和 OpenAI-compatible `/audio/transcriptions` multipart 格式，`VOICE_ASR_REQUEST_FORMAT=openai|json` 可显式指定。
+- ASR 生产验收补强：`XIABI_VERIFY_ASR_EXPECTED_TEXT` 可验证音频转写结果包含预期关键句，避免只验证“返回了任意文本”。
 - 前端运行时命名正式化：用户端和后台入口从 `mock-store.js` 迁移到 `store.js`，应用调用统一改为 `window.XiabiStore`，旧别名仅保留给浏览器缓存兼容。
+- 运营漏洞修复：旧订单继续支付会重新读取后台支付开关，关闭支付/单封/年卡后不再拉起微信支付。
+- 账号链路修复：退出登录和清除本机缓存会调用服务端会话登出接口，旧 `xiabi_session` 不再复用旧资产。
+- 手机号绑定修复：线上数据库已应用 `tenant_id + phone_hash` 唯一索引，绑定并发冲突后会回查同一用户继续归属资产。
+- 用户端二级页补齐：“我的档案”产品档案已支持新增、编辑、删除和本机持久化，不再是占位页。
 - 交付文档补强：新增根 `README.md` 和 `docs/生产外部凭据交接清单.md`，明确线上地址、常用命令、验收分级和真实外部联调所需凭据。
-- 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run check:ui`、`npm run verify:journey`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式；线上公开配置已确认 `payment_enabled`、`annual_enabled`、`single_enabled`、`system.payment_enabled` 均为 `true`。
+- 验证通过：`node --check h5/app.js`、`node --check h5/admin.js`、`node --check h5/store.js`、`node --check scripts/verify-production.mjs`、`node --check scripts/verify-live.mjs`、`npm run typecheck`、`npm run build`、`npm run check:ui`、`npm run check:bind-phone-unique`、`npm run verify:order-payment-switch`、`npm run verify:journey`（含通话主流程和产品档案新增/编辑/删除）、`edgespark db check`、`edgespark db migrate`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式；线上公开配置已确认 `payment_enabled`、`annual_enabled`、`single_enabled`、`system.payment_enabled` 均为 `true`。
 - 仍需真实外部验收输入：后台账号密码、微信支付产品权限或微信内 JSAPI 授权配置、真实付款环境、可接收短信手机号、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。
 
 ## 当前状态
@@ -109,6 +114,10 @@
 - 短信验证码已增加错码次数控制：同一验证码连续错误会累加 `attempts`，达到上限后锁定并要求重新获取，避免无限撞码。
 - 新增 `npm run verify:production` 强验收脚本：可按环境变量显式触发后台自检严格校验、DeepSeek 真实生成、微信 H5 下单拉起、阿里云短信发送、MiniMax TTS 和服务端 ASR 转写验证；默认不主动触发会产生费用的外部调用。
 - `WECHAT_PAY_PLATFORM_PUBLIC_KEY`、`WECHAT_PAY_PLATFORM_CERT_SERIAL_NO`、`VOICE_ASR_*` 继续作为可选生产接入槽读取，避免 Edgespark 把未配置的可选项判定为部署必填；是否缺项由后台系统自检和 `verify:production` 严格模式判断。
+- `POST /api/public/session/logout` 已上线，登出会把当前会话标记为 `logged_out` 并清除 HTTP-only cookie；`/session/guest` 和 `/session/me` 只复用 active 会话。
+- 旧订单续付已接入后台价格/支付开关校验；`npm run verify:order-payment-switch` 覆盖继续支付不会绕过后台关闭状态。
+- `users_tenant_phone_hash_idx` 唯一索引已完成线上迁移，`npm run check:bind-phone-unique` 覆盖租户内手机号唯一和冲突后回查逻辑。
+- 用户端“我的档案”已改为可操作产品档案，不再显示“未开放编辑”的占位状态。
 
 ### 本轮验证
 
@@ -116,8 +125,9 @@
 - `npm run build` 通过，输出 `web/dist`。
 - `npm run deploy:dry` 通过。
 - `npm run deploy` 通过。
-- `npm run verify:live` 通过，线上入口、配置接口、会话隔离、无信件下单限制和截图验收正常。
-- `npm run verify:production` 基础模式通过，已验证线上健康接口与公开配置；真实短信、真实支付、真实 TTS/ASR、真实 DeepSeek 调用需显式设置对应环境变量后再执行。
+- `npm run verify:live` 通过，线上入口、`store.js` 静态资源、配置接口、会话隔离、无信件下单限制和截图验收正常。
+- `npm run verify:production` 基础模式通过，已验证线上健康接口、公开配置和 session logout；真实短信、真实支付、真实 TTS/ASR、真实 DeepSeek 调用需显式设置对应环境变量后再执行。
+- `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1`、`XIABI_VERIFY_PAYMENT_CREATE=1` 的生产报告已刷新：DeepSeek、首次免费权益/导出、重复领取限制、MiniMax TTS 均通过；微信支付下单仍被商户产品权限外部阻塞。
 - 本地 Edgespark：`http://localhost:7775` 已启动并通过健康检查。
 - `node --check h5/app.js`、`node --check h5/admin.js` 通过。
 - 本地 API 验证：
@@ -150,5 +160,5 @@
 1. 确认 H5 支付还是微信内 JSAPI 支付；微信内 JSAPI 需要补 `WECHAT_MP_APP_SECRET`。
 2. 做一笔真实小额支付闭环验证：下单、跳转、回调、订单 paid、权益发放。
 3. 用真实手机号验证阿里云短信发送与绑定流程。
-4. 继续补后台筛选分页、管理员改密码/角色权限、审计 diff 和服务端直出 PDF。
+4. 补服务端直出 PDF、后台筛选分页/角色权限/审计 diff。
 5. 如果用户坚持语音输入也必须走 MiniMax，需要 MiniMax ASR/转写接口文档或已开通能力说明。

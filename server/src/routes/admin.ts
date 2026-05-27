@@ -327,6 +327,8 @@ function sanitizePricing(value: unknown) {
     annual_enabled: cleanBoolean(input.annual_enabled, true),
     single_enabled: cleanBoolean(input.single_enabled, true),
     pdf_upsell_enabled: cleanBoolean(input.pdf_upsell_enabled, true),
+    annual_badge_text: cleanText(input.annual_badge_text || "更划算", 20),
+    upgrade_discount_enabled: cleanBoolean(input.upgrade_discount_enabled, true),
     pdf_annual_title: cleanText(input.pdf_annual_title || "经常要写销售信，可以开通年卡", 80),
     pdf_annual_desc: cleanText(input.pdf_annual_desc || "", 240)
   };

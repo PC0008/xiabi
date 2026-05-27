@@ -1,6 +1,6 @@
 import { db } from "edgespark";
-import { eq } from "drizzle-orm";
-import { getCookie, setCookie } from "hono/cookie";
+import { and, eq } from "drizzle-orm";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { guestSessions, users } from "@defs";
 import { TENANT_ID } from "../domain/defaults";
@@ -27,13 +27,36 @@ async function createGuest(c: any) {
 
 export const sessionRoutes = new Hono()
   .post("/guest", async (c) => {
-    const sessionId = getCookie(c, SESSION_COOKIE) || await createGuest(c);
+    const cookieSessionId = getCookie(c, SESSION_COOKIE);
+    const [session] = cookieSessionId
+      ? await db
+        .select()
+        .from(guestSessions)
+        .where(and(eq(guestSessions.id, cookieSessionId), eq(guestSessions.status, "active")))
+        .limit(1)
+      : [];
+    const sessionId = session?.id || await createGuest(c);
     return ok(c, { sessionId });
+  })
+  .post("/logout", async (c) => {
+    const sessionId = getCookie(c, SESSION_COOKIE);
+    if (sessionId) {
+      await db.update(guestSessions).set({
+        status: "logged_out",
+        updatedAt: new Date().toISOString()
+      }).where(eq(guestSessions.id, sessionId));
+    }
+    deleteCookie(c, SESSION_COOKIE, { path: "/" });
+    return ok(c, { loggedOut: true });
   })
   .get("/me", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
     if (!sessionId) return ok(c, { session: null, user: null });
-    const [session] = await db.select().from(guestSessions).where(eq(guestSessions.id, sessionId)).limit(1);
+    const [session] = await db
+      .select()
+      .from(guestSessions)
+      .where(and(eq(guestSessions.id, sessionId), eq(guestSessions.status, "active")))
+      .limit(1);
     const [user] = session?.userId
       ? await db.select().from(users).where(eq(users.id, session.userId)).limit(1)
       : [];

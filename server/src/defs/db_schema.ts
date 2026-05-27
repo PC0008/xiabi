@@ -66,7 +66,7 @@ export const users = sqliteTable("users", {
   updatedAt: text("updated_at").notNull().default(sql`(current_timestamp)`)
 }, (table) => [
   index("users_tenant_idx").on(table.tenantId),
-  index("users_phone_hash_idx").on(table.phoneHash)
+  uniqueIndex("users_tenant_phone_hash_idx").on(table.tenantId, table.phoneHash)
 ]);
 
 export const guestSessions = sqliteTable("guest_sessions", {

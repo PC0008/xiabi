@@ -6,6 +6,8 @@
     "build": "npm --prefix web run build",
     "typecheck": "npm --prefix server run typecheck && npm --prefix web run typecheck",
     "check:ui": "node scripts/check-ui-actions.mjs",
+    "check:bind-phone-unique": "node scripts/check-bind-phone-unique.mjs",
+    "verify:order-payment-switch": "node scripts/verify-order-payment-switch.mjs",
     "verify:journey": "playwright test scripts/verify-user-journey.spec.mjs --reporter=line",
     "verify:live": "node scripts/verify-live.mjs",
     "verify:production": "node scripts/verify-production.mjs",

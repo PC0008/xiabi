@@ -23,6 +23,8 @@ export const defaultPricing = {
   annual_enabled: true,
   single_enabled: true,
   pdf_upsell_enabled: true,
+  annual_badge_text: "更划算",
+  upgrade_discount_enabled: true,
   pdf_annual_title: "经常要写销售信，可以开通年卡",
   pdf_annual_desc: "一年内正常使用范围内不限次数生成、保存、继续完善和导出。"
 };

@@ -32,8 +32,8 @@ function buildReadinessReport() {
   const matrix = [
     {
       requirement: "线上基础运行",
-      status: readinessStatus(["health", "public config"]),
-      evidence: ["health", "public config"]
+      status: readinessStatus(["health", "public config", "session logout"]),
+      evidence: ["health", "public config", "session logout"]
     },
     {
       requirement: "管理后台登录与运营接口",
@@ -225,6 +225,42 @@ async function createGuestSession() {
   const cookie = getCookie(response.headers);
   if (!cookie) throw new Error("guest session did not set a cookie");
   return cookie;
+}
+
+async function verifySessionLogout() {
+  const cookie = await createGuestSession();
+  const before = await api("/api/public/session/me", {}, cookie);
+  const beforeSessionId = before.session?.id;
+  if (!beforeSessionId) throw new Error("session/me did not return the created guest session");
+
+  const logoutResponse = await fetch(`${baseUrl}/api/public/session/logout`, {
+    method: "POST",
+    headers: { cookie }
+  });
+  const logout = await readJsonResponse(logoutResponse, "session logout");
+  const clearCookie = getCookie(logoutResponse.headers);
+  if (!logout.loggedOut || clearCookie !== "xiabi_session=") {
+    throw new Error("session logout did not clear the xiabi_session cookie");
+  }
+
+  const after = await api("/api/public/session/me", {}, cookie);
+  if (after.session?.id === beforeSessionId || after.user) {
+    throw new Error("session/me reused the logged-out session");
+  }
+
+  const nextResponse = await fetch(`${baseUrl}/api/public/session/guest`, {
+    method: "POST",
+    headers: { cookie }
+  });
+  const next = await readJsonResponse(nextResponse, "guest session after logout");
+  const nextCookie = getCookie(nextResponse.headers);
+  if (!next.sessionId || next.sessionId === beforeSessionId || nextCookie === cookie) {
+    throw new Error("guest session after logout reused the old session cookie");
+  }
+  addCheck("session logout", "ok", {
+    beforeSessionId,
+    nextSessionId: next.sessionId
+  });
 }
 
 async function adminLogin() {
@@ -544,6 +580,13 @@ function mimeFromFile(filePath) {
   return "audio/webm";
 }
 
+function normalizeTranscript(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[，。！？、,.!?;；:："'“”‘’（）()【】\[\]\-—_]/g, "");
+}
+
 async function verifyAsr() {
   const audioPath = process.env.XIABI_VERIFY_ASR_AUDIO;
   if (!audioPath) {
@@ -560,7 +603,20 @@ async function verifyAsr() {
     })
   }, cookie);
   if (!result.configured || !result.transcript) throw new Error("ASR did not return a transcript");
-  addCheck("voice asr", "ok", { provider: result.provider, requestFormat: result.requestFormat, transcriptLength: result.transcript.length });
+  const expectedText = process.env.XIABI_VERIFY_ASR_EXPECTED_TEXT;
+  if (expectedText) {
+    const transcript = normalizeTranscript(result.transcript);
+    const expected = normalizeTranscript(expectedText);
+    if (!transcript.includes(expected)) {
+      throw new Error(`ASR transcript did not include expected text. expected=${expectedText} transcript=${result.transcript}`);
+    }
+  }
+  addCheck("voice asr", "ok", {
+    provider: result.provider,
+    requestFormat: result.requestFormat,
+    transcriptLength: result.transcript.length,
+    expectedMatched: expectedText ? true : undefined
+  });
 }
 
 await api("/api/public/health");
@@ -568,6 +624,7 @@ addCheck("health", "ok");
 await api("/api/public/config");
 addCheck("public config", "ok");
 
+await verifySessionLogout();
 await verifyAdminDiagnostics();
 await verifyDeepSeek();
 await verifyPaymentCreate();

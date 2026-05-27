@@ -23,6 +23,15 @@ function maskPhone(phone: string) {
   return phone.replace(/^(\d{3})\d+(\d{4})$/, "$1****$2");
 }
 
+async function findUserByPhoneHash(phoneHash: string) {
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(and(eq(users.tenantId, TENANT_ID), eq(users.phoneHash, phoneHash)))
+    .limit(1);
+  return user || null;
+}
+
 export const userRoutes = new Hono()
   .post("/bind-phone", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
@@ -66,19 +75,21 @@ export const userRoutes = new Hono()
       return fail(c, nextAttempts >= 5 ? "code_locked" : "code_not_match", nextAttempts >= 5 ? "验证码错误次数过多，请重新获取。" : "验证码不正确或已过期。", nextAttempts >= 5 ? 429 : 400);
     }
 
-    const [existing] = await db.select().from(users).where(eq(users.phoneHash, phoneHash)).limit(1);
-    const userId = existing?.id || crypto.randomUUID();
-    if (existing) {
-      await db.update(users).set({ phoneMasked: maskPhone(phone), updatedAt: new Date().toISOString() }).where(eq(users.id, existing.id));
-    } else {
+    let user = await findUserByPhoneHash(phoneHash);
+    if (!user) {
+      const newUserId = crypto.randomUUID();
       await db.insert(users).values({
-        id: userId,
+        id: newUserId,
         tenantId: TENANT_ID,
         phoneMasked: maskPhone(phone),
         phoneHash,
         status: "active"
-      });
+      }).onConflictDoNothing();
+      user = await findUserByPhoneHash(phoneHash);
+      if (!user) return fail(c, "bind_phone_conflict", "手机号绑定冲突，请重新提交。", 409);
     }
+    const userId = user.id;
+    await db.update(users).set({ phoneMasked: maskPhone(phone), updatedAt: new Date().toISOString() }).where(eq(users.id, user.id));
     await db.update(guestSessions).set({ userId, updatedAt: new Date().toISOString() }).where(eq(guestSessions.id, sessionId));
     await Promise.all([
       db.update(salesLetters).set({ userId, updatedAt: new Date().toISOString() }).where(and(eq(salesLetters.tenantId, TENANT_ID), eq(salesLetters.sessionId, sessionId))),

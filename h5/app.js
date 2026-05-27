@@ -14,6 +14,8 @@ let commerceConfig = Object.assign({
   annual_enabled: true,
   single_enabled: true,
   pdf_upsell_enabled: true,
+  annual_badge_text: "更划算",
+  upgrade_discount_enabled: true,
   pdf_annual_title: "经常要写销售信，可以开通年卡",
   pdf_annual_desc: "一年内正常使用范围内不限次数生成、保存、继续完善和导出。"
 }, adminMockConfig.pricing || {});
@@ -167,6 +169,10 @@ const state = {
   selectedPlan: "annual",
   paymentIntent: storedState.paymentIntent,
   letter: storedState.letter,
+  productProfiles: Array.isArray(storedState.productProfiles) ? storedState.productProfiles : [],
+  productDraft: { name: "", audience: "", value: "", proof: "" },
+  productEditingId: "",
+  productNotice: "",
   remoteLetters: [],
   remoteOrders: [],
   recordFilter: "all",
@@ -181,7 +187,8 @@ const state = {
   paymentRefreshing: false,
   phoneInput: "",
   smsCode: "",
-  smsNotice: ""
+  smsNotice: "",
+  sessionNotice: ""
 };
 
 let speechRecognition = null;
@@ -562,6 +569,7 @@ function renderAuth() {
     <img class="auth-hero" src="${ASSETS.auth}" alt="智多星" />
     <h1 class="auth-title">我是智多星</h1>
     <p class="auth-desc">开始体验后，智多星会通过几句对话帮你整理目标，并保存写好的销售信。</p>
+    ${state.sessionNotice ? `<div class="contact-note">${h(state.sessionNotice)}</div>` : ""}
     <div class="agreement"><span class="agree-dot"></span>我已阅读并同意《用户协议》和《隐私政策》</div>
     <button class="primary-btn" data-action="auth">${uiIcon("user", "btn-svg")}开始体验</button>
     ${homePage.allow_guest_preview === false ? "" : `<div class="look-around" data-action="guest">暂不登录，先看看</div>`}
@@ -801,7 +809,7 @@ function renderLetter(claimedOverride) {
         <div class="lock-mask">
           <div class="lock-title">完整内容已经写好</div>
           <div class="lock-desc">${phoneEnabled ? "绑定手机号后领取全文，并保存到你的账号。" : "可以先领取全文，并保存到你的本机记录。"}</div>
-          <button class="primary-btn" data-go="generating">${phoneEnabled ? "领取完整销售信" : "保存并领取全文"}</button>
+          <button class="primary-btn" ${phoneEnabled ? `data-go="generating"` : `data-action="skip-phone"`}>${phoneEnabled ? "领取完整销售信" : "保存并领取全文"}</button>
         </div>
       `}
     </article>
@@ -908,12 +916,13 @@ function renderExport() {
 function offerCard(plan, icon, name, note, price) {
   const selected = state.selectedPlan === plan;
   const annual = plan === "annual";
+  const annualBadge = String(commerceConfig.annual_badge_text || "").trim();
   return `
     <button class="offer-card ${annual ? "annual" : ""} ${selected ? "selected" : ""}" data-plan="${plan}">
       <div class="select-dot">${selected ? uiIcon("check") : ""}</div>
       <div class="offer-icon">${uiIcon(icon)}</div>
       <div>
-        <div class="offer-name">${name}${annual ? " <span class='text-link'>更划算</span>" : ""}</div>
+        <div class="offer-name">${name}${annual && annualBadge ? ` <span class='text-link'>${h(annualBadge)}</span>` : ""}</div>
         <div class="offer-note">${note}</div>
       </div>
       <div class="price">${price}</div>
@@ -1138,10 +1147,12 @@ function renderSettings() {
 
 function renderMemory() {
   const letters = state.remoteLetters.length ? state.remoteLetters.slice(0, 3) : [];
+  const profiles = Array.isArray(state.productProfiles) ? state.productProfiles : [];
   return shell(`
     ${topbar()}
     <h1 class="memory-title">我的档案</h1>
     <div class="privacy-note">这些内容只用于帮智多星更好地理解你，你可以随时修改或删除。</div>
+    ${state.productNotice ? `<div class="contact-note">${h(state.productNotice)}</div>` : ""}
     <div class="memory-card card">
       <div class="section-head"><div class="section-icon">${uiIcon("user")}</div><div class="section-title">个人档案</div></div>
       <div class="kv-row"><span>账号状态</span><span>${state.phoneMasked ? "已绑定手机号" : "未绑定手机号"}</span></div>
@@ -1150,10 +1161,30 @@ function renderMemory() {
     </div>
     <div class="memory-card card">
       <div class="section-head"><div class="section-icon">${uiIcon("archive")}</div><div class="section-title">产品档案</div></div>
-      <div class="empty-card inline-empty">
-        <div class="empty-title">产品档案还没有正式开放编辑</div>
-        <div class="empty-desc">当前会先从每次通话和销售信记录里保存上下文，避免展示尚未创建的档案。</div>
+      <div class="phone-bind-card profile-editor">
+        <div class="field-line"><input data-profile-field="name" value="${h(state.productDraft.name)}" placeholder="产品或服务名称" /></div>
+        <div class="field-line"><input data-profile-field="audience" value="${h(state.productDraft.audience)}" placeholder="主要面向谁" /></div>
+        <div class="field-line"><input data-profile-field="value" value="${h(state.productDraft.value)}" placeholder="解决什么问题" /></div>
+        <textarea class="feedback-input" data-profile-field="proof" placeholder="成交证据、客户反馈或注意事项">${h(state.productDraft.proof)}</textarea>
+        <button class="primary-btn" data-action="save-product-profile">${state.productEditingId ? "保存修改" : "新增产品档案"}</button>
+        ${state.productEditingId ? `<button class="secondary-btn" data-action="new-product-profile">取消编辑</button>` : ""}
       </div>
+      ${profiles.length ? profiles.map((profile) => `
+        <div class="profile-row">
+          <div class="profile-icon">${uiIcon("archive")}</div>
+          <div class="profile-row-main">
+            <div class="small-name">${h(profile.name)}</div>
+            <div class="small-meta">${h([profile.audience, profile.value].filter(Boolean).join(" · ") || "已保存产品档案")}</div>
+          </div>
+          <button class="mini-outline" data-action="edit-product-profile" data-profile-id="${h(profile.id)}">编辑</button>
+          <button class="mini-outline" data-action="delete-product-profile" data-profile-id="${h(profile.id)}">删除</button>
+        </div>
+      `).join("") : `
+        <div class="empty-card inline-empty">
+          <div class="empty-title">还没有产品档案</div>
+          <div class="empty-desc">新增后，下次写信前可以直接回来参考和维护。</div>
+        </div>
+      `}
     </div>
     <div class="memory-card card">
       <div class="section-head"><div class="section-icon">${uiIcon("records")}</div><div class="section-title">写信项目</div></div>
@@ -1367,6 +1398,30 @@ function applyRemoteLetter(remoteLetter) {
   persist();
 }
 
+function resetProductDraft() {
+  state.productDraft = { name: "", audience: "", value: "", proof: "" };
+  state.productEditingId = "";
+}
+
+function normalizeProductDraft() {
+  return {
+    name: String(state.productDraft.name || "").trim(),
+    audience: String(state.productDraft.audience || "").trim(),
+    value: String(state.productDraft.value || "").trim(),
+    proof: String(state.productDraft.proof || "").trim()
+  };
+}
+
+async function claimCurrentLetter() {
+  if (!state.letter?.id) throw new Error("还没有可领取的销售信。");
+  const remoteLetter = await window.XiabiStore.claimLetter(state.letter.id);
+  applyRemoteLetter(remoteLetter);
+  await loadAccountData();
+  state.pendingLetter = false;
+  persist();
+  return remoteLetter;
+}
+
 async function refreshOrders(orderId) {
   state.paymentRefreshing = true;
   state.paymentNotice = "正在刷新支付结果...";
@@ -1504,11 +1559,13 @@ document.addEventListener("click", async (event) => {
   const action = actionTarget.dataset.action;
 
   if (action === "auth") {
+    state.sessionNotice = "";
     state.authed = true;
     window.XiabiStore.setAuthed(true);
     go("home");
   } else if (action === "guest") {
     if (homePage.allow_guest_preview === false) return;
+    state.sessionNotice = "";
     state.guest = true;
     window.XiabiStore.setGuest(true);
     go("home");
@@ -1625,8 +1682,7 @@ document.addEventListener("click", async (event) => {
     const shouldClaimLetter = state.route === "generating" && !!state.letter?.id;
     if (shouldClaimLetter) {
       try {
-        const remoteLetter = await window.XiabiStore.claimLetter(state.letter.id);
-        applyRemoteLetter(remoteLetter);
+        await claimCurrentLetter();
       } catch (error) {
         state.generationError = error.message || "领取失败，请稍后再试。";
         render();
@@ -1653,6 +1709,51 @@ document.addEventListener("click", async (event) => {
       state.smsNotice = error.message || "验证码发送失败。";
     }
     render();
+  } else if (action === "save-product-profile") {
+    const draft = normalizeProductDraft();
+    if (!draft.name) {
+      state.productNotice = "请先填写产品或服务名称。";
+      render();
+      return;
+    }
+    const now = new Date().toISOString();
+    if (state.productEditingId) {
+      state.productProfiles = state.productProfiles.map((item) =>
+        item.id === state.productEditingId ? { ...item, ...draft, updatedAt: now } : item
+      );
+      state.productNotice = "产品档案已更新。";
+    } else {
+      state.productProfiles = [
+        { id: crypto.randomUUID(), ...draft, createdAt: now, updatedAt: now },
+        ...state.productProfiles
+      ];
+      state.productNotice = "产品档案已保存。";
+    }
+    resetProductDraft();
+    persist();
+    render();
+  } else if (action === "new-product-profile") {
+    resetProductDraft();
+    state.productNotice = "";
+    render();
+  } else if (action === "edit-product-profile") {
+    const profile = state.productProfiles.find((item) => item.id === actionTarget.dataset.profileId);
+    if (!profile) return;
+    state.productDraft = {
+      name: profile.name || "",
+      audience: profile.audience || "",
+      value: profile.value || "",
+      proof: profile.proof || ""
+    };
+    state.productEditingId = profile.id;
+    state.productNotice = "正在编辑产品档案。";
+    render();
+  } else if (action === "delete-product-profile") {
+    state.productProfiles = state.productProfiles.filter((item) => item.id !== actionTarget.dataset.profileId);
+    if (state.productEditingId === actionTarget.dataset.profileId) resetProductDraft();
+    state.productNotice = "产品档案已删除。";
+    persist();
+    render();
   } else if (action === "refresh-orders") {
     await refreshOrders();
   } else if (action === "refresh-order") {
@@ -1670,6 +1771,18 @@ document.addEventListener("click", async (event) => {
     if (!state.letter) {
       state.generationError = "还没有可保存的销售信。";
       render();
+      return;
+    }
+    const phoneBindingOpen = homePage.phone_bind_enabled !== false && smsEnabled();
+    if (!phoneBindingOpen) {
+      try {
+        await claimCurrentLetter();
+      } catch (error) {
+        state.generationError = error.message || "领取失败，请稍后再试。";
+        render();
+        return;
+      }
+      go("letter");
       return;
     }
     state.pendingLetter = true;
@@ -1751,7 +1864,7 @@ document.addEventListener("click", async (event) => {
       render();
     }
   } else if (action === "clear-local-cache") {
-    window.XiabiStore.clearAppState();
+    const result = await window.XiabiStore.clearAppState();
     state.authed = false;
     state.guest = false;
     state.answers = [];
@@ -1763,9 +1876,12 @@ document.addEventListener("click", async (event) => {
     state.generationTaskId = "";
     state.annualActive = false;
     state.letter = null;
+    state.productProfiles = [];
+    resetProductDraft();
+    state.sessionNotice = result.remoteCleared ? "" : "本机内容已清除，但服务端登录状态暂时没有确认清除。请刷新后再试一次。";
     go("auth");
   } else if (action === "logout") {
-    window.XiabiStore.logout();
+    const result = await window.XiabiStore.logout();
     state.authed = false;
     state.guest = false;
     state.phoneBound = false;
@@ -1773,6 +1889,9 @@ document.addEventListener("click", async (event) => {
     state.sessionUser = null;
     state.paymentIntent = null;
     state.generationTaskId = "";
+    state.productProfiles = [];
+    resetProductDraft();
+    state.sessionNotice = result.remoteCleared ? "" : "本机已退出，但服务端登录状态暂时没有确认退出。请刷新后再试一次。";
     go("auth");
   }
 });
@@ -1786,6 +1905,8 @@ document.addEventListener("input", (event) => {
     state.phoneInput = event.target.value;
   } else if (event.target.id === "smsCode") {
     state.smsCode = event.target.value;
+  } else if (event.target.dataset.profileField) {
+    state.productDraft[event.target.dataset.profileField] = event.target.value;
   }
 });
 

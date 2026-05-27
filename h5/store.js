@@ -8,6 +8,7 @@
     phoneBound: "h5PhoneBound",
     annualActive: "h5AnnualActive",
     letter: "h5Letter",
+    productProfiles: "h5ProductProfiles",
     paymentIntent: "h5PaymentIntent",
     generationTaskId: "h5GenerationTaskId"
   };
@@ -145,6 +146,10 @@
     return apiFetch("/session/guest", { method: "POST" });
   }
 
+  async function logoutSession() {
+    return apiFetch("/session/logout", { method: "POST" });
+  }
+
   async function createGenerationTask(answers, input = {}) {
     await ensureGuestSession();
     return apiFetch("/tasks", {
@@ -262,6 +267,7 @@
       phoneBound: readFlag(keys.phoneBound),
       annualActive: readFlag(keys.annualActive),
       letter: readJson(keys.letter, null),
+      productProfiles: readJson(keys.productProfiles, []),
       paymentIntent: readJson(keys.paymentIntent, null),
       generationTaskId: localStorage.getItem(keys.generationTaskId) || ""
     };
@@ -272,6 +278,7 @@
     writeFlag(keys.pendingLetter, !!state.pendingLetter);
     writeFlag(keys.phoneBound, !!state.phoneBound);
     writeFlag(keys.annualActive, !!state.annualActive);
+    writeJson(keys.productProfiles, Array.isArray(state.productProfiles) ? state.productProfiles : []);
     if (state.paymentIntent) writeJson(keys.paymentIntent, state.paymentIntent);
     else localStorage.removeItem(keys.paymentIntent);
     if (state.generationTaskId) localStorage.setItem(keys.generationTaskId, state.generationTaskId);
@@ -292,12 +299,29 @@
     localStorage.removeItem(keys.guest);
   }
 
-  function logout() {
+  async function logout() {
+    let remoteCleared = true;
+    let message = "";
+    try {
+      await logoutSession();
+    } catch (error) {
+      remoteCleared = false;
+      message = error.message || "服务端会话清理失败";
+    }
     localStorage.removeItem(keys.authed);
     localStorage.removeItem(keys.guest);
+    return { remoteCleared, message };
   }
 
-  function clearAppState() {
+  async function clearAppState() {
+    let remoteCleared = true;
+    let message = "";
+    try {
+      await logoutSession();
+    } catch (error) {
+      remoteCleared = false;
+      message = error.message || "服务端会话清理失败";
+    }
     [
       keys.authed,
       keys.guest,
@@ -306,9 +330,11 @@
       keys.phoneBound,
       keys.annualActive,
       keys.letter,
+      keys.productProfiles,
       keys.paymentIntent,
       keys.generationTaskId
     ].forEach((key) => localStorage.removeItem(key));
+    return { remoteCleared, message };
   }
 
   const store = {
@@ -321,6 +347,7 @@
     syncAdminConfig,
     saveAdminConfig,
     ensureGuestSession,
+    logoutSession,
     getSession,
     createGenerationTask,
     getGenerationTask,

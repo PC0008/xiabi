@@ -17,6 +17,13 @@ type CreateOrderBody = {
   letterId?: string;
 };
 
+function getPaymentDisabledError(pricing: Record<string, unknown>, productType: string) {
+  if (pricing.payment_enabled === false) return { code: "payment_disabled", message: "支付入口暂未开放。", status: 403 };
+  if (productType === "annual" && pricing.annual_enabled === false) return { code: "annual_disabled", message: "年卡暂未开放。", status: 403 };
+  if (productType === "single" && pricing.single_enabled === false) return { code: "single_disabled", message: "单封解锁暂未开放。", status: 403 };
+  return null;
+}
+
 function isWeChatBrowser(c: any) {
   return /micromessenger/i.test(c.req.header("user-agent") || "");
 }
@@ -99,9 +106,8 @@ export const orderRoutes = new Hono()
     const body = await readJson<CreateOrderBody>(c);
     const productType = body.productType === "single" ? "single" : "annual";
     const pricing = (await getConfigScope(db, "pricing")).data as Record<string, unknown>;
-    if (pricing.payment_enabled === false) return fail(c, "payment_disabled", "支付入口暂未开放。", 403);
-    if (productType === "annual" && pricing.annual_enabled === false) return fail(c, "annual_disabled", "年卡暂未开放。", 403);
-    if (productType === "single" && pricing.single_enabled === false) return fail(c, "single_disabled", "单封解锁暂未开放。", 403);
+    const disabledPayment = getPaymentDisabledError(pricing, productType);
+    if (disabledPayment) return fail(c, disabledPayment.code, disabledPayment.message, disabledPayment.status);
     const letterId = typeof body.letterId === "string" && body.letterId.trim() ? body.letterId.trim() : null;
     if (letterId) {
       const [letter] = await db
@@ -206,6 +212,9 @@ export const orderRoutes = new Hono()
     if (!order) return fail(c, "order_not_found", "没有找到订单。", 404);
     if (order.status === "paid") return fail(c, "order_already_paid", "这笔订单已经支付完成。", 409);
     if (!order.providerOrderNo) return fail(c, "missing_provider_order_no", "订单缺少商户订单号。", 400);
+    const pricing = (await getConfigScope(db, "pricing")).data as Record<string, unknown>;
+    const disabledPayment = getPaymentDisabledError(pricing, order.productType);
+    if (disabledPayment) return fail(c, disabledPayment.code, disabledPayment.message, disabledPayment.status);
     const readiness = getWechatPaymentReadiness();
     if (!readiness.configured) return fail(c, "wechat_pay_not_configured", readiness.message, 503);
     const openid = getCookie(c, WECHAT_OPENID_COOKIE);

@@ -43,3 +43,32 @@ test("user H5 call flow reaches confirmation without paid/external calls", async
   await expect(page.locator('[data-action="generate"]')).toBeVisible();
   await expect(page.locator(".summary-card")).toBeVisible();
 });
+
+test("product archive can be created, edited, and deleted", async ({ page }) => {
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+
+  await page.locator('[data-action="auth"]').click();
+  await page.goto(`${baseUrl}/index.html#memory`, { waitUntil: "domcontentloaded" });
+
+  await expect(page.locator(".memory-title")).toHaveText("我的档案");
+  await page.locator('[data-profile-field="name"]').fill("销售表达辅导");
+  await page.locator('[data-profile-field="audience"]').fill("正在做私域成交的人");
+  await page.locator('[data-profile-field="value"]').fill("把价值讲清楚");
+  await page.locator('[data-profile-field="proof"]').fill("客户反馈说更容易约到沟通");
+  await page.locator('[data-action="save-product-profile"]').click();
+
+  await expect(page.locator(".profile-row", { hasText: "销售表达辅导" })).toBeVisible();
+  await page.locator('[data-action="edit-product-profile"]').first().click();
+  await page.locator('[data-profile-field="name"]').fill("私域销售信辅导");
+  await page.locator('[data-action="save-product-profile"]').click();
+
+  await expect(page.locator(".profile-row", { hasText: "私域销售信辅导" })).toBeVisible();
+  await page.locator('[data-action="delete-product-profile"]').first().click();
+  await expect(page.locator(".profile-row", { hasText: "私域销售信辅导" })).toHaveCount(0);
+  await expect(page.locator(".empty-title", { hasText: "还没有产品档案" })).toBeVisible();
+});

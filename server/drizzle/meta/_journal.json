@@ -8,6 +8,13 @@
       "when": 1779864385219,
       "tag": "0000_xiabi_core_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1779908472406,
+      "tag": "0001_whole_gauntlet",
+      "breakpoints": true
     }
   ]
 }

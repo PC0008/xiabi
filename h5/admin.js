@@ -59,6 +59,8 @@ const adminState = {
     annual_enabled: true,
     single_enabled: true,
     pdf_upsell_enabled: true,
+    annual_badge_text: "更划算",
+    upgrade_discount_enabled: true,
     pdf_annual_title: "经常要写销售信，可以开通年卡",
     pdf_annual_desc: "一年内正常使用范围内不限次数生成、保存、继续完善和导出。"
   }, savedAdminConfig.pricing || {}),
@@ -627,7 +629,7 @@ function renderPricing() {
           ${field("单封解锁价格", "single", adminState.pricing.single)}
           ${field("年卡价格", "annual", adminState.pricing.annual)}
           <div class="field"><label>支付模式</label><select data-field="payment_mode"><option ${adminState.pricing.payment_mode === "wechat" ? "selected" : ""}>wechat</option></select></div>
-          <div class="field"><label>年卡推荐标签</label><input value="更划算" /></div>
+          ${field("年卡推荐标签", "annual_badge_text", adminState.pricing.annual_badge_text || "")}
           ${field("PDF 导出页年卡标题", "pdf_annual_title", adminState.pricing.pdf_annual_title, "full")}
           ${area("PDF 导出页年卡说明", "pdf_annual_desc", adminState.pricing.pdf_annual_desc)}
         </div>
@@ -638,7 +640,7 @@ function renderPricing() {
         ${switchRow("单封解锁", "允许用户二次生成后单封解锁", adminState.pricing.single_enabled, "pricing.single_enabled")}
         ${switchRow("年卡购买", "允许用户开通年卡", adminState.pricing.annual_enabled, "pricing.annual_enabled")}
         ${switchRow("PDF 导出页成交入口", "体验高峰期展示年卡支付按钮", adminState.pricing.pdf_upsell_enabled, "pricing.pdf_upsell_enabled")}
-        ${switchRow("7 天内升级抵扣", "单封解锁后升级年卡可抵扣", true)}
+        ${switchRow("7 天内升级抵扣", "单封解锁后升级年卡可抵扣", adminState.pricing.upgrade_discount_enabled !== false, "pricing.upgrade_discount_enabled")}
       </div>
     </section>
   `);

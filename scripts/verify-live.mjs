@@ -8,11 +8,9 @@ const baseUrl = process.env.XIABI_VERIFY_BASE_URL || "https://immortal-sponge-17
 const assetsDir = path.resolve("docs/assets");
 
 async function assertHttp(pathname, check) {
-  const response = await fetch(`${baseUrl}${pathname}`);
-  const text = await response.text();
-  if (!response.ok) throw new Error(`${pathname} returned ${response.status}`);
+  const { status, text } = await fetchText(pathname);
   if (check && !check(text)) throw new Error(`${pathname} returned unexpected content`);
-  return { pathname, status: response.status };
+  return { pathname, status };
 }
 
 async function assertJson(pathname, init, expectedStatus, check) {
@@ -37,6 +35,31 @@ function getCookie(headers) {
   return value.split(";")[0];
 }
 
+async function fetchText(pathname) {
+  const response = await fetch(`${baseUrl}${pathname}`);
+  const text = await response.text();
+  if (!response.ok) throw new Error(`${pathname} returned ${response.status}`);
+  return { pathname, status: response.status, text };
+}
+
+async function assertStaticFrontendAssets() {
+  const store = await assertHttp("/store.js", (text) => text.includes("window.XiabiStore"));
+  console.log(`[ok] /store.js returned ${store.status} and exposes window.XiabiStore`);
+
+  const pages = [];
+  for (const [pathname, entryScript] of [["/index.html", "app.js"], ["/admin.html", "admin.js"]]) {
+    const { status, text } = await fetchText(pathname);
+    if (!text.includes(entryScript)) throw new Error(`${pathname} does not reference ${entryScript}`);
+    if (!text.includes("store.js")) throw new Error(`${pathname} does not reference store.js`);
+    if (text.includes("mock-store.js")) throw new Error(`${pathname} still references mock-store.js`);
+    console.log(`[ok] ${pathname} returned ${status}, references store.js, and does not reference mock-store.js`);
+    pages.push({ pathname, status });
+  }
+
+  console.log("[ok] Static frontend asset checks passed");
+  return [store, ...pages];
+}
+
 async function screenshot(url, output, viewport) {
   const command = `npx --yes playwright screenshot --wait-for-timeout=3000 --viewport-size=${viewport} "${url}" "${output}"`;
   await execAsync(command, { windowsHide: true });
@@ -49,8 +72,7 @@ await fs.mkdir(assetsDir, { recursive: true });
 
 const checks = [
   await assertHttp("/api/public/health", (text) => text.includes("\"status\":\"ok\"")),
-  await assertHttp("/index.html", (text) => text.includes("app.js")),
-  await assertHttp("/admin.html", (text) => text.includes("admin.js")),
+  ...(await assertStaticFrontendAssets()),
   await assertHttp("/api/public/config", (text) => text.includes("pricing")),
   await assertJson("/api/public/config", undefined, 200, (payload) => {
     const system = payload?.data?.system;
