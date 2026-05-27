@@ -112,6 +112,7 @@ const adminState = {
     newPassword: "",
     confirmPassword: ""
   },
+  feedbackNotes: {},
   detail: null
 };
 
@@ -1081,6 +1082,8 @@ function buildDetailHtml(type, data) {
   }
   if (type === "feedback") {
     const feedback = data.feedback || {};
+    const feedbackId = feedback.id || "";
+    const noteValue = adminState.feedbackNotes[feedbackId] || "";
     return [
       detailSection("反馈内容", [
         ["状态", feedback.feedbackStatus === "resolved" ? "已处理" : "待处理"],
@@ -1090,6 +1093,11 @@ function buildDetailHtml(type, data) {
         ["提交时间", formatDate(feedback.createdAt)],
         ["处理备注", feedback.handlerNote || "-"]
       ]),
+      `<div class="feedback-note-box">
+        <label for="feedbackNote">处理备注</label>
+        <textarea id="feedbackNote" class="feedback-note-input" data-feedback-note="${h(feedbackId)}" placeholder="${feedback.feedbackStatus === "resolved" ? "写下重新打开的原因" : "写下处理结果或备注"}">${h(noteValue)}</textarea>
+        <div class="feedback-note-hint">备注会写入处理记录，便于后续追踪。</div>
+      </div>`,
       `<div class="detail-actions">
         ${feedback.feedbackStatus === "resolved"
           ? `<button class="secondary" data-action="reopen-feedback" data-feedback-id="${h(feedback.id)}">重新打开</button>`
@@ -1328,10 +1336,12 @@ document.addEventListener("click", async (event) => {
   } else if (action === "resolve-feedback" || action === "reopen-feedback") {
     try {
       const status = action === "resolve-feedback" ? "resolved" : "open";
-      const note = window.prompt(status === "resolved" ? "处理备注（可选）" : "重开原因（可选）", "") || "";
-      await window.XiabiStore.adminPost(`/feedback/${actionTarget.dataset.feedbackId}/status`, { status, note });
+      const feedbackId = actionTarget.dataset.feedbackId;
+      const note = String(adminState.feedbackNotes[feedbackId] || "").trim();
+      await window.XiabiStore.adminPost(`/feedback/${feedbackId}/status`, { status, note });
+      delete adminState.feedbackNotes[feedbackId];
       await loadAdminLists();
-      if (adminState.detail?.sub === `feedback/${actionTarget.dataset.feedbackId}`) await openDetail("feedback", actionTarget.dataset.feedbackId);
+      if (adminState.detail?.sub === `feedback/${feedbackId}`) await openDetail("feedback", feedbackId);
       showToast(status === "resolved" ? "反馈已标记处理" : "反馈已重新打开");
     } catch (error) {
       showToast(error.message || "反馈状态更新失败");
@@ -1394,6 +1404,12 @@ document.addEventListener("input", (event) => {
   const securityField = event.target.dataset.securityField;
   if (securityField && securityField in adminState.security) {
     adminState.security[securityField] = event.target.value;
+    return;
+  }
+
+  const feedbackNote = event.target.dataset.feedbackNote;
+  if (feedbackNote) {
+    adminState.feedbackNotes[feedbackNote] = event.target.value;
     return;
   }
 
