@@ -72,3 +72,48 @@ test("product archive can be created, edited, and deleted", async ({ page }) => 
   await expect(page.locator(".profile-row", { hasText: "私域销售信辅导" })).toHaveCount(0);
   await expect(page.locator(".empty-title", { hasText: "还没有产品档案" })).toBeVisible();
 });
+
+test("call page falls back to typing when browser speech and server ASR are unavailable", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "SpeechRecognition", { value: undefined, configurable: true });
+    Object.defineProperty(window, "webkitSpeechRecognition", { value: undefined, configurable: true });
+  });
+  await page.route("**/api/public/config", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          homeConfig: {},
+          pricing: {},
+          guideStages: [],
+          system: { voice_enabled: true, sms_enabled: true, file_export_enabled: true, generation_enabled: true },
+          capabilities: {
+            voice: {
+              ttsConfigured: true,
+              asrConfigured: false,
+              asrPreferred: false
+            }
+          },
+          versions: {}
+        }
+      })
+    });
+  });
+
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+
+  await page.locator('[data-action="auth"]').click();
+  await page.locator('[data-action="start-call"]').click();
+
+  await expect(page.locator(".question-card")).toBeVisible();
+  await expect(page.locator("#typedText")).toBeVisible();
+  await expect(page.locator('[data-action="voice-answer"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="voice-mode"]')).toHaveCount(0);
+});

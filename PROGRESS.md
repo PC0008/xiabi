@@ -32,6 +32,7 @@
 - 后台反馈处理补强：反馈详情内新增正式备注输入区，处理/重开反馈不再依赖浏览器原生 `prompt()`，备注继续写入真实处理记录。
 - 用户端权限状态补强：手机号绑定和年卡权益不再从本机缓存恢复，页面刷新后必须以服务端会话和权益流水为准，避免缓存误显示已绑定或已开通。
 - 用户端流程验收补强：新增 `npm run verify:journey`，用移动端浏览器自动点击授权、首页、通话问题和确认页；该验收不触发 DeepSeek、短信或支付费用。
+- 用户端语音降级验收补强：`npm run verify:journey` 新增覆盖“浏览器语音识别不可用且服务端 ASR 未配置”场景，确认通话页会直接展示打字输入，不再出现不可用的按住说话入口。
 - 生产支付闭环验收补强：`verify:production` 新增 `XIABI_VERIFY_PAID_ORDER_ID`，真实付款后可自动核对订单已支付、权益流水已生成，并可通过 `XIABI_VERIFY_REQUIRE_WEBHOOK=1` 要求存在已处理微信支付回调事件。
 - MiniMax 首轮真实验收曾返回 `invalid api key`；语音接口已补强为返回 JSON 业务错误，不再让供应商错误冒泡成不可读 500。
 - MiniMax TTS 兼容补强：新增 `MINIMAX_TTS_ENDPOINT`、`MINIMAX_TTS_OUTPUT_FORMAT`、`MINIMAX_TTS_MODEL` 可选项；默认按 HTTP T2A `hex` 音频返回，并自动尝试国际站、国际站加速端点和国内站端点。
