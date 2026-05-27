@@ -41,7 +41,17 @@ edgespark var set PUBLIC_BASE_URL=https://你的域名 PAYMENT_PROVIDER=wechat P
 edgespark secret set ADMIN_INITIAL_PASSWORD ADMIN_PASSWORD_PEPPER WECHAT_PAY_API_V3_KEY WECHAT_PAY_PRIVATE_KEY WECHAT_PAY_CERT_SERIAL_NO SMS_API_KEY SMS_API_SECRET VOICE_API_KEY DEEPSEEK_API_KEY
 ```
 
-> `WECHAT_PAY_PLATFORM_PUBLIC_KEY` 和 `WECHAT_PAY_PLATFORM_CERT_SERIAL_NO` 为可选项；没有手动配置平台公钥时，服务端会用商户凭据调用微信 `/v3/certificates` 自动拉取平台证书做回调验签。
+可选运行变量：
+```powershell
+edgespark var set VOICE_ASR_PROVIDER=minimax VOICE_ASR_ENDPOINT=你的语音转写接口 VOICE_ASR_MODEL=你的语音转写模型 VOICE_ASR_REQUEST_FORMAT=json
+```
+
+可选密钥：
+```powershell
+edgespark secret set WECHAT_PAY_PLATFORM_PUBLIC_KEY WECHAT_PAY_PLATFORM_CERT_SERIAL_NO WECHAT_MP_APP_SECRET VOICE_ASR_API_KEY
+```
+
+> `WECHAT_PAY_PLATFORM_PUBLIC_KEY` 和 `WECHAT_PAY_PLATFORM_CERT_SERIAL_NO` 为可选项；没有手动配置平台公钥时，服务端会用商户凭据调用微信 `/v3/certificates` 自动拉取平台证书做回调验签。微信内 JSAPI 支付需要 `WECHAT_MP_APP_SECRET`。语音输入如果使用服务端 ASR，需要配置 `VOICE_ASR_ENDPOINT`，MiniMax endpoint 会自动复用 `MINIMAX_GROUP_ID`。
 
 配置完成后验证：
 

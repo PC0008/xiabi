@@ -34,6 +34,7 @@
 - MiniMax TTS 兼容补强：新增 `MINIMAX_TTS_ENDPOINT`、`MINIMAX_TTS_OUTPUT_FORMAT`、`MINIMAX_TTS_MODEL` 可选项；默认按 HTTP T2A `hex` 音频返回，并自动尝试国际站、国际站加速端点和国内站端点。
 - MiniMax TTS 真实验收通过：线上已配置 `MINIMAX_TTS_ENDPOINT=https://api.minimax.io/v1/t2a_v2`、`MINIMAX_TTS_OUTPUT_FORMAT=hex`、`MINIMAX_TTS_MODEL=speech-2.8-hd`，`XIABI_VERIFY_TTS=1 npm run verify:production` 返回 `audio/mp3`，traceId `06665fa1c520e487c74987a4296b424a`。
 - MiniMax Group ID 已补入配置口径：新增 `MINIMAX_GROUP_ID=2000472756147200305` 运行时变量，TTS 请求会优先携带 `GroupId`，若端点不接受则自动回退无 GroupId 请求；后台系统自检会显示该项配置状态。
+- 生产可选凭据清单补强：`VOICE_ASR_*`、`VOICE_ASR_API_KEY`、`WECHAT_MP_APP_SECRET`、微信平台公钥/证书序列号继续按动态可选配置读取，避免 Edgespark 把未配置的可选项判定为部署必填；MiniMax ASR 接入槽在配置 MiniMax endpoint 时会复用 `MINIMAX_GROUP_ID`。
 - DeepSeek 真实写信验收通过：`XIABI_VERIFY_DEEPSEEK=1 npm run verify:production` 已在线上生成任务 `9b8d26e3-7693-4fea-9bff-519a73294201` 和信件 `60ca6afd-e328-4a0b-b88f-e293a8c52848`。
 - DeepSeek 二次线上验收通过：`XIABI_VERIFY_DEEPSEEK=1 npm run verify:production` 已再次生成任务 `98055e89-2479-4168-8dbe-330bc3996f3d` 和信件 `7eb8602f-ee74-4942-b86a-1ad18f4ebb78`。
 - 微信支付创建验收已越过后台开关和本地配置检查，真实请求到微信支付；当前微信侧返回 `商户号该产品权限未开通，请前往商户平台>产品中心检查后重试。`，需要在微信商户平台开通 H5 支付产品或改走微信内 JSAPI 支付并补 `WECHAT_MP_APP_SECRET` 后复验。

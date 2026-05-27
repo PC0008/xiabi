@@ -103,20 +103,25 @@ async function readAsrPayload(response: Response): Promise<AsrResponse> {
   return payload;
 }
 
-async function callJsonAsr(endpoint: string, apiKey: string, audioBase64: string, mimeType: string, model: string) {
+async function callJsonAsr(endpoint: string, apiKey: string, audioBase64: string, mimeType: string, model: string, groupId = "") {
+  const body: Record<string, unknown> = {
+    model: model || undefined,
+    audio: audioBase64,
+    audio_base64: audioBase64,
+    mime_type: mimeType,
+    language: "zh"
+  };
+  if (groupId) {
+    body.group_id = groupId;
+    body.GroupId = groupId;
+  }
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      model: model || undefined,
-      audio: audioBase64,
-      audio_base64: audioBase64,
-      mime_type: mimeType,
-      language: "zh"
-    })
+    body: JSON.stringify(body)
   });
   return readAsrPayload(response);
 }
@@ -255,10 +260,10 @@ export async function processVoiceTurn(input: VoiceTurnInput) {
     };
   }
 
-  const asrEndpoint = vars.get("VOICE_ASR_ENDPOINT" as any);
+  const configuredAsrEndpoint = vars.get("VOICE_ASR_ENDPOINT" as any);
   const apiKey = secret.get("VOICE_ASR_API_KEY" as any) || secret.get("VOICE_API_KEY");
   const asrProvider = vars.get("VOICE_ASR_PROVIDER" as any) || provider;
-  if (!asrEndpoint || !apiKey) {
+  if (!configuredAsrEndpoint || !apiKey) {
     return {
       provider: asrProvider,
       configured: false,
@@ -271,10 +276,16 @@ export async function processVoiceTurn(input: VoiceTurnInput) {
 
   const model = vars.get("VOICE_ASR_MODEL" as any) || "";
   const mimeType = input.mimeType || "audio/webm";
+  const groupId = String(vars.get("MINIMAX_GROUP_ID") || "").trim();
+  const shouldUseMiniMaxGroupId = !!groupId && (
+    asrProvider.toLowerCase() === "minimax" ||
+    configuredAsrEndpoint.toLowerCase().includes("minimax")
+  );
+  const asrEndpoint = shouldUseMiniMaxGroupId ? withMiniMaxGroupId(configuredAsrEndpoint, groupId) : configuredAsrEndpoint;
   const requestFormat = resolveAsrRequestFormat(asrEndpoint);
   const payload = requestFormat === "openai"
     ? await callOpenAiCompatibleAsr(asrEndpoint, apiKey, audioBase64, mimeType, model)
-    : await callJsonAsr(asrEndpoint, apiKey, audioBase64, mimeType, model);
+    : await callJsonAsr(asrEndpoint, apiKey, audioBase64, mimeType, model, shouldUseMiniMaxGroupId ? groupId : "");
   const transcript = pickTranscript(payload);
   if (!transcript) throw new Error("语音转文字服务没有返回识别内容。");
   return {
