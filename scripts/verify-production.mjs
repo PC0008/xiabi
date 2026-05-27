@@ -422,7 +422,8 @@ async function verifyDeepSeek() {
   deepSeekVerification = {
     cookie,
     letterId: current.letterId,
-    entitlementId: firstFree.id
+    entitlementId: firstFree.id,
+    exportObjectKey: exported.objectKey
   };
   if (process.env.XIABI_VERIFY_REPEAT_FREE === "1") {
     const second = await createDeepSeekLetter(cookie, "production-repeat-free-verification");
@@ -567,10 +568,20 @@ async function verifySmsSend() {
       if (!entitlements.summary?.firstFreeUsed || !boundFirstFree) {
         throw new Error("SMS bind did not propagate first-free entitlement ownership to the bound user");
       }
+      const admin = await adminLogin();
+      let exportFileOwnershipChecked = false;
+      if (admin && deepSeekVerification.exportObjectKey) {
+        const detail = await api(`/api/public/admin/letters/${encodeURIComponent(deepSeekVerification.letterId)}`, {}, admin.cookie);
+        const file = (detail.files || []).find((item) => item.objectKey === deepSeekVerification.exportObjectKey);
+        if (!file) throw new Error("SMS bind did not leave the exported file visible in admin letter detail");
+        if (file.userId !== bind.userId) throw new Error("SMS bind did not propagate exported file ownership to the bound user");
+        exportFileOwnershipChecked = true;
+      }
       addCheck("sms ownership propagation", "ok", {
         userId: bind.userId,
         letterId: deepSeekVerification.letterId,
-        entitlementId: deepSeekVerification.entitlementId
+        entitlementId: deepSeekVerification.entitlementId,
+        exportFileOwnershipChecked
       });
     } else {
       skipOrStrict("sms ownership propagation", "set XIABI_VERIFY_DEEPSEEK=1 in the same run to verify generated letter and entitlement ownership");

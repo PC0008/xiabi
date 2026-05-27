@@ -139,12 +139,13 @@ function validateStoredWechatTransaction(notification: StoredWechatNotification,
   if (notification.event_type !== "TRANSACTION.SUCCESS") throw new Error("unexpected_event_type");
   if (transaction.trade_state !== "SUCCESS") throw new Error("unexpected_trade_state");
   if (transaction.out_trade_no !== order.providerOrderNo) throw new Error("out_trade_no_mismatch");
+  if (!transaction.transaction_id) throw new Error("transaction_id_missing");
   const expectedAppId = vars.get("WECHAT_PAY_APP_ID");
   const expectedMchId = vars.get("WECHAT_PAY_MCH_ID");
-  if (expectedAppId && transaction.appid && transaction.appid !== expectedAppId) throw new Error("appid_mismatch");
-  if (expectedMchId && transaction.mchid && transaction.mchid !== expectedMchId) throw new Error("mchid_mismatch");
-  if (transaction.amount?.total !== undefined && Number(transaction.amount.total) !== Number(order.amountCents)) throw new Error("amount_mismatch");
-  if (transaction.amount?.currency && transaction.amount.currency !== order.currency) throw new Error("currency_mismatch");
+  if (!expectedAppId || transaction.appid !== expectedAppId) throw new Error("appid_mismatch");
+  if (!expectedMchId || transaction.mchid !== expectedMchId) throw new Error("mchid_mismatch");
+  if (Number(transaction.amount?.total) !== Number(order.amountCents)) throw new Error("amount_mismatch");
+  if (transaction.amount?.currency !== order.currency) throw new Error("currency_mismatch");
 }
 
 async function buildDiagnostics() {
@@ -841,16 +842,25 @@ export const adminRoutes = new Hono()
     const { answers, input } = parseTaskInput(task);
     if (!answers.length) return fail(c, "missing_task_input", "任务缺少可重试的信息。", 400);
 
-    const templates = (await getAdminConfig(db)).templates;
+    const config = await getAdminConfig(db);
+    const home = config.home as Record<string, unknown>;
+    const system = config.system as Record<string, unknown>;
+    if (home.generation_entry_enabled === false || system.generation_enabled === false) {
+      return fail(c, "generation_disabled", "写信入口暂未开放。", 403);
+    }
+    const templates = config.templates;
     const templateMeta = selectTemplateMeta(templates);
-    await db.update(generationTasks).set({
+    const [lockedTask] = await db.update(generationTasks).set({
       status: "running",
       progressJson: JSON.stringify({ percent: 20, stage: "retrying", provider: "deepseek" }),
       errorCode: null,
       errorMessage: null,
       attempts: Number(task.attempts || 0) + 1,
       updatedAt: new Date().toISOString()
-    }).where(eq(generationTasks.id, id));
+    }).where(and(eq(generationTasks.tenantId, TENANT_ID), eq(generationTasks.id, id), eq(generationTasks.status, "failed"))).returning();
+    if (!lockedTask) {
+      return fail(c, "task_retry_conflict", "任务状态已经变化，请刷新后再试。", 409);
+    }
 
     let content: SalesLetterContent | null = null;
     try {

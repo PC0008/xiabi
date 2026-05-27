@@ -60,10 +60,23 @@ function createProviderOrderNo() {
   return `xiabi${Date.now().toString(36)}${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
 }
 
-function paymentMatchesOrder(order: typeof orders.$inferSelect, transaction: { trade_state?: string; amount?: { total?: number; currency?: string } }) {
+function paymentMatchesOrder(order: typeof orders.$inferSelect, transaction: {
+  appid?: string;
+  mchid?: string;
+  out_trade_no?: string;
+  transaction_id?: string;
+  trade_state?: string;
+  amount?: { total?: number; currency?: string };
+}) {
   if (transaction.trade_state !== "SUCCESS") return false;
-  if (transaction.amount?.total !== undefined && Number(transaction.amount.total) !== Number(order.amountCents)) return false;
-  if (transaction.amount?.currency && transaction.amount.currency !== order.currency) return false;
+  if (!transaction.out_trade_no || transaction.out_trade_no !== order.providerOrderNo) return false;
+  if (!transaction.transaction_id) return false;
+  const expectedAppId = vars.get("WECHAT_PAY_APP_ID");
+  const expectedMchId = vars.get("WECHAT_PAY_MCH_ID");
+  if (!expectedAppId || transaction.appid !== expectedAppId) return false;
+  if (!expectedMchId || transaction.mchid !== expectedMchId) return false;
+  if (Number(transaction.amount?.total) !== Number(order.amountCents)) return false;
+  if (transaction.amount?.currency !== order.currency) return false;
   return true;
 }
 

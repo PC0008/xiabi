@@ -57,12 +57,13 @@ function validateWechatTransaction(notification: WechatNotification, transaction
   if (notification.event_type !== "TRANSACTION.SUCCESS") throw new Error("unexpected_event_type");
   if (transaction.trade_state !== "SUCCESS") throw new Error("unexpected_trade_state");
   if (transaction.out_trade_no !== order.providerOrderNo) throw new Error("out_trade_no_mismatch");
+  if (!transaction.transaction_id) throw new Error("transaction_id_missing");
   const expectedAppId = vars.get("WECHAT_PAY_APP_ID");
   const expectedMchId = vars.get("WECHAT_PAY_MCH_ID");
-  if (expectedAppId && transaction.appid && transaction.appid !== expectedAppId) throw new Error("appid_mismatch");
-  if (expectedMchId && transaction.mchid && transaction.mchid !== expectedMchId) throw new Error("mchid_mismatch");
-  if (transaction.amount?.total !== undefined && Number(transaction.amount.total) !== Number(order.amountCents)) throw new Error("amount_mismatch");
-  if (transaction.amount?.currency && transaction.amount.currency !== order.currency) throw new Error("currency_mismatch");
+  if (!expectedAppId || transaction.appid !== expectedAppId) throw new Error("appid_mismatch");
+  if (!expectedMchId || transaction.mchid !== expectedMchId) throw new Error("mchid_mismatch");
+  if (Number(transaction.amount?.total) !== Number(order.amountCents)) throw new Error("amount_mismatch");
+  if (transaction.amount?.currency !== order.currency) throw new Error("currency_mismatch");
 }
 
 export const webhookRoutes = new Hono()

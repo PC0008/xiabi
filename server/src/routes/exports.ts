@@ -129,6 +129,7 @@ export const exportRoutes = new Hono()
     await db.insert(files).values({
       id: crypto.randomUUID(),
       tenantId: TENANT_ID,
+      userId: session.userId || null,
       letterId: letter.id,
       bucket: buckets.xiabiFiles.bucket_name,
       objectKey,

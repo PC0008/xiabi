@@ -1,8 +1,8 @@
 import { db } from "edgespark";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { entitlementLedger, generationTasks, guestSessions, orders, productProfiles, salesLetters, smsCodes, users } from "@defs";
+import { entitlementLedger, files, generationTasks, guestSessions, orders, productProfiles, salesLetters, smsCodes, users } from "@defs";
 import { getAdminConfig } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, readJson } from "../domain/http";
@@ -89,6 +89,11 @@ export const userRoutes = new Hono()
       if (!user) return fail(c, "bind_phone_conflict", "手机号绑定冲突，请重新提交。", 409);
     }
     const userId = user.id;
+    const sessionLetterIds = (await db
+      .select({ id: salesLetters.id })
+      .from(salesLetters)
+      .where(and(eq(salesLetters.tenantId, TENANT_ID), eq(salesLetters.sessionId, sessionId))))
+      .map((letter) => letter.id);
     await db.update(users).set({ phoneMasked: maskPhone(phone), updatedAt: new Date().toISOString() }).where(eq(users.id, user.id));
     await db.update(guestSessions).set({ userId, updatedAt: new Date().toISOString() }).where(eq(guestSessions.id, sessionId));
     await Promise.all([
@@ -98,6 +103,9 @@ export const userRoutes = new Hono()
       db.update(orders).set({ userId, updatedAt: new Date().toISOString() }).where(and(eq(orders.tenantId, TENANT_ID), eq(orders.sessionId, sessionId))),
       db.update(entitlementLedger).set({ userId }).where(and(eq(entitlementLedger.tenantId, TENANT_ID), eq(entitlementLedger.sessionId, sessionId)))
     ]);
+    if (sessionLetterIds.length) {
+      await db.update(files).set({ userId }).where(and(eq(files.tenantId, TENANT_ID), inArray(files.letterId, sessionLetterIds)));
+    }
     await db.update(smsCodes).set({ status: "verified" }).where(eq(smsCodes.id, row.id));
     return ok(c, { userId, phoneMasked: maskPhone(phone), bound: true });
   });

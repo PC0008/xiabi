@@ -719,7 +719,7 @@ function renderGenerating() {
   ];
   const letterReady = !!state.letter;
   const waitingForLetter = state.generationPending && !letterReady && !state.generationError;
-  const phoneBindingOpen = homePage.phone_bind_enabled !== false && smsEnabled();
+  const phoneBindingOpen = homePage.phone_bind_enabled !== false && smsEnabled() && !state.phoneBound;
   return shell(`
     ${topbar()}
     <img class="generating-hero" src="${ASSETS.generating}" alt="智多星正在整理" />
@@ -788,7 +788,7 @@ function renderLetter(claimedOverride) {
     `, { tab: "records" });
   }
   const claimed = claimedOverride ?? isLetterComplete(letter);
-  const phoneEnabled = homePage.phone_bind_enabled !== false && smsEnabled();
+  const phoneEnabled = homePage.phone_bind_enabled !== false && smsEnabled() && !state.phoneBound;
   const canExport = exportEnabled();
   return shell(`
     ${topbar()}
@@ -1783,7 +1783,7 @@ document.addEventListener("click", async (event) => {
       render();
       return;
     }
-    const phoneBindingOpen = homePage.phone_bind_enabled !== false && smsEnabled();
+    const phoneBindingOpen = homePage.phone_bind_enabled !== false && smsEnabled() && !state.phoneBound;
     if (!phoneBindingOpen) {
       try {
         await claimCurrentLetter();
