@@ -55,13 +55,10 @@ async function createGuestSession() {
   return cookie;
 }
 
-async function verifyAdminDiagnostics() {
+async function adminLogin() {
   const username = process.env.XIABI_VERIFY_ADMIN_USERNAME;
   const password = process.env.XIABI_VERIFY_ADMIN_PASSWORD;
-  if (!username || !password) {
-    skipOrStrict("admin diagnostics", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD");
-    return;
-  }
+  if (!username || !password) return null;
 
   const response = await fetch(`${baseUrl}/api/public/admin/login`, {
     method: "POST",
@@ -71,8 +68,17 @@ async function verifyAdminDiagnostics() {
   await readJsonResponse(response, "admin login");
   const cookie = getCookie(response.headers);
   if (!cookie) throw new Error("admin login did not set a cookie");
+  return { cookie, password };
+}
 
-  const diagnostics = await api("/api/public/admin/diagnostics", {}, cookie);
+async function verifyAdminDiagnostics() {
+  const admin = await adminLogin();
+  if (!admin) {
+    skipOrStrict("admin diagnostics", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD");
+    return;
+  }
+
+  const diagnostics = await api("/api/public/admin/diagnostics", {}, admin.cookie);
   const groups = diagnostics.groups || [];
   const missingRequired = groups.flatMap((group) =>
     (group.items || [])
@@ -99,9 +105,9 @@ async function verifyAdminDiagnostics() {
     ["/api/public/admin/audit-logs", (payload) => Array.isArray(payload.logs)]
   ];
   for (const [pathname, validate] of listChecks) {
-    const payload = await api(pathname, {}, cookie);
+    const payload = await api(pathname, {}, admin.cookie);
     if (!validate(payload)) throw new Error(`${pathname} returned unexpected admin list payload`);
-    if (JSON.stringify(payload).includes(password)) throw new Error(`${pathname} leaked the admin password`);
+    if (JSON.stringify(payload).includes(admin.password)) throw new Error(`${pathname} leaked the admin password`);
   }
   addCheck("admin read operations", "ok", { routes: listChecks.length });
 }
@@ -150,6 +156,32 @@ async function verifyPaymentCreate() {
   }, cookie);
   if (!order.payment?.configured || !order.payment?.h5Url) throw new Error("WeChat payment create did not return h5Url");
   addCheck("wechat payment create", "ok", { orderId: order.orderId, providerOrderNo: order.providerOrderNo });
+}
+
+async function verifyPaidOrderClosure() {
+  const orderId = process.env.XIABI_VERIFY_PAID_ORDER_ID;
+  if (!orderId) {
+    skipOrStrict("wechat paid order closure", "set XIABI_VERIFY_PAID_ORDER_ID after completing a real payment");
+    return;
+  }
+  const admin = await adminLogin();
+  if (!admin) throw new Error("XIABI_VERIFY_PAID_ORDER_ID requires XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD");
+  const detail = await api(`/api/public/admin/orders/${encodeURIComponent(orderId)}`, {}, admin.cookie);
+  if (detail.order?.status !== "paid") throw new Error(`paid order closure expected paid, got ${detail.order?.status || "missing"}`);
+  const entitlements = Array.isArray(detail.entitlements) ? detail.entitlements : [];
+  if (!entitlements.some((item) => item.status === "active" || item.status === "used")) {
+    throw new Error("paid order closure did not find an active/used entitlement ledger row");
+  }
+  const events = Array.isArray(detail.events) ? detail.events : [];
+  if (process.env.XIABI_VERIFY_REQUIRE_WEBHOOK === "1" && !events.some((item) => item.status === "processed")) {
+    throw new Error("paid order closure did not find a processed payment webhook event");
+  }
+  addCheck("wechat paid order closure", "ok", {
+    orderId,
+    productType: detail.order.productType,
+    entitlementCount: entitlements.length,
+    processedWebhookEvents: events.filter((item) => item.status === "processed").length
+  });
 }
 
 async function verifySmsSend() {
@@ -235,6 +267,7 @@ addCheck("public config", "ok");
 await verifyAdminDiagnostics();
 await verifyDeepSeek();
 await verifyPaymentCreate();
+await verifyPaidOrderClosure();
 await verifySmsSend();
 await verifyTts();
 await verifyAsr();

@@ -19,6 +19,7 @@
 - 体验与风控补强：用户端删除未接真实后端的设置开关，记录页去掉不会命中的“信息未完成”筛选，我的档案写信项目可直接打开；语音转写接口增加文本长度、录音大小和音频格式保护。
 - 写信任务补强：创建任务后使用 Edgespark `ctx.runInBackground()` 立即推进生成，前端轮询主要负责查状态；`GET /tasks/:id` 仍保留兜底恢复，避免刷新或后台执行异常时任务完全卡死。
 - 用户端流程验收补强：新增 `npm run verify:journey`，用移动端浏览器自动点击授权、首页、通话问题和确认页；该验收不触发 DeepSeek、短信或支付费用。
+- 生产支付闭环验收补强：`verify:production` 新增 `XIABI_VERIFY_PAID_ORDER_ID`，真实付款后可自动核对订单已支付、权益流水已生成，并可通过 `XIABI_VERIFY_REQUIRE_WEBHOOK=1` 要求存在已处理微信支付回调事件。
 - 交付文档补强：新增根 `README.md` 和 `docs/生产外部凭据交接清单.md`，明确线上地址、常用命令、验收分级和真实外部联调所需凭据。
 - 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式。
 - 仍需真实外部验收输入：后台账号密码、DeepSeek 真实生成开关、真实支付创建/付款环境、可接收短信手机号、MiniMax TTS 开关、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。
