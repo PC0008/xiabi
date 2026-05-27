@@ -556,6 +556,27 @@ button {
   font-weight: 800;
 }
 
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.page-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.mini-action:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
 .table-wrap {
   overflow-x: auto;
 }

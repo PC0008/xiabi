@@ -117,22 +117,31 @@ export const letterRoutes = new Hono()
       return fail(c, "first_free_used", "首次免费权益已经使用过，可以选择单封解锁或开通年卡。", 403);
     }
     const [letter] = await db
+      .select()
+      .from(salesLetters)
+      .where(and(eq(salesLetters.tenantId, TENANT_ID), eq(salesLetters.id, letterId), sessionOwnerWhere(session)))
+      .limit(1);
+    if (!letter) return fail(c, "letter_not_found", "没有找到这封销售信。", 404);
+    try {
+      await db.insert(entitlementLedger).values({
+        id: crypto.randomUUID(),
+        tenantId: TENANT_ID,
+        userId: session.userId || null,
+        sessionId,
+        letterId: letter.id,
+        type: "first_free_letter",
+        status: "used",
+        quantity: 1,
+        dedupeKey: `first_free_letter:${sessionId}:${letter.id}`,
+        startsAt: new Date().toISOString()
+      }).onConflictDoNothing();
+    } catch (error) {
+      return fail(c, "claim_entitlement_failed", "首次免费权益写入失败，请稍后再试。", 502);
+    }
+    const [claimedLetter] = await db
       .update(salesLetters)
       .set({ userId: session.userId || null, status: "claimed", claimedAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
       .where(and(eq(salesLetters.tenantId, TENANT_ID), eq(salesLetters.id, letterId), sessionOwnerWhere(session)))
       .returning();
-    if (!letter) return fail(c, "letter_not_found", "没有找到这封销售信。", 404);
-    await db.insert(entitlementLedger).values({
-      id: crypto.randomUUID(),
-      tenantId: TENANT_ID,
-      userId: session.userId || null,
-      sessionId,
-      letterId: letter.id,
-      type: "first_free_letter",
-      status: "used",
-      quantity: 1,
-      dedupeKey: `first_free_letter:${sessionId}:${letter.id}`,
-      startsAt: new Date().toISOString()
-    }).onConflictDoNothing();
-    return ok(c, await publicLetter(session, letter));
+    return ok(c, await publicLetter(session, claimedLetter || letter));
   });

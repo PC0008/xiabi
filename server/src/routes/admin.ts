@@ -59,6 +59,22 @@ function listLimit(c: any) {
   return Math.min(Math.floor(parsed), MAX_LIST_LIMIT);
 }
 
+function listPaging(c: any) {
+  const limit = listLimit(c);
+  const parsedPage = Number(c.req.query("page") || "1");
+  const page = Number.isFinite(parsedPage) && parsedPage > 0 ? Math.floor(parsedPage) : 1;
+  return { limit, page, offset: (page - 1) * limit };
+}
+
+function pageInfo(input: { page: number; limit: number; count: number }) {
+  return {
+    page: input.page,
+    limit: input.limit,
+    returned: Math.min(input.count, input.limit),
+    hasMore: input.count > input.limit
+  };
+}
+
 function queryStatus(c: any, allowed: string[]) {
   const status = String(c.req.query("status") || "").trim();
   return allowed.includes(status) ? status : "";
@@ -702,11 +718,16 @@ export const adminRoutes = new Hono()
     const admin = await requireAdmin(c);
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
+    const paging = listPaging(c);
     const [sessionRows, userRows] = await Promise.all([
-      db.select().from(guestSessions).where(eq(guestSessions.tenantId, TENANT_ID)).orderBy(desc(guestSessions.createdAt)).limit(100),
-      db.select().from(users).where(eq(users.tenantId, TENANT_ID)).orderBy(desc(users.createdAt)).limit(100)
+      db.select().from(guestSessions).where(eq(guestSessions.tenantId, TENANT_ID)).orderBy(desc(guestSessions.createdAt)).limit(paging.limit + 1).offset(paging.offset),
+      db.select().from(users).where(eq(users.tenantId, TENANT_ID)).orderBy(desc(users.createdAt)).limit(paging.limit + 1).offset(paging.offset)
     ]);
-    return ok(c, { users: userRows, sessions: sessionRows });
+    return ok(c, {
+      users: userRows.slice(0, paging.limit),
+      sessions: sessionRows.slice(0, paging.limit),
+      pageInfo: pageInfo({ ...paging, count: Math.max(userRows.length, sessionRows.length) })
+    });
   })
   .get("/users/:id", async (c) => {
     const admin = await requireAdmin(c);
@@ -742,9 +763,10 @@ export const adminRoutes = new Hono()
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
     const status = queryStatus(c, ["active", "deleted"]);
+    const paging = listPaging(c);
     const where = status ? and(eq(productProfiles.tenantId, TENANT_ID), eq(productProfiles.status, status)) : eq(productProfiles.tenantId, TENANT_ID);
-    const rows = await db.select().from(productProfiles).where(where).orderBy(desc(productProfiles.updatedAt)).limit(listLimit(c));
-    return ok(c, { profiles: rows.map(publicProfile) });
+    const rows = await db.select().from(productProfiles).where(where).orderBy(desc(productProfiles.updatedAt)).limit(paging.limit + 1).offset(paging.offset);
+    return ok(c, { profiles: rows.slice(0, paging.limit).map(publicProfile), pageInfo: pageInfo({ ...paging, count: rows.length }) });
   })
   .get("/profiles/:id", async (c) => {
     const admin = await requireAdmin(c);
@@ -766,9 +788,10 @@ export const adminRoutes = new Hono()
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
     const status = queryStatus(c, ["draft", "ready", "claimed", "archived"]);
+    const paging = listPaging(c);
     const where = status ? and(eq(salesLetters.tenantId, TENANT_ID), eq(salesLetters.status, status)) : eq(salesLetters.tenantId, TENANT_ID);
-    const rows = await db.select().from(salesLetters).where(where).orderBy(desc(salesLetters.createdAt)).limit(listLimit(c));
-    return ok(c, { letters: rows.map(publicLetter) });
+    const rows = await db.select().from(salesLetters).where(where).orderBy(desc(salesLetters.createdAt)).limit(paging.limit + 1).offset(paging.offset);
+    return ok(c, { letters: rows.slice(0, paging.limit).map(publicLetter), pageInfo: pageInfo({ ...paging, count: rows.length }) });
   })
   .get("/letters/:id", async (c) => {
     const admin = await requireAdmin(c);
@@ -790,9 +813,10 @@ export const adminRoutes = new Hono()
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
     const status = queryStatus(c, ["queued", "running", "succeeded", "failed"]);
+    const paging = listPaging(c);
     const where = status ? and(eq(generationTasks.tenantId, TENANT_ID), eq(generationTasks.status, status)) : eq(generationTasks.tenantId, TENANT_ID);
-    const rows = await db.select().from(generationTasks).where(where).orderBy(desc(generationTasks.createdAt)).limit(listLimit(c));
-    return ok(c, { tasks: rows.map(publicTask) });
+    const rows = await db.select().from(generationTasks).where(where).orderBy(desc(generationTasks.createdAt)).limit(paging.limit + 1).offset(paging.offset);
+    return ok(c, { tasks: rows.slice(0, paging.limit).map(publicTask), pageInfo: pageInfo({ ...paging, count: rows.length }) });
   })
   .get("/tasks/:id", async (c) => {
     const admin = await requireAdmin(c);
@@ -874,9 +898,10 @@ export const adminRoutes = new Hono()
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
     const status = queryStatus(c, ["pending", "paid", "payment_failed", "closed", "refunded"]);
+    const paging = listPaging(c);
     const where = status ? and(eq(orders.tenantId, TENANT_ID), eq(orders.status, status)) : eq(orders.tenantId, TENANT_ID);
-    const rows = await db.select().from(orders).where(where).orderBy(desc(orders.createdAt)).limit(listLimit(c));
-    return ok(c, { orders: rows });
+    const rows = await db.select().from(orders).where(where).orderBy(desc(orders.createdAt)).limit(paging.limit + 1).offset(paging.offset);
+    return ok(c, { orders: rows.slice(0, paging.limit), pageInfo: pageInfo({ ...paging, count: rows.length }) });
   })
   .post("/orders/:id/reconcile", async (c) => {
     const admin = await requireAdmin(c);
@@ -948,9 +973,10 @@ export const adminRoutes = new Hono()
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
     const status = queryStatus(c, ["active", "consumed", "expired", "revoked"]);
+    const paging = listPaging(c);
     const where = status ? and(eq(entitlementLedger.tenantId, TENANT_ID), eq(entitlementLedger.status, status)) : eq(entitlementLedger.tenantId, TENANT_ID);
-    const rows = await db.select().from(entitlementLedger).where(where).orderBy(desc(entitlementLedger.createdAt)).limit(listLimit(c));
-    return ok(c, { entitlements: rows });
+    const rows = await db.select().from(entitlementLedger).where(where).orderBy(desc(entitlementLedger.createdAt)).limit(paging.limit + 1).offset(paging.offset);
+    return ok(c, { entitlements: rows.slice(0, paging.limit), pageInfo: pageInfo({ ...paging, count: rows.length }) });
   })
   .get("/entitlements/:id", async (c) => {
     const admin = await requireAdmin(c);
@@ -972,9 +998,10 @@ export const adminRoutes = new Hono()
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
     const status = queryStatus(c, ["received", "processed", "failed"]);
+    const paging = listPaging(c);
     const where = status ? and(eq(paymentWebhookEvents.tenantId, TENANT_ID), eq(paymentWebhookEvents.status, status)) : eq(paymentWebhookEvents.tenantId, TENANT_ID);
-    const rows = await db.select().from(paymentWebhookEvents).where(where).orderBy(desc(paymentWebhookEvents.createdAt)).limit(listLimit(c));
-    return ok(c, { events: rows });
+    const rows = await db.select().from(paymentWebhookEvents).where(where).orderBy(desc(paymentWebhookEvents.createdAt)).limit(paging.limit + 1).offset(paging.offset);
+    return ok(c, { events: rows.slice(0, paging.limit), pageInfo: pageInfo({ ...paging, count: rows.length }) });
   })
   .get("/payment-events/:id", async (c) => {
     const admin = await requireAdmin(c);
@@ -1021,13 +1048,15 @@ export const adminRoutes = new Hono()
     const admin = await requireAdmin(c);
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
+    const paging = listPaging(c);
     const rows = await db
       .select()
       .from(auditLogs)
       .where(and(eq(auditLogs.tenantId, TENANT_ID), eq(auditLogs.targetType, "feedback")))
       .orderBy(desc(auditLogs.createdAt))
-      .limit(Math.max(listLimit(c), 200));
-    return ok(c, { feedback: buildFeedbackRows(rows).slice(0, listLimit(c)) });
+      .limit(Math.min(Math.max(paging.offset + paging.limit + 1, 200), 1000));
+    const feedback = buildFeedbackRows(rows).slice(paging.offset, paging.offset + paging.limit + 1);
+    return ok(c, { feedback: feedback.slice(0, paging.limit), pageInfo: pageInfo({ ...paging, count: feedback.length }) });
   })
   .get("/feedback/:id", async (c) => {
     const admin = await requireAdmin(c);
@@ -1072,8 +1101,9 @@ export const adminRoutes = new Hono()
     const admin = await requireAdmin(c);
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
-    const rows = await db.select().from(auditLogs).where(eq(auditLogs.tenantId, TENANT_ID)).orderBy(desc(auditLogs.createdAt)).limit(100);
-    return ok(c, { logs: rows.map((log) => ({ ...log, detail: parseJson(log.detailJson, null) })) });
+    const paging = listPaging(c);
+    const rows = await db.select().from(auditLogs).where(eq(auditLogs.tenantId, TENANT_ID)).orderBy(desc(auditLogs.createdAt)).limit(paging.limit + 1).offset(paging.offset);
+    return ok(c, { logs: rows.slice(0, paging.limit).map((log) => ({ ...log, detail: parseJson(log.detailJson, null) })), pageInfo: pageInfo({ ...paging, count: rows.length }) });
   })
   .get("/audit-logs/:id", async (c) => {
     const admin = await requireAdmin(c);

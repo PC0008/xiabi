@@ -95,6 +95,18 @@ const adminState = {
     entitlementsStatus: "",
     paymentEventsStatus: ""
   },
+  pageLimit: 50,
+  pages: {
+    users: 1,
+    profiles: 1,
+    letters: 1,
+    tasks: 1,
+    orders: 1,
+    entitlements: 1,
+    paymentEvents: 1,
+    feedback: 1,
+    logs: 1
+  },
   security: {
     currentPassword: "",
     newPassword: "",
@@ -128,15 +140,15 @@ async function loadAdminLists() {
   try {
     const [dashboard, usersData, profilesData, lettersData, ordersData, entitlementData, logsData, tasksData, paymentEventsData, feedbackData, diagnosticsData] = await Promise.all([
       window.XiabiStore.adminFetch("/dashboard"),
-      window.XiabiStore.adminFetch("/users"),
-      window.XiabiStore.adminFetch("/profiles"),
-      window.XiabiStore.adminFetch(listPath("/letters", adminState.filters.lettersStatus)),
-      window.XiabiStore.adminFetch(listPath("/orders", adminState.filters.ordersStatus)),
-      window.XiabiStore.adminFetch(listPath("/entitlements", adminState.filters.entitlementsStatus)),
-      window.XiabiStore.adminFetch("/audit-logs"),
-      window.XiabiStore.adminFetch(listPath("/tasks", adminState.filters.tasksStatus)),
-      window.XiabiStore.adminFetch(listPath("/payment-events", adminState.filters.paymentEventsStatus)),
-      window.XiabiStore.adminFetch("/feedback"),
+      window.XiabiStore.adminFetch(listPath("/users", "", "users")),
+      window.XiabiStore.adminFetch(listPath("/profiles", "", "profiles")),
+      window.XiabiStore.adminFetch(listPath("/letters", adminState.filters.lettersStatus, "letters")),
+      window.XiabiStore.adminFetch(listPath("/orders", adminState.filters.ordersStatus, "orders")),
+      window.XiabiStore.adminFetch(listPath("/entitlements", adminState.filters.entitlementsStatus, "entitlements")),
+      window.XiabiStore.adminFetch(listPath("/audit-logs", "", "logs")),
+      window.XiabiStore.adminFetch(listPath("/tasks", adminState.filters.tasksStatus, "tasks")),
+      window.XiabiStore.adminFetch(listPath("/payment-events", adminState.filters.paymentEventsStatus, "paymentEvents")),
+      window.XiabiStore.adminFetch(listPath("/feedback", "", "feedback")),
       window.XiabiStore.adminFetch("/diagnostics")
     ]);
     adminState.lists = {
@@ -157,9 +169,13 @@ async function loadAdminLists() {
   }
 }
 
-function listPath(path, status) {
+function listPath(path, status, pageKey = "") {
   const params = new URLSearchParams();
   if (status) params.set("status", status);
+  if (pageKey && pageKey in adminState.pages) {
+    params.set("page", String(adminState.pages[pageKey] || 1));
+    params.set("limit", String(adminState.pageLimit));
+  }
   return params.toString() ? `${path}?${params}` : path;
 }
 
@@ -679,7 +695,7 @@ function renderUsers() {
     actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="users" data-detail-id="${h(item.id)}">详情</button>`)
   ]);
   const rows = [...userRows, ...guestRows];
-  return layout(tablePanel("用户列表", "查看用户基础信息和权益状态。", ["主体ID", "用户", "手机号", "状态", "会话", "最近更新", "创建时间", "操作"], rows.length ? rows : users));
+  return layout(tablePanel("用户列表", "查看用户基础信息和权益状态。", ["主体ID", "用户", "手机号", "状态", "会话", "最近更新", "创建时间", "操作"], rows, "", paginationControls("users", adminState.lists.users?.pageInfo)));
 }
 
 function renderProfiles() {
@@ -693,7 +709,7 @@ function renderProfiles() {
     formatDate(item.updatedAt || item.createdAt),
     actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="profiles" data-detail-id="${h(item.id)}">详情</button>`)
   ]);
-  return layout(tablePanel("产品档案", "查看用户在 H5 中保存的真实产品档案。", ["档案ID", "名称", "面向人群", "核心价值", "状态", "归属", "更新时间", "操作"], rows));
+  return layout(tablePanel("产品档案", "查看用户在 H5 中保存的真实产品档案。", ["档案ID", "名称", "面向人群", "核心价值", "状态", "归属", "更新时间", "操作"], rows, "", paginationControls("profiles", adminState.lists.profiles?.pageInfo)));
 }
 
 function renderLetters() {
@@ -706,9 +722,9 @@ function renderLetters() {
     shortId(item.sessionId),
     formatDate(item.createdAt),
     actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="letters" data-detail-id="${h(item.id)}">详情</button>`)
-  ]) : letters;
+  ]) : [];
   const controls = statusFilter("lettersStatus", adminState.filters.lettersStatus, [["", "全部状态"], ["ready", "待领取"], ["claimed", "已领取"], ["draft", "草稿"], ["archived", "已归档"]]);
-  return layout(tablePanel("销售信列表", "排查信件状态、模板版本和关联用户。", ["信件ID", "标题", "状态", "模板", "会话", "创建时间", "操作"], detailRows, controls));
+  return layout(tablePanel("销售信列表", "排查信件状态、模板版本和关联用户。", ["信件ID", "标题", "状态", "模板", "会话", "创建时间", "操作"], detailRows, controls, paginationControls("letters", adminState.lists.letters?.pageInfo)));
 }
 
 function renderTasks() {
@@ -725,7 +741,7 @@ function renderTasks() {
     `)
   ]);
   const controls = statusFilter("tasksStatus", adminState.filters.tasksStatus, [["", "全部状态"], ["queued", "排队中"], ["running", "生成中"], ["succeeded", "已完成"], ["failed", "失败"]]);
-  return layout(tablePanel("生成任务", "查看生成任务状态、失败原因，并对失败任务进行重试。", ["任务ID", "类型", "状态", "信件", "错误", "更新时间", "操作"], rows, controls));
+  return layout(tablePanel("生成任务", "查看生成任务状态、失败原因，并对失败任务进行重试。", ["任务ID", "类型", "状态", "信件", "错误", "更新时间", "操作"], rows, controls, paginationControls("tasks", adminState.lists.tasks?.pageInfo)));
 }
 
 function renderOrders() {
@@ -744,7 +760,7 @@ function renderOrders() {
     `)
   ]);
   const controls = statusFilter("ordersStatus", adminState.filters.ordersStatus, [["", "全部状态"], ["pending", "待支付"], ["paid", "已支付"], ["payment_failed", "支付失败"], ["closed", "已关闭"], ["refunded", "已退款"]]);
-  return layout(tablePanel("订单与支付", "真实支付接入后查看微信交易号、回调和补偿查询。", ["订单号", "会话", "商品", "金额", "模式", "订单状态", "交易号", "补偿"], rows.length ? rows : orders, controls));
+  return layout(tablePanel("订单与支付", "真实支付接入后查看微信交易号、回调和补偿查询。", ["订单号", "会话", "商品", "金额", "模式", "订单状态", "交易号", "补偿"], rows, controls, paginationControls("orders", adminState.lists.orders?.pageInfo)));
 }
 
 function renderLedger() {
@@ -758,7 +774,7 @@ function renderLedger() {
     actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="entitlements" data-detail-id="${h(item.id)}">详情</button>`)
   ]);
   const controls = statusFilter("entitlementsStatus", adminState.filters.entitlementsStatus, [["", "全部状态"], ["active", "有效"], ["consumed", "已使用"], ["expired", "已过期"], ["revoked", "已撤销"]]);
-  return layout(tablePanel("权益流水", "所有权限从这里计算，不从前端传参决定。", ["流水ID", "用户/会话", "权益类型", "来源", "状态", "时间", "操作"], rows.length ? rows : ledger, controls));
+  return layout(tablePanel("权益流水", "所有权限从这里计算，不从前端传参决定。", ["流水ID", "用户/会话", "权益类型", "来源", "状态", "时间", "操作"], rows, controls, paginationControls("entitlements", adminState.lists.entitlements?.pageInfo)));
 }
 
 function renderLogs() {
@@ -769,7 +785,7 @@ function renderLogs() {
     formatDate(item.createdAt),
     actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="audit-logs" data-detail-id="${h(item.id)}">详情</button>`)
   ]);
-  return layout(tablePanel("日志审计", "记录谁在什么时候改了什么，以及支付和生成关键事件。", ["类型", "操作人", "内容", "时间", "操作"], rows.length ? rows : logs));
+  return layout(tablePanel("日志审计", "记录谁在什么时候改了什么，以及支付和生成关键事件。", ["类型", "操作人", "内容", "时间", "操作"], rows, "", paginationControls("logs", adminState.lists.logs?.pageInfo)));
 }
 
 function renderFeedback() {
@@ -786,7 +802,7 @@ function renderFeedback() {
         : `<button class="mini-action warn-action" data-action="resolve-feedback" data-feedback-id="${h(item.id)}">处理</button>`}
     `)
   ]);
-  return layout(tablePanel("用户反馈", "集中查看用户端提交的问题、建议和异常描述。", ["状态", "类型", "内容", "会话", "时间", "操作"], rows));
+  return layout(tablePanel("用户反馈", "集中查看用户端提交的问题、建议和异常描述。", ["状态", "类型", "内容", "会话", "时间", "操作"], rows, "", paginationControls("feedback", adminState.lists.feedback?.pageInfo)));
 }
 
 function renderSecurity() {
@@ -830,7 +846,7 @@ function renderPaymentEvents() {
     `)
   ]);
   const controls = statusFilter("paymentEventsStatus", adminState.filters.paymentEventsStatus, [["", "全部状态"], ["received", "已接收"], ["processed", "已处理"], ["failed", "失败"]]);
-  return layout(tablePanel("支付回调", "查看微信支付回调事件、失败原因和关联订单。", ["事件ID", "渠道", "回调ID", "订单", "状态", "错误", "时间", "操作"], rows, controls));
+  return layout(tablePanel("支付回调", "查看微信支付回调事件、失败原因和关联订单。", ["事件ID", "渠道", "回调ID", "订单", "状态", "错误", "时间", "操作"], rows, controls, paginationControls("paymentEvents", adminState.lists.paymentEvents?.pageInfo)));
 }
 
 function statusLabel(status) {
@@ -921,7 +937,23 @@ function statusFilter(name, value, options) {
   `;
 }
 
-function tablePanel(title, desc, heads, rows, controls = "") {
+function paginationControls(pageKey, info) {
+  if (!pageKey || !info) return "";
+  const page = Number(info.page || 1);
+  const returned = Number(info.returned || 0);
+  const limit = Number(info.limit || adminState.pageLimit);
+  return `
+    <div class="pagination-bar">
+      <div class="page-meta">第 ${page} 页 · 本页 ${returned} 条 · 每页 ${limit} 条</div>
+      <div class="page-actions">
+        <button class="mini-action" data-action="page-list" data-page-key="${h(pageKey)}" data-page-delta="-1" ${page <= 1 ? "disabled" : ""}>上一页</button>
+        <button class="mini-action" data-action="page-list" data-page-key="${h(pageKey)}" data-page-delta="1" ${info.hasMore ? "" : "disabled"}>下一页</button>
+      </div>
+    </div>
+  `;
+}
+
+function tablePanel(title, desc, heads, rows, controls = "", pagination = "") {
   return `
     <section class="section panel card">
       <div class="panel-head"><div><div class="panel-title">${h(title)}</div><div class="panel-desc">${h(desc)}</div></div></div>
@@ -932,6 +964,7 @@ function tablePanel(title, desc, heads, rows, controls = "") {
           <tbody>${rows.length ? rows.map((row) => `<tr>${row.map((cell) => `<td>${cell && typeof cell === "object" && "html" in cell ? cell.html : h(cell)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${heads.length}">暂无数据</td></tr>`}</tbody>
         </table>
       </div>
+      ${pagination}
     </section>
   `;
 }
@@ -1188,6 +1221,14 @@ document.addEventListener("click", async (event) => {
   } else if (action === "close-detail") {
     adminState.detail = null;
     render();
+  } else if (action === "page-list") {
+    const key = actionTarget.dataset.pageKey;
+    const delta = Number(actionTarget.dataset.pageDelta || 0);
+    if (key && key in adminState.pages && Number.isFinite(delta)) {
+      adminState.pages[key] = Math.max(1, Number(adminState.pages[key] || 1) + delta);
+      await loadAdminLists();
+      render();
+    }
   } else if (action === "show-detail") {
     await openDetail(actionTarget.dataset.detailType, actionTarget.dataset.detailId);
   } else if (action === "toggle") {
@@ -1302,6 +1343,14 @@ document.addEventListener("change", async (event) => {
   const filterName = event.target.dataset.filter;
   if (filterName && filterName in adminState.filters) {
     adminState.filters[filterName] = event.target.value;
+    const pageByFilter = {
+      lettersStatus: "letters",
+      tasksStatus: "tasks",
+      ordersStatus: "orders",
+      entitlementsStatus: "entitlements",
+      paymentEventsStatus: "paymentEvents"
+    };
+    if (pageByFilter[filterName]) adminState.pages[pageByFilter[filterName]] = 1;
     try {
       await loadAdminLists();
     } catch (error) {

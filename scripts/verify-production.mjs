@@ -342,14 +342,15 @@ async function verifyAdminDiagnostics() {
 
   const listChecks = [
     ["/api/public/admin/dashboard", (payload) => !!payload.metrics],
-    ["/api/public/admin/users", (payload) => Array.isArray(payload.users) && Array.isArray(payload.sessions)],
-    ["/api/public/admin/letters?status=ready", (payload) => Array.isArray(payload.letters)],
-    ["/api/public/admin/tasks?status=failed", (payload) => Array.isArray(payload.tasks)],
-    ["/api/public/admin/orders?status=pending", (payload) => Array.isArray(payload.orders)],
-    ["/api/public/admin/entitlements?status=active", (payload) => Array.isArray(payload.entitlements)],
-    ["/api/public/admin/payment-events?status=failed", (payload) => Array.isArray(payload.events)],
-    ["/api/public/admin/feedback", (payload) => Array.isArray(payload.feedback)],
-    ["/api/public/admin/audit-logs", (payload) => Array.isArray(payload.logs)]
+    ["/api/public/admin/users?limit=2&page=1", (payload) => Array.isArray(payload.users) && Array.isArray(payload.sessions) && !!payload.pageInfo],
+    ["/api/public/admin/profiles?limit=2&page=1", (payload) => Array.isArray(payload.profiles) && !!payload.pageInfo],
+    ["/api/public/admin/letters?status=ready&limit=2&page=1", (payload) => Array.isArray(payload.letters) && !!payload.pageInfo],
+    ["/api/public/admin/tasks?status=failed&limit=2&page=1", (payload) => Array.isArray(payload.tasks) && !!payload.pageInfo],
+    ["/api/public/admin/orders?status=pending&limit=2&page=1", (payload) => Array.isArray(payload.orders) && !!payload.pageInfo],
+    ["/api/public/admin/entitlements?status=active&limit=2&page=1", (payload) => Array.isArray(payload.entitlements) && !!payload.pageInfo],
+    ["/api/public/admin/payment-events?status=failed&limit=2&page=1", (payload) => Array.isArray(payload.events) && !!payload.pageInfo],
+    ["/api/public/admin/feedback?limit=2&page=1", (payload) => Array.isArray(payload.feedback) && !!payload.pageInfo],
+    ["/api/public/admin/audit-logs?limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo]
   ];
   for (const [pathname, validate] of listChecks) {
     const payload = await api(pathname, {}, admin.cookie);
