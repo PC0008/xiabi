@@ -2,7 +2,7 @@ import { db, vars } from "edgespark";
 import { and, desc, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { orders } from "@defs";
+import { orders, salesLetters } from "@defs";
 import { createWechatPayment } from "../adapters/payment/wechat";
 import { getConfigScope } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
@@ -36,6 +36,16 @@ export const orderRoutes = new Hono()
     if (pricing.payment_enabled === false) return fail(c, "payment_disabled", "支付入口暂未开放。", 403);
     if (productType === "annual" && pricing.annual_enabled === false) return fail(c, "annual_disabled", "年卡暂未开放。", 403);
     if (productType === "single" && pricing.single_enabled === false) return fail(c, "single_disabled", "单封解锁暂未开放。", 403);
+    const letterId = typeof body.letterId === "string" && body.letterId.trim() ? body.letterId.trim() : null;
+    if (letterId) {
+      const [letter] = await db
+        .select({ id: salesLetters.id })
+        .from(salesLetters)
+        .where(and(eq(salesLetters.id, letterId), eq(salesLetters.sessionId, sessionId), eq(salesLetters.tenantId, TENANT_ID)))
+        .limit(1);
+      if (!letter) return fail(c, "letter_not_found", "没有找到这封销售信。", 404);
+    }
+    if (productType === "single" && !letterId) return fail(c, "missing_letter", "单封解锁需要关联一封销售信。", 400);
     const amount = Number(productType === "annual" ? pricing.annual || 2000 : pricing.single || 200);
     const title = productType === "annual" ? "年卡会员" : "单封解锁";
     const orderId = crypto.randomUUID();
@@ -44,7 +54,7 @@ export const orderRoutes = new Hono()
       id: orderId,
       tenantId: TENANT_ID,
       sessionId,
-      letterId: body.letterId || null,
+      letterId,
       provider: vars.get("PAYMENT_PROVIDER") || "wechat",
       providerOrderNo,
       productType,

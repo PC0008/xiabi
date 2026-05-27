@@ -82,7 +82,11 @@ export const webhookRoutes = new Hono()
 
     try {
       const transaction = await decryptWechatResource(notification.resource || {});
-      const [order] = await db.select().from(orders).where(eq(orders.providerOrderNo, transaction.out_trade_no || "")).limit(1);
+      const [order] = await db
+        .select()
+        .from(orders)
+        .where(and(eq(orders.tenantId, TENANT_ID), eq(orders.provider, "wechat"), eq(orders.providerOrderNo, transaction.out_trade_no || "")))
+        .limit(1);
       if (!order) throw new Error("order_not_found");
       if (transaction.trade_state === "SUCCESS" && order.status !== "paid") {
         await db.update(orders).set({

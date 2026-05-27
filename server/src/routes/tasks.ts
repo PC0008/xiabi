@@ -1,5 +1,5 @@
 import { db } from "edgespark";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { generationTasks, salesLetters } from "@defs";
@@ -112,7 +112,13 @@ export const taskRoutes = new Hono()
     return ok(c, { taskId, letterId, status: "succeeded" });
   })
   .get("/:id", async (c) => {
-    const [task] = await db.select().from(generationTasks).where(eq(generationTasks.id, c.req.param("id"))).limit(1);
+    const sessionId = getCookie(c, SESSION_COOKIE);
+    if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const [task] = await db
+      .select()
+      .from(generationTasks)
+      .where(and(eq(generationTasks.id, c.req.param("id")), eq(generationTasks.sessionId, sessionId)))
+      .limit(1);
     if (!task) return fail(c, "task_not_found", "没有找到生成任务。", 404);
     return ok(c, task);
   });
