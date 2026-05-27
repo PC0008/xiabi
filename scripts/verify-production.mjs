@@ -86,7 +86,7 @@ function buildReadinessReport() {
       requirement: "语音输入转写",
       status: readinessStatus(["voice asr"]),
       evidence: ["voice asr"],
-      next: "配置 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验。"
+      next: "配置 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验；兼容 JSON base64 和 OpenAI-compatible multipart。"
     }
   ];
   return {
@@ -475,7 +475,7 @@ async function verifyAsr() {
     })
   }, cookie);
   if (!result.configured || !result.transcript) throw new Error("ASR did not return a transcript");
-  addCheck("voice asr", "ok", { provider: result.provider, transcriptLength: result.transcript.length });
+  addCheck("voice asr", "ok", { provider: result.provider, requestFormat: result.requestFormat, transcriptLength: result.transcript.length });
 }
 
 await api("/api/public/health");

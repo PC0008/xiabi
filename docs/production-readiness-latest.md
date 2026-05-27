@@ -1,6 +1,6 @@
 # 生产验收状态报告
 
-生成时间：2026-05-27T18:18:52.814Z
+生成时间：2026-05-27T18:26:06.690Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 整体结果：未完全通过
 
@@ -24,7 +24,7 @@
 | 微信付款回调与权益到账 | 待输入 | wechat paid order closure | 完成真实付款后设置 XIABI_VERIFY_PAID_ORDER_ID，并可设置 XIABI_VERIFY_REQUIRE_WEBHOOK=1。 |
 | 短信发送与手机号绑定 | 待输入 | sms send, sms bind | 设置 XIABI_VERIFY_SMS_PHONE 发送验证码；收到后设置 XIABI_VERIFY_SMS_CODE 复验绑定。 |
 | MiniMax 说话播放 | 已验证 | minimax tts | 设置 XIABI_VERIFY_TTS=1 会真实调用一次 MiniMax TTS。 |
-| 语音输入转写 | 待输入 | voice asr | 配置 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验。 |
+| 语音输入转写 | 待输入 | voice asr | 配置 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验；兼容 JSON base64 和 OpenAI-compatible multipart。 |
 
 ## 原始检查项
 

@@ -47,6 +47,8 @@ type AsrResponse = {
   };
 };
 
+type AsrRequestFormat = "json" | "openai";
+
 function pickTranscript(payload: AsrResponse) {
   return [
     payload.transcript,
@@ -66,6 +68,74 @@ function hexToBase64(hex: string) {
     binary += String.fromCharCode(Number.parseInt(clean.slice(index, index + 2), 16));
   }
   return btoa(binary);
+}
+
+function base64ToBytes(base64: string) {
+  const clean = base64.replace(/^data:[^,]+,/, "").trim();
+  const binary = atob(clean);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function extensionFromMime(mimeType: string) {
+  if (mimeType.includes("wav")) return "wav";
+  if (mimeType.includes("mpeg") || mimeType.includes("mp3")) return "mp3";
+  if (mimeType.includes("mp4") || mimeType.includes("m4a")) return "m4a";
+  if (mimeType.includes("ogg")) return "ogg";
+  return "webm";
+}
+
+function resolveAsrRequestFormat(endpoint: string): AsrRequestFormat {
+  const configured = String(vars.get("VOICE_ASR_REQUEST_FORMAT" as any) || "").trim().toLowerCase();
+  if (configured === "openai" || configured === "multipart") return "openai";
+  if (configured === "json") return "json";
+  return endpoint.includes("/audio/transcriptions") ? "openai" : "json";
+}
+
+async function readAsrPayload(response: Response): Promise<AsrResponse> {
+  const payload = await response.json().catch(() => ({})) as AsrResponse;
+  if (!response.ok) {
+    throw new Error(payload.error?.message || payload.message || `Voice transcription failed: ${response.status}`);
+  }
+  return payload;
+}
+
+async function callJsonAsr(endpoint: string, apiKey: string, audioBase64: string, mimeType: string, model: string) {
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: model || undefined,
+      audio: audioBase64,
+      audio_base64: audioBase64,
+      mime_type: mimeType,
+      language: "zh"
+    })
+  });
+  return readAsrPayload(response);
+}
+
+async function callOpenAiCompatibleAsr(endpoint: string, apiKey: string, audioBase64: string, mimeType: string, model: string) {
+  const bytes = base64ToBytes(audioBase64);
+  const form = new FormData();
+  const fileName = `voice.${extensionFromMime(mimeType)}`;
+  form.append("file", new Blob([bytes], { type: mimeType }), fileName);
+  form.append("model", model || "whisper-1");
+  form.append("language", "zh");
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: form
+  });
+  return readAsrPayload(response);
 }
 
 async function callMiniMaxTts(endpoint: string, apiKey: string, voiceId: string, text: string, outputFormat: string): Promise<MiniMaxTtsResult> {
@@ -184,24 +254,11 @@ export async function processVoiceTurn(input: VoiceTurnInput) {
   }
 
   const model = vars.get("VOICE_ASR_MODEL" as any) || "";
-  const response = await fetch(asrEndpoint, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: model || undefined,
-      audio: audioBase64,
-      audio_base64: audioBase64,
-      mime_type: input.mimeType || "audio/webm",
-      language: "zh"
-    })
-  });
-  const payload = await response.json().catch(() => ({})) as AsrResponse;
-  if (!response.ok) {
-    throw new Error(payload.error?.message || payload.message || `Voice transcription failed: ${response.status}`);
-  }
+  const mimeType = input.mimeType || "audio/webm";
+  const requestFormat = resolveAsrRequestFormat(asrEndpoint);
+  const payload = requestFormat === "openai"
+    ? await callOpenAiCompatibleAsr(asrEndpoint, apiKey, audioBase64, mimeType, model)
+    : await callJsonAsr(asrEndpoint, apiKey, audioBase64, mimeType, model);
   const transcript = pickTranscript(payload);
   if (!transcript) throw new Error("语音转文字服务没有返回识别内容。");
   return {
@@ -210,6 +267,7 @@ export async function processVoiceTurn(input: VoiceTurnInput) {
     voiceId,
     sessionId: input.sessionId,
     transcript,
+    requestFormat,
     message: "语音转文字完成。"
   };
 }
