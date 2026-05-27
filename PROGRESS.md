@@ -1,6 +1,6 @@
 # PROGRESS.md
 
-## 2026-05-27 补充进度
+## 2026-05-27 至 2026-05-28 补充进度
 
 - 已部署到 Edgespark 生产环境：`https://immortal-sponge-1728.edgespark.app`。
 - 管理后台补强：用户管理页改为优先展示真实绑定用户和手机号掩码，未绑定会话作为游客会话展示；信件、任务、订单、权益、支付回调列表新增状态筛选，并由服务端查询参数真实过滤。
@@ -20,15 +20,19 @@
 - 写信任务补强：创建任务后使用 Edgespark `ctx.runInBackground()` 立即推进生成，前端轮询主要负责查状态；`GET /tasks/:id` 仍保留兜底恢复，避免刷新或后台执行异常时任务完全卡死。
 - 用户端流程验收补强：新增 `npm run verify:journey`，用移动端浏览器自动点击授权、首页、通话问题和确认页；该验收不触发 DeepSeek、短信或支付费用。
 - 生产支付闭环验收补强：`verify:production` 新增 `XIABI_VERIFY_PAID_ORDER_ID`，真实付款后可自动核对订单已支付、权益流水已生成，并可通过 `XIABI_VERIFY_REQUIRE_WEBHOOK=1` 要求存在已处理微信支付回调事件。
-- MiniMax 真实验收发现线上 `VOICE_API_KEY` 会被 MiniMax 判定为 `invalid api key`；语音接口已补强为返回 JSON 业务错误，不再让无效 Key 冒泡成不可读 500。需要重新配置有效 MiniMax Key 后再跑 `XIABI_VERIFY_TTS=1`。
+- MiniMax 首轮真实验收曾返回 `invalid api key`；语音接口已补强为返回 JSON 业务错误，不再让供应商错误冒泡成不可读 500。
+- MiniMax TTS 兼容补强：新增 `MINIMAX_TTS_ENDPOINT`、`MINIMAX_TTS_OUTPUT_FORMAT`、`MINIMAX_TTS_MODEL` 可选项；默认按 HTTP T2A `hex` 音频返回，并自动尝试国际站、国际站加速端点和国内站端点。
+- MiniMax TTS 真实验收通过：线上已配置 `MINIMAX_TTS_ENDPOINT=https://api.minimax.io/v1/t2a_v2`、`MINIMAX_TTS_OUTPUT_FORMAT=hex`、`MINIMAX_TTS_MODEL=speech-2.8-hd`，`XIABI_VERIFY_TTS=1 npm run verify:production` 返回 `audio/mp3`，traceId `06665fa1c520e487c74987a4296b424a`。
 - DeepSeek 真实写信验收通过：`XIABI_VERIFY_DEEPSEEK=1 npm run verify:production` 已在线上生成任务 `9b8d26e3-7693-4fea-9bff-519a73294201` 和信件 `60ca6afd-e328-4a0b-b88f-e293a8c52848`。
+- DeepSeek 二次线上验收通过：`XIABI_VERIFY_DEEPSEEK=1 npm run verify:production` 已再次生成任务 `98055e89-2479-4168-8dbe-330bc3996f3d` 和信件 `7eb8602f-ee74-4942-b86a-1ad18f4ebb78`。
+- 微信支付创建验收当前被后台业务开关阻止：`XIABI_VERIFY_PAYMENT_CREATE=1 npm run verify:production` 返回 403 `支付入口暂未开放。`；需要后台打开 `payment_enabled` 后再做真实小额支付、回调和权益闭环。
 - 交付文档补强：新增根 `README.md` 和 `docs/生产外部凭据交接清单.md`，明确线上地址、常用命令、验收分级和真实外部联调所需凭据。
-- 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式。
+- 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run check:ui`、`npm run verify:journey`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式。
 - 仍需真实外部验收输入：后台账号密码、DeepSeek 真实生成开关、真实支付创建/付款环境、可接收短信手机号、MiniMax TTS 开关、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。
 
 ## 当前状态
 
-时间：2026-05-27
+时间：2026-05-28
 
 ### 项目口径
 

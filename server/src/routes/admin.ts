@@ -207,9 +207,12 @@ async function buildDiagnostics() {
       items: [
         diagnosticItem("VOICE_PROVIDER", hasVar("VOICE_PROVIDER"), false),
         diagnosticItem("VOICE_API_KEY", hasSecret("VOICE_API_KEY")),
-        diagnosticItem("MINIMAX_VOICE_ID", hasVar("MINIMAX_VOICE_ID"))
+        diagnosticItem("MINIMAX_VOICE_ID", hasVar("MINIMAX_VOICE_ID")),
+        diagnosticItem("MINIMAX_TTS_ENDPOINT", hasVar("MINIMAX_TTS_ENDPOINT"), false),
+        diagnosticItem("MINIMAX_TTS_OUTPUT_FORMAT", hasVar("MINIMAX_TTS_OUTPUT_FORMAT"), false),
+        diagnosticItem("MINIMAX_TTS_MODEL", hasVar("MINIMAX_TTS_MODEL"), false)
       ],
-      note: "用于智多星说话播放，当前按 MiniMax TTS 接入。"
+      note: "用于智多星说话播放，当前按 MiniMax TTS 接入；端点、输出格式和模型可选配置，未填写时使用默认值。"
     },
     {
       key: "voice_asr",

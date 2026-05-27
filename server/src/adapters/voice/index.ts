@@ -20,6 +20,16 @@ type MiniMaxT2AResponse = {
   };
 };
 
+type MiniMaxTtsResult = {
+  provider: "minimax";
+  configured: true;
+  voiceId: string;
+  audioUrl: string;
+  traceId?: string;
+  endpoint: string;
+  outputFormat: string;
+};
+
 type AsrResponse = {
   transcript?: string;
   text?: string;
@@ -48,24 +58,29 @@ function pickTranscript(payload: AsrResponse) {
   ].map((item) => String(item || "").trim()).find(Boolean) || "";
 }
 
-export async function speakWithMiniMax(text: string) {
-  const apiKey = secret.get("VOICE_API_KEY");
-  const voiceId = vars.get("MINIMAX_VOICE_ID");
-  if (!apiKey || !voiceId) {
-    return { provider: "minimax", configured: false, message: "MiniMax 语音服务还没有完成配置。" };
+function hexToBase64(hex: string) {
+  const clean = hex.trim();
+  if (!/^[0-9a-f]+$/i.test(clean) || clean.length % 2 !== 0) return "";
+  let binary = "";
+  for (let index = 0; index < clean.length; index += 2) {
+    binary += String.fromCharCode(Number.parseInt(clean.slice(index, index + 2), 16));
   }
-  const response = await fetch("https://api.minimax.io/v1/t2a_v2", {
+  return btoa(binary);
+}
+
+async function callMiniMaxTts(endpoint: string, apiKey: string, voiceId: string, text: string, outputFormat: string): Promise<MiniMaxTtsResult> {
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "speech-2.8-hd",
+      model: vars.get("MINIMAX_TTS_MODEL") || "speech-2.8-hd",
       text: text.slice(0, 1000),
       stream: false,
       language_boost: "auto",
-      output_format: "url",
+      output_format: outputFormat,
       voice_setting: {
         voice_id: voiceId,
         speed: 1,
@@ -80,17 +95,51 @@ export async function speakWithMiniMax(text: string) {
       }
     })
   });
-  const payload = await response.json() as MiniMaxT2AResponse;
+  const payload = await response.json().catch(() => ({})) as MiniMaxT2AResponse;
+  const statusMsg = payload.base_resp?.status_msg;
   if (!response.ok || payload.base_resp?.status_code !== 0 || !payload.data?.audio) {
-    throw new Error(payload.base_resp?.status_msg || `MiniMax TTS failed: ${response.status}`);
+    throw new Error(statusMsg || `MiniMax TTS failed: ${response.status}`);
   }
+  const audio = payload.data.audio;
+  const audioUrl = audio.startsWith("http")
+    ? audio
+    : `data:audio/mp3;base64,${hexToBase64(audio)}`;
+  if (!audioUrl || audioUrl.endsWith(",")) throw new Error("MiniMax TTS returned unsupported audio data.");
   return {
     provider: "minimax",
     configured: true,
     voiceId,
-    audioUrl: payload.data.audio,
-    traceId: payload.trace_id
+    audioUrl,
+    traceId: payload.trace_id,
+    endpoint,
+    outputFormat
   };
+}
+
+export async function speakWithMiniMax(text: string) {
+  const apiKey = secret.get("VOICE_API_KEY");
+  const voiceId = vars.get("MINIMAX_VOICE_ID");
+  if (!apiKey || !voiceId) {
+    return { provider: "minimax", configured: false, message: "MiniMax 语音服务还没有完成配置。" };
+  }
+  const configuredOutput = String(vars.get("MINIMAX_TTS_OUTPUT_FORMAT") || "").trim().toLowerCase();
+  const outputFormat = configuredOutput === "url" ? "url" : "hex";
+  const primaryEndpoint = vars.get("MINIMAX_TTS_ENDPOINT") || "https://api.minimax.io/v1/t2a_v2";
+  const endpoints = Array.from(new Set([
+    primaryEndpoint,
+    "https://api-uw.minimax.io/v1/t2a_v2",
+    "https://api.minimax.io/v1/t2a_v2",
+    "https://api.minimaxi.com/v1/t2a_v2"
+  ]));
+  const errors: string[] = [];
+  for (const endpoint of endpoints) {
+    try {
+      return await callMiniMaxTts(endpoint, apiKey, voiceId, text, outputFormat);
+    } catch (error) {
+      errors.push(`${endpoint}: ${error instanceof Error ? error.message : "MiniMax TTS failed"}`);
+    }
+  }
+  throw new Error(errors.join("；"));
 }
 
 export async function processVoiceTurn(input: VoiceTurnInput) {

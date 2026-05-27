@@ -9,12 +9,12 @@ test.use({
 });
 
 test("user H5 call flow reaches confirmation without paid/external calls", async ({ page }) => {
-  await page.goto(`${baseUrl}/index.html`, { waitUntil: "networkidle" });
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
   await page.evaluate(() => {
     localStorage.clear();
     sessionStorage.clear();
   });
-  await page.goto(`${baseUrl}/index.html`, { waitUntil: "networkidle" });
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
 
   await expect(page.locator('[data-action="auth"]')).toBeVisible();
   await page.locator('[data-action="auth"]').click();
