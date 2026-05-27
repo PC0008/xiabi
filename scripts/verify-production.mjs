@@ -9,6 +9,11 @@ function addCheck(name, status, detail = {}) {
   checks.push({ name, status, ...detail });
 }
 
+function skipOrStrict(name, reason) {
+  addCheck(name, "skipped", { reason });
+  if (strict) throw new Error(`strict verification requires ${name}: ${reason}`);
+}
+
 function getCookie(headers) {
   const value = headers.get("set-cookie") || "";
   return value.split(";")[0];
@@ -54,8 +59,7 @@ async function verifyAdminDiagnostics() {
   const username = process.env.XIABI_VERIFY_ADMIN_USERNAME;
   const password = process.env.XIABI_VERIFY_ADMIN_PASSWORD;
   if (!username || !password) {
-    addCheck("admin diagnostics", "skipped", { reason: "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD" });
-    if (strict) throw new Error("strict verification requires admin credentials");
+    skipOrStrict("admin diagnostics", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD");
     return;
   }
 
@@ -82,11 +86,29 @@ async function verifyAdminDiagnostics() {
   if (strict && missingRequired.length) {
     throw new Error(`strict verification found missing required config: ${missingRequired.join(", ")}`);
   }
+
+  const listChecks = [
+    ["/api/public/admin/dashboard", (payload) => !!payload.metrics],
+    ["/api/public/admin/users", (payload) => Array.isArray(payload.users) && Array.isArray(payload.sessions)],
+    ["/api/public/admin/letters?status=ready", (payload) => Array.isArray(payload.letters)],
+    ["/api/public/admin/tasks?status=failed", (payload) => Array.isArray(payload.tasks)],
+    ["/api/public/admin/orders?status=pending", (payload) => Array.isArray(payload.orders)],
+    ["/api/public/admin/entitlements?status=active", (payload) => Array.isArray(payload.entitlements)],
+    ["/api/public/admin/payment-events?status=failed", (payload) => Array.isArray(payload.events)],
+    ["/api/public/admin/feedback", (payload) => Array.isArray(payload.feedback)],
+    ["/api/public/admin/audit-logs", (payload) => Array.isArray(payload.logs)]
+  ];
+  for (const [pathname, validate] of listChecks) {
+    const payload = await api(pathname, {}, cookie);
+    if (!validate(payload)) throw new Error(`${pathname} returned unexpected admin list payload`);
+    if (JSON.stringify(payload).includes(password)) throw new Error(`${pathname} leaked the admin password`);
+  }
+  addCheck("admin read operations", "ok", { routes: listChecks.length });
 }
 
 async function verifyDeepSeek() {
   if (process.env.XIABI_VERIFY_DEEPSEEK !== "1") {
-    addCheck("deepseek generation", "skipped", { reason: "set XIABI_VERIFY_DEEPSEEK=1 to run a real generation" });
+    skipOrStrict("deepseek generation", "set XIABI_VERIFY_DEEPSEEK=1 to run a real generation");
     return;
   }
   const cookie = await createGuestSession();
@@ -118,7 +140,7 @@ async function verifyDeepSeek() {
 
 async function verifyPaymentCreate() {
   if (process.env.XIABI_VERIFY_PAYMENT_CREATE !== "1") {
-    addCheck("wechat payment create", "skipped", { reason: "set XIABI_VERIFY_PAYMENT_CREATE=1 to create a real unpaid WeChat H5 order" });
+    skipOrStrict("wechat payment create", "set XIABI_VERIFY_PAYMENT_CREATE=1 to create a real unpaid WeChat H5 order");
     return;
   }
   const cookie = await createGuestSession();
@@ -133,21 +155,35 @@ async function verifyPaymentCreate() {
 async function verifySmsSend() {
   const phone = process.env.XIABI_VERIFY_SMS_PHONE;
   if (!phone) {
-    addCheck("sms send", "skipped", { reason: "set XIABI_VERIFY_SMS_PHONE to send a real SMS code" });
+    skipOrStrict("sms send", "set XIABI_VERIFY_SMS_PHONE to send a real SMS code");
     return;
   }
   const cookie = await createGuestSession();
+  const code = process.env.XIABI_VERIFY_SMS_CODE;
+  if (code) {
+    const bind = await api("/api/public/users/bind-phone", {
+      method: "POST",
+      body: JSON.stringify({ phone, code })
+    }, cookie);
+    if (!bind.bound || !bind.phoneMasked) throw new Error("SMS bind did not report bound=true");
+    addCheck("sms bind", "ok", { phoneMasked: bind.phoneMasked });
+    return;
+  }
   const result = await api("/api/public/sms/send-code", {
     method: "POST",
     body: JSON.stringify({ phone })
   }, cookie);
   if (!result.sent || result.configured === false) throw new Error("SMS send did not report sent=true");
-  addCheck("sms send", "ok", { phoneMasked: result.phoneMasked || result.phone, provider: result.provider });
+  addCheck("sms send", "ok", {
+    phoneMasked: result.phoneMasked || result.phone,
+    provider: result.provider,
+    next: "set XIABI_VERIFY_SMS_CODE to the received code and rerun to verify binding"
+  });
 }
 
 async function verifyTts() {
   if (process.env.XIABI_VERIFY_TTS !== "1") {
-    addCheck("minimax tts", "skipped", { reason: "set XIABI_VERIFY_TTS=1 to call MiniMax TTS" });
+    skipOrStrict("minimax tts", "set XIABI_VERIFY_TTS=1 to call MiniMax TTS");
     return;
   }
   const cookie = await createGuestSession();
@@ -156,7 +192,12 @@ async function verifyTts() {
     body: JSON.stringify({ text: "你好，我是智多星。" })
   }, cookie);
   if (!result.configured || !result.audioUrl) throw new Error("MiniMax TTS did not return an audio URL");
-  addCheck("minimax tts", "ok", { voiceId: result.voiceId, traceId: result.traceId });
+  const audio = await fetch(result.audioUrl);
+  if (!audio.ok) throw new Error(`MiniMax TTS audio URL returned ${audio.status}`);
+  const contentType = audio.headers.get("content-type") || "";
+  const bytes = await audio.arrayBuffer();
+  if (bytes.byteLength < 1000) throw new Error("MiniMax TTS audio response is unexpectedly small");
+  addCheck("minimax tts", "ok", { voiceId: result.voiceId, traceId: result.traceId, contentType, bytes: bytes.byteLength });
 }
 
 function mimeFromFile(filePath) {
@@ -170,7 +211,7 @@ function mimeFromFile(filePath) {
 async function verifyAsr() {
   const audioPath = process.env.XIABI_VERIFY_ASR_AUDIO;
   if (!audioPath) {
-    addCheck("voice asr", "skipped", { reason: "set XIABI_VERIFY_ASR_AUDIO to an audio file path" });
+    skipOrStrict("voice asr", "set XIABI_VERIFY_ASR_AUDIO to an audio file path");
     return;
   }
   const cookie = await createGuestSession();

@@ -19,14 +19,16 @@ export const feedbackRoutes = new Hono()
     const body = await readJson<FeedbackBody>(c);
     const content = String(body.content || "").trim();
     if (!content) return fail(c, "missing_content", "请填写反馈内容。", 400);
+    const id = crypto.randomUUID();
     await db.insert(auditLogs).values({
-      id: crypto.randomUUID(),
+      id,
       tenantId: TENANT_ID,
       actorId: sessionId,
       actorType: "user",
       action: "feedback.submit",
       targetType: "feedback",
+      targetId: id,
       detailJson: JSON.stringify({ category: body.category || "用户反馈", content })
     });
-    return ok(c, { submitted: true });
+    return ok(c, { submitted: true, feedbackId: id });
   });

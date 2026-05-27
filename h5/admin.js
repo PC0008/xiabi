@@ -750,13 +750,19 @@ function renderLogs() {
 
 function renderFeedback() {
   const rows = (adminState.lists.feedback?.feedback || []).map((item) => [
+    item.feedbackStatus === "resolved" ? "已处理" : "待处理",
     item.detail?.category || "用户反馈",
     item.detail?.content || "-",
     shortId(item.actorId),
     formatDate(item.createdAt),
-    actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="audit-logs" data-detail-id="${h(item.id)}">详情</button>`)
+    actionCell(`
+      <button class="mini-action" data-action="show-detail" data-detail-type="feedback" data-detail-id="${h(item.id)}">详情</button>
+      ${item.feedbackStatus === "resolved"
+        ? `<button class="mini-action" data-action="reopen-feedback" data-feedback-id="${h(item.id)}">重开</button>`
+        : `<button class="mini-action warn-action" data-action="resolve-feedback" data-feedback-id="${h(item.id)}">处理</button>`}
+    `)
   ]);
-  return layout(tablePanel("用户反馈", "集中查看用户端提交的问题、建议和异常描述。", ["类型", "内容", "会话", "时间", "操作"], rows));
+  return layout(tablePanel("用户反馈", "集中查看用户端提交的问题、建议和异常描述。", ["状态", "类型", "内容", "会话", "时间", "操作"], rows));
 }
 
 function renderSecurity() {
@@ -996,6 +1002,25 @@ function buildDetailHtml(type, data) {
       renderJson(event.payload || {})
     ].join("");
   }
+  if (type === "feedback") {
+    const feedback = data.feedback || {};
+    return [
+      detailSection("反馈内容", [
+        ["状态", feedback.feedbackStatus === "resolved" ? "已处理" : "待处理"],
+        ["类型", feedback.detail?.category || "用户反馈"],
+        ["内容", feedback.detail?.content || "-"],
+        ["会话", shortId(feedback.actorId)],
+        ["提交时间", formatDate(feedback.createdAt)],
+        ["处理备注", feedback.handlerNote || "-"]
+      ]),
+      `<div class="detail-actions">
+        ${feedback.feedbackStatus === "resolved"
+          ? `<button class="secondary" data-action="reopen-feedback" data-feedback-id="${h(feedback.id)}">重新打开</button>`
+          : `<button class="primary" data-action="resolve-feedback" data-feedback-id="${h(feedback.id)}">标记已处理</button>`}
+      </div>`,
+      detailMiniTable("处理记录", ["事件", "处理人", "备注", "时间"], (data.events || []).map((item) => [item.action, shortId(item.actorId), item.detail?.note || "-", formatDate(item.createdAt)]))
+    ].join("");
+  }
   if (type === "audit-logs") {
     return renderJson(data.log || {});
   }
@@ -1213,6 +1238,16 @@ document.addEventListener("click", async (event) => {
       showToast("密码已修改，请重新登录");
     } catch (error) {
       showToast(error.message || "密码修改失败");
+    }
+  } else if (action === "resolve-feedback" || action === "reopen-feedback") {
+    try {
+      const status = action === "resolve-feedback" ? "resolved" : "open";
+      await window.XiabiMockStore.adminPost(`/feedback/${actionTarget.dataset.feedbackId}/status`, { status });
+      await loadAdminLists();
+      if (adminState.detail?.sub === `feedback/${actionTarget.dataset.feedbackId}`) await openDetail("feedback", actionTarget.dataset.feedbackId);
+      showToast(status === "resolved" ? "反馈已标记处理" : "反馈已重新打开");
+    } catch (error) {
+      showToast(error.message || "反馈状态更新失败");
     }
   }
 });

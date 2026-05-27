@@ -71,6 +71,12 @@ checks.push(await assertJson(
   (payload) => ["payment_disabled", "missing_letter"].includes(payload?.error?.code)
 ));
 checks.push(await assertJson(
+  "/api/public/feedback",
+  { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ category: "production-smoke", content: "自动验收：用户反馈链路可写入。" }) },
+  200,
+  (payload) => payload?.data?.submitted === true
+));
+checks.push(await assertJson(
   "/api/public/voice/transcribe",
   { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ text: "测试语音文本" }) },
   200,
@@ -85,6 +91,12 @@ checks.push(await assertJson(
 checks.push(await assertJson(
   "/api/public/admin/diagnostics",
   undefined,
+  401,
+  (payload) => payload?.error?.code === "not_authenticated"
+));
+checks.push(await assertJson(
+  "/api/public/admin/password",
+  { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ currentPassword: "x", newPassword: "1234567890" }) },
   401,
   (payload) => payload?.error?.code === "not_authenticated"
 ));
@@ -111,6 +123,18 @@ if (process.env.XIABI_VERIFY_ADMIN_USERNAME && process.env.XIABI_VERIFY_ADMIN_PA
     { headers: { cookie: adminCookie } },
     200,
     (payload) => Array.isArray(payload?.data?.groups) && payload.data.groups.length >= 5 && !JSON.stringify(payload).includes(process.env.XIABI_VERIFY_ADMIN_PASSWORD)
+  ));
+  checks.push(await assertJson(
+    "/api/public/admin/feedback",
+    { headers: { cookie: adminCookie } },
+    200,
+    (payload) => Array.isArray(payload?.data?.feedback) && !JSON.stringify(payload).includes(process.env.XIABI_VERIFY_ADMIN_PASSWORD)
+  ));
+  checks.push(await assertJson(
+    "/api/public/admin/orders?status=pending",
+    { headers: { cookie: adminCookie } },
+    200,
+    (payload) => Array.isArray(payload?.data?.orders)
   ));
 }
 

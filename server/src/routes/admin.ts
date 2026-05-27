@@ -25,6 +25,11 @@ type AdminPasswordBody = {
   newPassword?: string;
 };
 
+type FeedbackStatusBody = {
+  status?: string;
+  note?: string;
+};
+
 type AdminConfigBody = {
   home?: unknown;
   homeConfig?: unknown;
@@ -373,7 +378,7 @@ function sanitizeConfigScope(scope: ConfigScope, value: unknown) {
   return asRecord(value);
 }
 
-async function logAdmin(adminId: string, action: string, targetType?: string, detail?: unknown) {
+async function logAdmin(adminId: string, action: string, targetType?: string, detail?: unknown, targetId?: string) {
   await db.insert(auditLogs).values({
     id: crypto.randomUUID(),
     tenantId: TENANT_ID,
@@ -381,6 +386,7 @@ async function logAdmin(adminId: string, action: string, targetType?: string, de
     actorType: "admin",
     action,
     targetType,
+    targetId,
     detailJson: detail ? JSON.stringify(detail) : null
   });
 }
@@ -472,6 +478,31 @@ function publicAdmin(admin: typeof adminUsers.$inferSelect) {
     displayName: admin.displayName,
     role: admin.role
   };
+}
+
+function buildFeedbackRows(rows: Array<typeof auditLogs.$inferSelect>) {
+  const actionsByTarget = new Map<string, typeof auditLogs.$inferSelect[]>();
+  rows.filter((row) => row.action.startsWith("feedback.") && row.action !== "feedback.submit").forEach((row) => {
+    const targetId = row.targetId || "";
+    if (!targetId) return;
+    actionsByTarget.set(targetId, [...(actionsByTarget.get(targetId) || []), row]);
+  });
+  return rows
+    .filter((row) => row.action === "feedback.submit")
+    .map((row) => {
+      const events = actionsByTarget.get(row.id) || actionsByTarget.get(row.targetId || "") || [];
+      const latest = events.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+      const latestDetail = parseJson(latest?.detailJson, {}) as Record<string, unknown>;
+      return {
+        ...row,
+        targetId: row.targetId || row.id,
+        detail: parseJson(row.detailJson, {}),
+        feedbackStatus: latest?.action === "feedback.reopen" ? "open" : latest?.action === "feedback.resolve" ? "resolved" : "open",
+        handledAt: latest?.createdAt || null,
+        handledBy: latest?.actorId || null,
+        handlerNote: latestDetail.note || ""
+      };
+    });
 }
 
 function selectTemplateMeta(templates: unknown) {
@@ -960,8 +991,47 @@ export const adminRoutes = new Hono()
       .from(auditLogs)
       .where(and(eq(auditLogs.tenantId, TENANT_ID), eq(auditLogs.targetType, "feedback")))
       .orderBy(desc(auditLogs.createdAt))
-      .limit(listLimit(c));
-    return ok(c, { feedback: rows.map((row) => ({ ...row, detail: parseJson(row.detailJson, {}) })) });
+      .limit(Math.max(listLimit(c), 200));
+    return ok(c, { feedback: buildFeedbackRows(rows).slice(0, listLimit(c)) });
+  })
+  .get("/feedback/:id", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const id = c.req.param("id");
+    const rows = await db
+      .select()
+      .from(auditLogs)
+      .where(and(eq(auditLogs.tenantId, TENANT_ID), eq(auditLogs.targetType, "feedback")))
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(500);
+    const feedback = buildFeedbackRows(rows).find((row) => row.id === id || row.targetId === id);
+    if (!feedback) return fail(c, "feedback_not_found", "没有找到这条反馈。", 404);
+    const events = rows
+      .filter((row) => row.id === feedback.id || row.targetId === feedback.id || row.targetId === feedback.targetId)
+      .map((row) => ({ ...row, detail: parseJson(row.detailJson, {}) }));
+    return ok(c, { feedback, events });
+  })
+  .post("/feedback/:id/status", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const id = c.req.param("id");
+    const body = await readJson<FeedbackStatusBody>(c);
+    const nextStatus = String(body.status || "").trim();
+    if (!["resolved", "open"].includes(nextStatus)) return fail(c, "invalid_feedback_status", "反馈状态不正确。", 400);
+    const [feedback] = await db
+      .select()
+      .from(auditLogs)
+      .where(and(eq(auditLogs.tenantId, TENANT_ID), eq(auditLogs.id, id), eq(auditLogs.targetType, "feedback"), eq(auditLogs.action, "feedback.submit")))
+      .limit(1);
+    if (!feedback) return fail(c, "feedback_not_found", "没有找到这条反馈。", 404);
+    await logAdmin(admin!.id, nextStatus === "resolved" ? "feedback.resolve" : "feedback.reopen", "feedback", {
+      feedbackId: id,
+      note: String(body.note || "").trim().slice(0, 500)
+    }, id);
+    await db.update(auditLogs).set({ targetId: id }).where(eq(auditLogs.id, feedback.id));
+    return ok(c, { updated: true, feedbackId: id, status: nextStatus });
   })
   .get("/audit-logs", async (c) => {
     const admin = await requireAdmin(c);
