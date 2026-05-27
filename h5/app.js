@@ -143,8 +143,6 @@ const state = {
   generationStep: 0,
   selectedPlan: "annual",
   letter: storedState.letter,
-  mockOrders: storedState.mockOrders,
-  mockLedger: storedState.mockLedger,
   remoteLetters: [],
   remoteOrders: [],
   entitlements: [],
@@ -187,36 +185,6 @@ function continueWechatPayment(result) {
   const separator = h5Url.includes("?") ? "&" : "?";
   window.location.href = `${h5Url}${separator}redirect_url=${encodeURIComponent(redirectUrl)}`;
   return true;
-}
-
-function addMockPayment(plan, source) {
-  if (!paymentOpen()) return null;
-  if (plan === "annual" && hasAnnualEntitlement()) return null;
-  const annual = plan === "annual";
-  const amount = annual ? commerceConfig.annual : commerceConfig.single;
-  const order = {
-    id: createId("O"),
-    plan,
-    source,
-    title: annual ? "年卡会员" : "单封解锁",
-    amount,
-    mode: commerceConfig.payment_mode || "mock",
-    status: "已支付",
-    time: "刚刚"
-  };
-  const ledger = {
-    id: createId("E"),
-    type: annual ? "annual" : "single",
-    title: annual ? "年卡权益" : "单封解锁权益",
-    sourceOrderId: order.id,
-    status: "active",
-    time: "刚刚"
-  };
-  state.mockOrders = [order, ...state.mockOrders].slice(0, 20);
-  state.mockLedger = [ledger, ...state.mockLedger].slice(0, 20);
-  if (annual) state.annualActive = true;
-  persist();
-  return order;
 }
 
 function go(route) {
@@ -797,7 +765,7 @@ function renderProfile() {
       <div class="medal">${uiIcon("check")}</div>
       <div>
         <div class="benefit-title">${annualActive ? "年卡权益生效中" : savedCount ? "已有销售信保存" : "还没有保存销售信"}</div>
-        <div class="benefit-desc">${annualActive ? "本机体验已写入订单流水和权益流水，后续真实支付会由服务端发放权益。" : savedCount ? "你可以继续导出、查看记录，或开通年卡继续完善。" : "开始一次通话后，智多星会把写好的销售信保存在这里。"}</div>
+        <div class="benefit-desc">${annualActive ? "年卡权益已写入订单流水和权益流水，可继续使用对应权益。" : savedCount ? "你可以继续导出、查看记录，或开通年卡继续完善。" : "开始一次通话后，智多星会把写好的销售信保存在这里。"}</div>
       </div>
     </div>
     <div class="menu-card card">
@@ -912,7 +880,7 @@ function renderSettings() {
     </div>
     <div class="settings-card card">
       <button class="settings-action" data-go="feedback">${uiIcon("help")}帮助与反馈<span>${uiIcon("arrow", "tiny-arrow")}</span></button>
-      <button class="settings-action" data-action="clear-mock">${uiIcon("refresh")}清除本机体验数据<span>${uiIcon("arrow", "tiny-arrow")}</span></button>
+      <button class="settings-action" data-action="clear-local-cache">${uiIcon("refresh")}清除本机缓存<span>${uiIcon("arrow", "tiny-arrow")}</span></button>
       <button class="settings-action danger" data-action="logout">${uiIcon("user")}退出当前登录<span>${uiIcon("arrow", "tiny-arrow")}</span></button>
     </div>
   `, { tab: "profile" });
@@ -1327,7 +1295,7 @@ document.addEventListener("click", async (event) => {
       state.feedbackText = error.message || state.feedbackText;
       render();
     }
-  } else if (action === "clear-mock") {
+  } else if (action === "clear-local-cache") {
     window.XiabiMockStore.clearAppState();
     state.authed = false;
     state.guest = false;
@@ -1336,8 +1304,6 @@ document.addEventListener("click", async (event) => {
     state.phoneBound = false;
     state.annualActive = false;
     state.letter = null;
-    state.mockOrders = [];
-    state.mockLedger = [];
     go("auth");
   } else if (action === "logout") {
     window.XiabiMockStore.logout();

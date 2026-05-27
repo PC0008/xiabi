@@ -7,9 +7,7 @@
     pendingLetter: "h5PendingLetter",
     phoneBound: "h5PhoneBound",
     annualActive: "h5AnnualActive",
-    letter: "h5Letter",
-    orders: "h5MockOrders",
-    ledger: "h5MockLedger"
+    letter: "h5Letter"
   };
   const adminAuthKey = "xiabiAdminAuthed";
   const apiBase = window.XIABI_API_BASE || "/api/public";
@@ -234,9 +232,7 @@
       pendingLetter: readFlag(keys.pendingLetter),
       phoneBound: readFlag(keys.phoneBound),
       annualActive: readFlag(keys.annualActive),
-      letter: readJson(keys.letter, null),
-      mockOrders: readJson(keys.orders, []),
-      mockLedger: readJson(keys.ledger, [])
+      letter: readJson(keys.letter, null)
     };
   }
 
@@ -247,8 +243,6 @@
     writeFlag(keys.annualActive, !!state.annualActive);
     if (state.letter) writeJson(keys.letter, state.letter);
     else localStorage.removeItem(keys.letter);
-    writeJson(keys.orders, state.mockOrders || []);
-    writeJson(keys.ledger, state.mockLedger || []);
   }
 
   function setAuthed(value) {
@@ -276,9 +270,7 @@
       keys.pendingLetter,
       keys.phoneBound,
       keys.annualActive,
-      keys.letter,
-      keys.orders,
-      keys.ledger
+      keys.letter
     ].forEach((key) => localStorage.removeItem(key));
   }
 

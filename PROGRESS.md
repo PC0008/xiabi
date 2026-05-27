@@ -36,6 +36,7 @@
 - 后台配置保存失败不再静默兜底；后台模板可编辑、可新增、可保存，并会进入服务端写信规则。
 - 后台用户、信件、订单、权益、日志、任务列表已改为优先读取真实 API 数据。
 - 用户端订单页、权益判断不再依赖本地伪造支付流水。
+- 用户端运行态已移除本地伪订单/伪权益写入逻辑；设置页只保留清除本机缓存。
 - 导出、反馈接口已建立：反馈写入审计日志，导出当前为服务端生成文本文件并返回下载地址。
 - 已更新 `.env.example`，补充 `WECHAT_PAY_PLATFORM_PUBLIC_KEY`。
 
@@ -43,6 +44,9 @@
 
 - `npm run typecheck` 通过。
 - `npm run build` 通过，输出 `web/dist`。
+- `npm run deploy:dry` 通过。
+- `npm run deploy` 通过。
+- `npm run verify:live` 通过，线上入口、配置接口和截图验收正常。
 - 本地 Edgespark：`http://localhost:7776` 已启动。
 - 本地 API 验证：
   - `POST /api/public/session/guest` 成功。
