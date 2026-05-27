@@ -70,6 +70,18 @@ checks.push(await assertJson(
   403,
   (payload) => ["payment_disabled", "missing_letter"].includes(payload?.error?.code)
 ));
+checks.push(await assertJson(
+  "/api/public/voice/transcribe",
+  { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ text: "测试语音文本" }) },
+  200,
+  (payload) => payload?.data?.transcript === "测试语音文本"
+));
+checks.push(await assertJson(
+  "/api/public/voice/transcribe",
+  { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ audioBase64: "UklGRg==", mimeType: "audio/wav" }) },
+  200,
+  (payload) => payload?.data?.configured === false || typeof payload?.data?.transcript === "string"
+));
 
 const screenshots = [
   await screenshot(`${baseUrl}/index.html`, path.join(assetsDir, "verify-home-mobile.png"), "390,844"),

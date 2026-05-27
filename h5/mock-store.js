@@ -220,6 +220,14 @@
     });
   }
 
+  async function transcribeVoice(input) {
+    await ensureGuestSession();
+    return apiFetch("/voice/transcribe", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  }
+
   async function exportLetter(letterId) {
     return apiFetch(`/exports/letters/${letterId}`, { method: "POST" });
   }
@@ -317,6 +325,7 @@
     sendSmsCode,
     bindPhone,
     speak,
+    transcribeVoice,
     exportLetter,
     submitFeedback,
     adminFetch,

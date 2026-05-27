@@ -4,6 +4,8 @@ export type VoiceTurnInput = {
   sessionId: string;
   text?: string;
   audioObjectKey?: string;
+  audioBase64?: string;
+  mimeType?: string;
 };
 
 type MiniMaxT2AResponse = {
@@ -17,6 +19,34 @@ type MiniMaxT2AResponse = {
     status_msg?: string;
   };
 };
+
+type AsrResponse = {
+  transcript?: string;
+  text?: string;
+  data?: {
+    transcript?: string;
+    text?: string;
+  };
+  result?: {
+    transcript?: string;
+    text?: string;
+  };
+  message?: string;
+  error?: {
+    message?: string;
+  };
+};
+
+function pickTranscript(payload: AsrResponse) {
+  return [
+    payload.transcript,
+    payload.text,
+    payload.data?.transcript,
+    payload.data?.text,
+    payload.result?.transcript,
+    payload.result?.text
+  ].map((item) => String(item || "").trim()).find(Boolean) || "";
+}
 
 export async function speakWithMiniMax(text: string) {
   const apiKey = secret.get("VOICE_API_KEY");
@@ -66,14 +96,71 @@ export async function speakWithMiniMax(text: string) {
 export async function processVoiceTurn(input: VoiceTurnInput) {
   const provider = vars.get("VOICE_PROVIDER") || "minimax";
   const voiceId = vars.get("MINIMAX_VOICE_ID");
+  const text = String(input.text || "").trim();
+  if (text) {
+    return {
+      provider,
+      configured: true,
+      voiceId,
+      sessionId: input.sessionId,
+      transcript: text,
+      message: "已接收文本输入。"
+    };
+  }
+
+  const audioBase64 = String(input.audioBase64 || "").trim();
+  if (!audioBase64) {
+    return {
+      provider,
+      configured: false,
+      voiceId,
+      sessionId: input.sessionId,
+      transcript: "",
+      message: "没有收到可转写的语音内容。"
+    };
+  }
+
+  const asrEndpoint = vars.get("VOICE_ASR_ENDPOINT" as any);
+  const apiKey = secret.get("VOICE_ASR_API_KEY" as any) || secret.get("VOICE_API_KEY");
+  const asrProvider = vars.get("VOICE_ASR_PROVIDER" as any) || provider;
+  if (!asrEndpoint || !apiKey) {
+    return {
+      provider: asrProvider,
+      configured: false,
+      voiceId,
+      sessionId: input.sessionId,
+      transcript: "",
+      message: "语音转文字服务还没有完成配置，请先切换打字模式。"
+    };
+  }
+
+  const model = vars.get("VOICE_ASR_MODEL" as any) || "";
+  const response = await fetch(asrEndpoint, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: model || undefined,
+      audio: audioBase64,
+      audio_base64: audioBase64,
+      mime_type: input.mimeType || "audio/webm",
+      language: "zh"
+    })
+  });
+  const payload = await response.json().catch(() => ({})) as AsrResponse;
+  if (!response.ok) {
+    throw new Error(payload.error?.message || payload.message || `Voice transcription failed: ${response.status}`);
+  }
+  const transcript = pickTranscript(payload);
+  if (!transcript) throw new Error("语音转文字服务没有返回识别内容。");
   return {
-    provider,
-    configured: false,
+    provider: asrProvider,
+    configured: true,
     voiceId,
     sessionId: input.sessionId,
-    transcript: input.text || "",
-    message: input.audioObjectKey
-      ? "MiniMax 官方语音输入接口尚未确认，当前仅保存语音输入接入边界。"
-      : "已接收文本输入。"
+    transcript,
+    message: "语音转文字完成。"
   };
 }

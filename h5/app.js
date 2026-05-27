@@ -161,6 +161,9 @@ let speechRecognition = null;
 let activeSpeechText = "";
 let suppressVoiceClick = false;
 let assistantAudio = null;
+let voiceRecorder = null;
+let voiceStream = null;
+let voiceChunks = [];
 
 function persist() {
   window.XiabiMockStore.persistAppState(state);
@@ -276,6 +279,19 @@ async function playAssistantVoice(text) {
 
 function speechSupported() {
   return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+function recordingSupported() {
+  return !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("录音读取失败。"));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function titleLines() {
@@ -474,7 +490,7 @@ function renderCall() {
 }
 
 function renderMicSheet() {
-  const unsupported = !speechSupported();
+  const unsupported = !speechSupported() && !recordingSupported();
   return `
     <div class="sheet-mask" data-action="close-sheet"></div>
     <div class="bottom-sheet">
@@ -483,7 +499,7 @@ function renderMicSheet() {
         <div class="sheet-icon">麦</div>
         <div>
           <div class="sheet-title">麦克风权限没有开启</div>
-          <div class="sheet-desc">${state.voiceError || (unsupported ? "当前浏览器不支持直接语音转文字，请先改用打字模式。" : "开启后才能按住说话。你也可以先切换打字模式。")}</div>
+          <div class="sheet-desc">${state.voiceError || (unsupported ? "当前浏览器不支持按住说话，请先改用打字模式。" : "开启后才能按住说话。你也可以先切换打字模式。")}</div>
         </div>
       </div>
       <div class="sheet-note">系统弹窗拒绝后，需要到设置里重新开启。</div>
@@ -1009,9 +1025,7 @@ function startVoiceInput() {
   activeSpeechText = "";
   const recognition = getSpeechRecognition();
   if (!recognition) {
-    state.showMicSheet = true;
-    state.voiceError = "当前浏览器不支持语音转文字，请先切换打字模式。";
-    render();
+    startRecordedVoiceInput();
     return;
   }
   speechRecognition = recognition;
@@ -1058,11 +1072,82 @@ function startVoiceInput() {
 }
 
 function stopVoiceInput() {
+  if (voiceRecorder && voiceRecorder.state !== "inactive") {
+    try {
+      voiceRecorder.stop();
+    } catch (error) {
+      state.holding = false;
+      state.voiceError = "录音发送失败，请再试一次或切换打字模式。";
+      render();
+    }
+    return;
+  }
   if (!speechRecognition) return;
   try {
     speechRecognition.stop();
   } catch (error) {
     state.holding = false;
+    render();
+  }
+}
+
+async function startRecordedVoiceInput() {
+  if (!recordingSupported()) {
+    state.showMicSheet = true;
+    state.voiceError = "当前浏览器不支持按住录音，请先切换打字模式。";
+    render();
+    return;
+  }
+  try {
+    voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    voiceChunks = [];
+    voiceRecorder = new MediaRecorder(voiceStream);
+    voiceRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size) voiceChunks.push(event.data);
+    };
+    voiceRecorder.onerror = () => {
+      state.holding = false;
+      state.voiceError = "录音失败，请检查麦克风权限。";
+      voiceStream?.getTracks().forEach((track) => track.stop());
+      voiceStream = null;
+      render();
+    };
+    voiceRecorder.onstop = async () => {
+      state.holding = false;
+      voiceStream?.getTracks().forEach((track) => track.stop());
+      voiceStream = null;
+      const blob = new Blob(voiceChunks, { type: voiceRecorder?.mimeType || "audio/webm" });
+      voiceChunks = [];
+      if (!blob.size) {
+        state.voiceError = "没有录到声音，可以再按住说一遍。";
+        render();
+        return;
+      }
+      state.voiceTranscript = "正在识别语音...";
+      render();
+      try {
+        const dataUrl = await blobToDataUrl(blob);
+        const audioBase64 = dataUrl.split(",")[1] || "";
+        const result = await window.XiabiMockStore.transcribeVoice({ audioBase64, mimeType: blob.type || "audio/webm" });
+        if (!result.configured || !result.transcript) {
+          throw new Error(result.message || "语音转文字服务还没有完成配置，请先切换打字模式。");
+        }
+        state.voiceTranscript = "";
+        addAnswer(result.transcript);
+      } catch (error) {
+        state.voiceTranscript = "";
+        state.voiceError = error.message || "语音识别失败，请再试一次或切换打字模式。";
+        render();
+      }
+    };
+    state.holding = true;
+    state.voiceTranscript = "正在录音，松开发送";
+    render();
+    voiceRecorder.start();
+  } catch (error) {
+    state.holding = false;
+    state.showMicSheet = true;
+    state.voiceError = "没有麦克风权限，请允许后再试，或切换打字模式。";
     render();
   }
 }

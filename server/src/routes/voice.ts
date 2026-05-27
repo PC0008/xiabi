@@ -12,6 +12,8 @@ type SpeakBody = {
 type TranscribeBody = {
   text?: string;
   audioObjectKey?: string;
+  audioBase64?: string;
+  mimeType?: string;
 };
 
 export const voiceRoutes = new Hono()
@@ -30,6 +32,8 @@ export const voiceRoutes = new Hono()
     return ok(c, await processVoiceTurn({
       sessionId,
       text: body.text ? String(body.text) : "",
-      audioObjectKey: body.audioObjectKey ? String(body.audioObjectKey) : undefined
+      audioObjectKey: body.audioObjectKey ? String(body.audioObjectKey) : undefined,
+      audioBase64: body.audioBase64 ? String(body.audioBase64) : undefined,
+      mimeType: body.mimeType ? String(body.mimeType) : undefined
     }));
   });
