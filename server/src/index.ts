@@ -11,6 +11,7 @@ import { smsRoutes } from "./routes/sms";
 import { taskRoutes } from "./routes/tasks";
 import { userRoutes } from "./routes/users";
 import { voiceRoutes } from "./routes/voice";
+import { wechatRoutes } from "./routes/wechat";
 import { webhookRoutes } from "./routes/webhooks";
 
 const app = new Hono();
@@ -21,6 +22,7 @@ app.route("/api/public/session", sessionRoutes);
 app.route("/api/public/sms", smsRoutes);
 app.route("/api/public/users", userRoutes);
 app.route("/api/public/voice", voiceRoutes);
+app.route("/api/public/wechat", wechatRoutes);
 app.route("/api/public/tasks", taskRoutes);
 app.route("/api/public/letters", letterRoutes);
 app.route("/api/public/orders", orderRoutes);

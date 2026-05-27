@@ -3,17 +3,44 @@ import { and, desc, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { orders, salesLetters } from "@defs";
-import { createWechatPayment, getWechatPaymentReadiness } from "../adapters/payment/wechat";
+import { buildWechatOAuthUrl, createWechatJsapiPayment, createWechatPayment, getWechatPaymentReadiness } from "../adapters/payment/wechat";
 import { getConfigScope } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, readJson } from "../domain/http";
 
 const SESSION_COOKIE = "xiabi_session";
+const WECHAT_OPENID_COOKIE = "xiabi_wechat_openid";
 
 type CreateOrderBody = {
   productType?: "single" | "annual";
   letterId?: string;
 };
+
+function isWeChatBrowser(c: any) {
+  return /micromessenger/i.test(c.req.header("user-agent") || "");
+}
+
+function getReturnUrl(c: any) {
+  const referer = c.req.header("referer") || "";
+  try {
+    const url = new URL(referer);
+    return `${url.pathname}${url.search}${url.hash}` || "/index.html#orders";
+  } catch {
+    return "/index.html#orders";
+  }
+}
+
+function wechatAuthResponse(c: any) {
+  return ok(c, {
+    requiresWechatAuth: true,
+    payment: {
+      provider: "wechat_jsapi",
+      configured: false,
+      message: "请先完成微信授权后再继续支付。"
+    },
+    oauthUrl: buildWechatOAuthUrl(getReturnUrl(c))
+  });
+}
 
 export const orderRoutes = new Hono()
   .get("/", async (c) => {
@@ -52,6 +79,9 @@ export const orderRoutes = new Hono()
     if (!readiness.configured) {
       return fail(c, "wechat_pay_not_configured", readiness.message, 503);
     }
+    const openid = getCookie(c, WECHAT_OPENID_COOKIE);
+    const useJsapi = isWeChatBrowser(c);
+    if (useJsapi && !openid) return wechatAuthResponse(c);
     const orderId = crypto.randomUUID();
     const providerOrderNo = `xiabi_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
     await db.insert(orders).values({
@@ -68,14 +98,25 @@ export const orderRoutes = new Hono()
     });
     let payment;
     try {
-      payment = await createWechatPayment({
-        orderId,
-        providerOrderNo,
-        title,
-        amountCents: Math.round(amount * 100),
-        notifyUrl: vars.get("PAYMENT_NOTIFY_URL") || `${vars.get("PUBLIC_BASE_URL") || ""}/api/webhooks/wechat-pay`,
-        clientIp: c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
-      });
+      if (useJsapi && openid) {
+        payment = await createWechatJsapiPayment({
+          orderId,
+          providerOrderNo,
+          title,
+          amountCents: Math.round(amount * 100),
+          notifyUrl: vars.get("PAYMENT_NOTIFY_URL") || `${vars.get("PUBLIC_BASE_URL") || ""}/api/webhooks/wechat-pay`,
+          openid
+        });
+      } else {
+        payment = await createWechatPayment({
+          orderId,
+          providerOrderNo,
+          title,
+          amountCents: Math.round(amount * 100),
+          notifyUrl: vars.get("PAYMENT_NOTIFY_URL") || `${vars.get("PUBLIC_BASE_URL") || ""}/api/webhooks/wechat-pay`,
+          clientIp: c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
+        });
+      }
     } catch (error) {
       await db.update(orders).set({ status: "payment_failed", updatedAt: new Date().toISOString() }).where(eq(orders.id, orderId));
       return fail(c, "payment_create_failed", error instanceof Error ? error.message : "微信支付拉起失败。", 502);
@@ -116,16 +157,30 @@ export const orderRoutes = new Hono()
     if (!order.providerOrderNo) return fail(c, "missing_provider_order_no", "订单缺少商户订单号。", 400);
     const readiness = getWechatPaymentReadiness();
     if (!readiness.configured) return fail(c, "wechat_pay_not_configured", readiness.message, 503);
+    const openid = getCookie(c, WECHAT_OPENID_COOKIE);
+    const useJsapi = isWeChatBrowser(c);
+    if (useJsapi && !openid) return wechatAuthResponse(c);
     let payment;
     try {
-      payment = await createWechatPayment({
-        orderId: order.id,
-        providerOrderNo: order.providerOrderNo,
-        title: order.title,
-        amountCents: order.amountCents,
-        notifyUrl: vars.get("PAYMENT_NOTIFY_URL") || `${vars.get("PUBLIC_BASE_URL") || ""}/api/webhooks/wechat-pay`,
-        clientIp: c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
-      });
+      if (useJsapi && openid) {
+        payment = await createWechatJsapiPayment({
+          orderId: order.id,
+          providerOrderNo: order.providerOrderNo,
+          title: order.title,
+          amountCents: order.amountCents,
+          notifyUrl: vars.get("PAYMENT_NOTIFY_URL") || `${vars.get("PUBLIC_BASE_URL") || ""}/api/webhooks/wechat-pay`,
+          openid
+        });
+      } else {
+        payment = await createWechatPayment({
+          orderId: order.id,
+          providerOrderNo: order.providerOrderNo,
+          title: order.title,
+          amountCents: order.amountCents,
+          notifyUrl: vars.get("PAYMENT_NOTIFY_URL") || `${vars.get("PUBLIC_BASE_URL") || ""}/api/webhooks/wechat-pay`,
+          clientIp: c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
+        });
+      }
     } catch (error) {
       await db.update(orders).set({ status: "payment_failed", updatedAt: new Date().toISOString() }).where(eq(orders.id, order.id));
       return fail(c, "payment_create_failed", error instanceof Error ? error.message : "微信支付拉起失败。", 502);

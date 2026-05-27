@@ -30,6 +30,7 @@
 - 订单创建现在只认后台价格配置，前端不能传金额决定权益。
 - 服务端订单创建会尊重后台 `payment_enabled`、`annual_enabled`、`single_enabled` 开关。
 - 微信 H5 支付已接入下单位：`/v3/pay/transactions/h5`；用户端拿到 `h5_url` 后会跳转微信支付。
+- 微信内浏览器已补 JSAPI/openid 接入位：无 openid 时返回公众号 OAuth 地址，授权回调写入 httpOnly openid cookie；有 openid 时走 `/v3/pay/transactions/jsapi` 并返回 `WeixinJSBridge` 支付参数。
 - 微信支付回调已做签名验签、AES-GCM 解密、订单置 paid、权益流水发放、重复回调幂等；失败回调允许同事件再次重试处理。
 - 管理后台订单列表已增加“查单”补偿入口，可通过微信商户订单号主动查询支付状态；查到支付成功后会置 paid 并幂等发放权益。
 - 短信已接入阿里云发送位，验证码写入 `sms_codes`，绑定手机号会校验验证码并写入 masked/hash。

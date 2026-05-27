@@ -195,6 +195,38 @@ function paymentOpen() {
 }
 
 function continueWechatPayment(result) {
+  if (result?.requiresWechatAuth && result.oauthUrl) {
+    state.paymentNotice = "正在打开微信授权，完成后请继续支付。";
+    persist();
+    window.location.href = result.oauthUrl;
+    return true;
+  }
+  const jsapi = result?.payment?.jsapi;
+  if (jsapi) {
+    state.paymentNotice = "正在拉起微信支付。支付完成后回到订单页查看结果。";
+    persist();
+    const invokePay = () => {
+      if (!window.WeixinJSBridge) {
+        state.paymentNotice = "微信支付环境还没有准备好，请稍后在订单页继续支付。";
+        render();
+        return;
+      }
+      window.WeixinJSBridge.invoke("getBrandWCPayRequest", {
+        appId: jsapi.appId,
+        timeStamp: jsapi.timeStamp,
+        nonceStr: jsapi.nonceStr,
+        package: jsapi.package,
+        signType: jsapi.signType,
+        paySign: jsapi.paySign
+      }, () => {
+        go("orders");
+        refreshOrders();
+      });
+    };
+    if (window.WeixinJSBridge) invokePay();
+    else document.addEventListener("WeixinJSBridgeReady", invokePay, { once: true });
+    return true;
+  }
   const h5Url = result?.payment?.h5Url;
   if (!h5Url) return false;
   state.paymentNotice = "订单已创建，正在打开微信支付。支付完成后回到订单页查看结果。";

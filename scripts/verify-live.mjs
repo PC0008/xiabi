@@ -88,6 +88,12 @@ checks.push(await assertJson(
   401,
   (payload) => payload?.error?.code === "not_authenticated"
 ));
+checks.push(await assertJson(
+  "/api/public/wechat/oauth/start",
+  undefined,
+  401,
+  (payload) => payload?.error?.code === "missing_session"
+));
 
 if (process.env.XIABI_VERIFY_ADMIN_USERNAME && process.env.XIABI_VERIFY_ADMIN_PASSWORD) {
   const login = await fetch(`${baseUrl}/api/public/admin/login`, {

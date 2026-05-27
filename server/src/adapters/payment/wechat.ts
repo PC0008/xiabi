@@ -7,6 +7,7 @@ export type CreateWechatPaymentInput = {
   amountCents: number;
   notifyUrl: string;
   clientIp?: string;
+  openid?: string;
 };
 
 export type WechatOrderQueryResult = {
@@ -89,6 +90,36 @@ export function getWechatPaymentReadiness() {
   };
 }
 
+export function getWechatOAuthReadiness() {
+  return {
+    configured: !!vars.get("WECHAT_PAY_APP_ID") && !!secret.get("WECHAT_MP_APP_SECRET" as any),
+    message: "微信公众号授权配置还不完整。"
+  };
+}
+
+export function buildWechatOAuthUrl(returnUrl = "/index.html#orders") {
+  const appId = vars.get("WECHAT_PAY_APP_ID");
+  if (!appId) return "";
+  const baseUrl = (vars.get("PUBLIC_BASE_URL") || "").replace(/\/+$/, "");
+  const redirectUri = `${baseUrl}/api/public/wechat/oauth/callback`;
+  const safeReturnUrl = returnUrl.startsWith("/") && !returnUrl.startsWith("//") ? returnUrl : "/index.html#orders";
+  const state = btoa(unescape(encodeURIComponent(safeReturnUrl))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=snsapi_base&state=${encodeURIComponent(state)}#wechat_redirect`;
+}
+
+export async function exchangeWechatOAuthCode(code: string) {
+  const appId = vars.get("WECHAT_PAY_APP_ID");
+  const appSecret = secret.get("WECHAT_MP_APP_SECRET" as any);
+  if (!appId || !appSecret) return { configured: false, message: "微信公众号授权配置还不完整。" };
+  const url = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${encodeURIComponent(appId)}&secret=${encodeURIComponent(appSecret)}&code=${encodeURIComponent(code)}&grant_type=authorization_code`;
+  const response = await fetch(url);
+  const payload = await response.json().catch(() => ({})) as { openid?: string; errmsg?: string; errcode?: number };
+  if (!response.ok || !payload.openid) {
+    throw new Error(payload.errmsg || `WeChat OAuth failed: ${response.status}`);
+  }
+  return { configured: true, openid: payload.openid };
+}
+
 export async function createWechatPayment(input: CreateWechatPaymentInput) {
   const readiness = getWechatPaymentReadiness();
   if (!readiness.configured) {
@@ -149,6 +180,77 @@ export async function createWechatPayment(input: CreateWechatPaymentInput) {
     providerOrderNo: input.providerOrderNo,
     amountCents: input.amountCents,
     h5Url: payload.h5_url
+  };
+}
+
+export async function createWechatJsapiPayment(input: CreateWechatPaymentInput & { openid: string }) {
+  const readiness = getWechatPaymentReadiness();
+  if (!readiness.configured) {
+    return {
+      provider: "wechat_jsapi",
+      configured: false,
+      orderId: input.orderId,
+      providerOrderNo: input.providerOrderNo,
+      amountCents: input.amountCents,
+      message: readiness.message
+    };
+  }
+  const appId = vars.get("WECHAT_PAY_APP_ID");
+  const authConfig = getMerchantAuthConfig();
+  if (!appId || !authConfig) {
+    return {
+      provider: "wechat_jsapi",
+      configured: false,
+      orderId: input.orderId,
+      providerOrderNo: input.providerOrderNo,
+      amountCents: input.amountCents,
+      message: "微信支付商户号、证书序列号或商户私钥未配置完整。"
+    };
+  }
+  const path = "/v3/pay/transactions/jsapi";
+  const body = JSON.stringify({
+    appid: appId,
+    mchid: authConfig.mchId,
+    description: input.title.slice(0, 127),
+    out_trade_no: input.providerOrderNo,
+    notify_url: input.notifyUrl,
+    amount: { total: input.amountCents, currency: "CNY" },
+    payer: { openid: input.openid }
+  });
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const nonce = crypto.randomUUID().replace(/-/g, "");
+  const signature = await signWithMerchantKey(`POST\n${path}\n${timestamp}\n${nonce}\n${body}\n`);
+  const response = await fetch(`https://api.mch.weixin.qq.com${path}`, {
+    method: "POST",
+    headers: {
+      "Authorization": buildAuthHeader({ mchId: authConfig.mchId, serialNo: authConfig.serialNo, nonce, timestamp, signature }),
+      "Accept": "application/json",
+      "Content-Type": "application/json"
+    },
+    body
+  });
+  const payload = await response.json().catch(() => ({})) as { prepay_id?: string; message?: string; code?: string };
+  if (!response.ok || !payload.prepay_id) {
+    throw new Error(payload.message || payload.code || `WeChat Pay JSAPI request failed: ${response.status}`);
+  }
+  const payTimestamp = String(Math.floor(Date.now() / 1000));
+  const payNonce = crypto.randomUUID().replace(/-/g, "");
+  const packageValue = `prepay_id=${payload.prepay_id}`;
+  const paySign = await signWithMerchantKey(`${appId}\n${payTimestamp}\n${payNonce}\n${packageValue}\n`);
+  return {
+    provider: "wechat_jsapi",
+    configured: true,
+    orderId: input.orderId,
+    providerOrderNo: input.providerOrderNo,
+    amountCents: input.amountCents,
+    jsapi: {
+      appId,
+      timeStamp: payTimestamp,
+      nonceStr: payNonce,
+      package: packageValue,
+      signType: "RSA",
+      paySign
+    }
   };
 }
 

@@ -75,23 +75,24 @@ async function buildDiagnostics() {
         hasVar("WECHAT_PAY_APP_ID"),
         hasVar("WECHAT_PAY_MCH_ID"),
         hasSecret("WECHAT_PAY_PRIVATE_KEY"),
-        hasSecret("WECHAT_PAY_CERT_SERIAL_NO"),
-        hasSecret("WECHAT_PAY_API_V3_KEY"),
-        hasSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY")
-      ], [hasVar("PAYMENT_PROVIDER"), !!publicBaseUrl, !!notifyUrl]),
-      items: [
-        diagnosticItem("PAYMENT_PROVIDER", hasVar("PAYMENT_PROVIDER"), false),
-        diagnosticItem("WECHAT_PAY_APP_ID", hasVar("WECHAT_PAY_APP_ID")),
+          hasSecret("WECHAT_PAY_CERT_SERIAL_NO"),
+          hasSecret("WECHAT_PAY_API_V3_KEY"),
+          hasSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY")
+        ], [hasVar("PAYMENT_PROVIDER"), !!publicBaseUrl, !!notifyUrl, hasSecret("WECHAT_MP_APP_SECRET")]),
+        items: [
+          diagnosticItem("PAYMENT_PROVIDER", hasVar("PAYMENT_PROVIDER"), false),
+          diagnosticItem("WECHAT_PAY_APP_ID", hasVar("WECHAT_PAY_APP_ID")),
         diagnosticItem("WECHAT_PAY_MCH_ID", hasVar("WECHAT_PAY_MCH_ID")),
         diagnosticItem("WECHAT_PAY_PRIVATE_KEY", hasSecret("WECHAT_PAY_PRIVATE_KEY")),
         diagnosticItem("WECHAT_PAY_CERT_SERIAL_NO", hasSecret("WECHAT_PAY_CERT_SERIAL_NO")),
-        diagnosticItem("WECHAT_PAY_API_V3_KEY", hasSecret("WECHAT_PAY_API_V3_KEY")),
-        diagnosticItem("WECHAT_PAY_PLATFORM_PUBLIC_KEY", hasSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY")),
-        diagnosticItem("PUBLIC_BASE_URL", !!publicBaseUrl, false),
-        diagnosticItem("PAYMENT_NOTIFY_URL", !!notifyUrl, false)
-      ],
-      note: "缺少平台公钥会导致正式回调验签失败；微信内支付通常还需要 JSAPI/openid 链路。"
-    },
+          diagnosticItem("WECHAT_PAY_API_V3_KEY", hasSecret("WECHAT_PAY_API_V3_KEY")),
+          diagnosticItem("WECHAT_PAY_PLATFORM_PUBLIC_KEY", hasSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY")),
+          diagnosticItem("WECHAT_MP_APP_SECRET", hasSecret("WECHAT_MP_APP_SECRET"), false),
+          diagnosticItem("PUBLIC_BASE_URL", !!publicBaseUrl, false),
+          diagnosticItem("PAYMENT_NOTIFY_URL", !!notifyUrl, false)
+        ],
+        note: "缺少平台公钥会导致正式回调验签失败；微信内支付会走 JSAPI/openid 授权链路。"
+      },
     {
       key: "sms",
       title: "阿里云短信",
