@@ -33,14 +33,39 @@ type MiniMaxTtsResult = {
 type AsrResponse = {
   transcript?: string;
   text?: string;
+  asr_text?: string;
+  result_text?: string;
+  output_text?: string;
   data?: {
     transcript?: string;
     text?: string;
+    asr_text?: string;
+    result?: {
+      transcript?: string;
+      text?: string;
+      asr_text?: string;
+    };
+    utterances?: Array<{ text?: string; transcript?: string }>;
+    segments?: Array<{ text?: string; transcript?: string }>;
   };
   result?: {
     transcript?: string;
     text?: string;
+    asr_text?: string;
+    segments?: Array<{ text?: string; transcript?: string }>;
   };
+  output?: {
+    transcript?: string;
+    text?: string;
+  };
+  choices?: Array<{
+    text?: string;
+    message?: {
+      content?: string;
+    };
+  }>;
+  utterances?: Array<{ text?: string; transcript?: string }>;
+  segments?: Array<{ text?: string; transcript?: string }>;
   message?: string;
   error?: {
     message?: string;
@@ -50,14 +75,32 @@ type AsrResponse = {
 type AsrRequestFormat = "json" | "openai";
 
 function pickTranscript(payload: AsrResponse) {
-  return [
+  const direct = [
     payload.transcript,
     payload.text,
+    payload.asr_text,
+    payload.result_text,
+    payload.output_text,
     payload.data?.transcript,
     payload.data?.text,
+    payload.data?.asr_text,
+    payload.data?.result?.transcript,
+    payload.data?.result?.text,
+    payload.data?.result?.asr_text,
     payload.result?.transcript,
-    payload.result?.text
+    payload.result?.text,
+    payload.result?.asr_text,
+    payload.output?.transcript,
+    payload.output?.text,
+    payload.choices?.[0]?.text,
+    payload.choices?.[0]?.message?.content
   ].map((item) => String(item || "").trim()).find(Boolean) || "";
+  if (direct) return direct;
+  for (const segments of [payload.segments, payload.utterances, payload.result?.segments, payload.data?.segments, payload.data?.utterances]) {
+    const transcript = segments?.map((item) => String(item.text || item.transcript || "").trim()).filter(Boolean).join("");
+    if (transcript) return transcript;
+  }
+  return "";
 }
 
 function hexToBase64(hex: string) {
@@ -96,7 +139,13 @@ function resolveAsrRequestFormat(endpoint: string): AsrRequestFormat {
 }
 
 async function readAsrPayload(response: Response): Promise<AsrResponse> {
-  const payload = await response.json().catch(() => ({})) as AsrResponse;
+  const text = await response.text();
+  let payload = {} as AsrResponse;
+  try {
+    payload = text ? JSON.parse(text) as AsrResponse : {};
+  } catch {
+    payload = { text: text.trim() };
+  }
   if (!response.ok) {
     throw new Error(payload.error?.message || payload.message || `Voice transcription failed: ${response.status}`);
   }
