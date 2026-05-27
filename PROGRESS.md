@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 线上 store 假口径清理：`h5/store.js` 不再把正式运行时对象暴露成 `window.XiabiMockStore`；`check:ui` 和 `verify:live` 已加入回归检查，确保生产静态资源只暴露 `window.XiabiStore`。
 - 生产验收报告口径补强：`verify:production` 报告新增 `complete`、`overallStatus` 和 `completion.summary`；`ok=true` 只代表本次已执行检查没有失败，`complete=true` 才代表所有生产链路均已验收，避免把“基础通过但仍待外部输入”误判为完整交付。
 - 用户端运行时命名正式化：`h5/app.js` 已移除旧的 `adminMockConfig` / `readAdminMockConfig` 命名，改为 `runtimeConfig` / `readRuntimeConfig`；`check:ui` 已加入回归检查，避免用户端真实运行代码再次残留 mock 命名造成验收和维护误判。
 - 语音转写接入位兼容性补强：MiniMax 官方文档索引目前仍未列出独立 Speech-to-Text/ASR 端点，项目不臆造 MiniMax 转写 URL；服务端通用 ASR 解析已扩展支持纯文本、`asr_text`、`data.result.text`、`segments`、`utterances` 和 OpenAI-compatible `choices` 等常见返回结构，拿到真实 endpoint 后只需配置并跑样本验收。

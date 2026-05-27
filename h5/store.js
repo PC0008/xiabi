@@ -410,5 +410,4 @@
   };
 
   window.XiabiStore = store;
-  window.XiabiMockStore = store;
 }());

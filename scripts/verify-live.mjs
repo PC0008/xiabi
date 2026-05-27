@@ -44,6 +44,8 @@ async function fetchText(pathname) {
 
 async function assertStaticFrontendAssets() {
   const store = await assertHttp("/store.js", (text) => text.includes("window.XiabiStore"));
+  const storeText = (await fetchText("/store.js")).text;
+  if (storeText.includes("XiabiMockStore")) throw new Error("/store.js still exposes XiabiMockStore");
   console.log(`[ok] /store.js returned ${store.status} and exposes window.XiabiStore`);
 
   const pages = [];

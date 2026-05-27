@@ -24,6 +24,7 @@ const forbiddenRuntimeMarkers = [
   "${adminState.adminUser.displayName",
   "adminMockConfig",
   "readAdminMockConfig",
+  "XiabiMockStore",
   "const sampleAnswers",
   "state.answers.push(value ||"
 ];
