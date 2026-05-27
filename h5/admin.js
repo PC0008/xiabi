@@ -428,6 +428,43 @@ function renderJson(value) {
   return `<pre class="json-block">${h(JSON.stringify(value ?? {}, null, 2))}</pre>`;
 }
 
+function formatAuditValue(value) {
+  if (value && typeof value === "object") {
+    if (value.type === "array") {
+      return `数组 ${value.length || 0} 项${value.preview ? `：${JSON.stringify(value.preview).slice(0, 120)}` : ""}`;
+    }
+    if (value.type === "object") {
+      return `对象：${(value.keys || []).join("、") || "-"}`;
+    }
+    return JSON.stringify(value).slice(0, 180);
+  }
+  return String(value ?? "-");
+}
+
+function renderAuditLogDetail(log) {
+  const detail = log.detail || {};
+  const changes = Array.isArray(detail.changes) ? detail.changes : [];
+  return [
+    detailSection("审计事件", [
+      ["事件类型", log.action || "-"],
+      ["操作人", shortId(log.actorId)],
+      ["目标类型", log.targetType || "-"],
+      ["目标ID", shortId(log.targetId)],
+      ["发生时间", formatDate(log.createdAt)],
+      ["变更数量", detail.changedCount ?? changes.length],
+      ["是否截断", detail.truncated ? "是" : "否"]
+    ]),
+    changes.length
+      ? detailMiniTable("变更字段", ["字段", "修改前", "修改后"], changes.map((item) => [
+        item.path || "-",
+        formatAuditValue(item.before),
+        formatAuditValue(item.after)
+      ]))
+      : "",
+    renderJson(detail)
+  ].join("");
+}
+
 function renderDetailDrawer() {
   const detail = adminState.detail;
   if (!detail) return "";
@@ -1107,7 +1144,7 @@ function buildDetailHtml(type, data) {
     ].join("");
   }
   if (type === "audit-logs") {
-    return renderJson(data.log || {});
+    return renderAuditLogDetail(data.log || {});
   }
   return renderJson(data);
 }

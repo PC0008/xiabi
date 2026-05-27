@@ -69,6 +69,11 @@ const requiredMarkers = [
     message: "admin config updates must record field-level audit diffs"
   },
   {
+    file: "h5/admin.js",
+    marker: "renderAuditLogDetail",
+    message: "admin audit log details must render config diffs as readable rows"
+  },
+  {
     file: "server/src/routes/profiles.ts",
     marker: "MAX_PROFILES_PER_OWNER",
     message: "public product profile writes must have count and length limits"
