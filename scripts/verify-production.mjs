@@ -37,8 +37,8 @@ function buildReadinessReport() {
     },
     {
       requirement: "管理后台登录与运营接口",
-      status: readinessStatus(["admin diagnostics", "admin read operations", "admin config propagation"]),
-      evidence: ["admin diagnostics", "admin read operations", "admin config propagation"],
+      status: readinessStatus(["admin diagnostics", "admin read operations", "admin config propagation", "admin config audit diff"]),
+      evidence: ["admin diagnostics", "admin read operations", "admin config propagation", "admin config audit diff"],
       next: "设置 XIABI_VERIFY_ADMIN_USERNAME / XIABI_VERIFY_ADMIN_PASSWORD 后复验。"
     },
     {
@@ -354,6 +354,7 @@ async function verifyAdminDiagnostics() {
   if (!admin) {
     skipOrStrict("admin diagnostics", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD");
     skipOrStrict("admin config propagation", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to verify admin config controls public config");
+    skipOrStrict("admin config audit diff", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to verify config update audit details");
     return;
   }
 
@@ -429,6 +430,16 @@ async function verifyAdminDiagnostics() {
     annualPrice: publicPricing.annual || null,
     singlePrice: publicPricing.single || null,
     guideStageCount: publicGuideStages.length
+  });
+  const auditLogs = await api("/api/public/admin/audit-logs?limit=10&page=1", {}, admin.cookie);
+  const configAudit = (auditLogs.logs || []).find((item) => item.action === "config.update" && Array.isArray(item.detail?.changes));
+  if (!configAudit || typeof configAudit.detail.changedCount !== "number" || typeof configAudit.detail.truncated !== "boolean") {
+    throw new Error("admin config audit log did not include field-level diff metadata");
+  }
+  addCheck("admin config audit diff", "ok", {
+    changedCount: configAudit.detail.changedCount,
+    truncated: configAudit.detail.truncated,
+    scopeCount: (configAudit.detail.scopes || []).length
   });
 }
 
