@@ -55,6 +55,8 @@
 - 生产验收补强：同一轮设置 `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_SMS_PHONE`、`XIABI_VERIFY_SMS_CODE` 时，会在已生成/领取信件的会话内绑定手机号，并验证信件、首次免费权益归属到绑定用户。
 - 生产验收补强：后台配置传播校验不再只看首页文案和旧价格字段，现在会核对单封/年卡价格、支付开关、系统开关和通话阶段配置是否与公开配置一致。
 - 语音输入接入槽补强：服务端 `/api/public/voice/transcribe` 现在同时支持 JSON base64 和 OpenAI-compatible `/audio/transcriptions` multipart 格式，`VOICE_ASR_REQUEST_FORMAT=openai|json` 可显式指定。
+- 语音能力下发补强：公开配置新增 `capabilities.voice` 布尔状态，只暴露 TTS/ASR 是否可用，不暴露密钥；用户端在浏览器语音识别和服务端 ASR 都不可用时会提前降级到打字模式，不再让用户录完才失败。
+- 语音录音体验补强：服务端兼容 `audio/webm;codecs=opus` 等浏览器 MIME，前端修复快速松手竞态，单次录音最多 15 秒自动送识别，并支持未来通过 `VOICE_INPUT_MODE=server` 或 `VOICE_ASR_PROVIDER=minimax` 优先走服务端 ASR。
 - ASR 生产验收补强：`XIABI_VERIFY_ASR_EXPECTED_TEXT` 可验证音频转写结果包含预期关键句，避免只验证“返回了任意文本”。
 - 前端运行时命名正式化：用户端和后台入口从 `mock-store.js` 迁移到 `store.js`，应用调用统一改为 `window.XiabiStore`，旧别名仅保留给浏览器缓存兼容。
 - 运营漏洞修复：旧订单继续支付会重新读取后台支付开关，关闭支付/单封/年卡后不再拉起微信支付。

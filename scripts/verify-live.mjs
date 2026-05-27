@@ -76,7 +76,12 @@ const checks = [
   await assertHttp("/api/public/config", (text) => text.includes("pricing")),
   await assertJson("/api/public/config", undefined, 200, (payload) => {
     const system = payload?.data?.system;
-    return system && ["voice_enabled", "sms_enabled", "file_export_enabled"].every((key) => key in system);
+    const voiceCapabilities = payload?.data?.capabilities?.voice;
+    return system &&
+      ["voice_enabled", "sms_enabled", "file_export_enabled"].every((key) => key in system) &&
+      typeof voiceCapabilities?.ttsConfigured === "boolean" &&
+      typeof voiceCapabilities?.asrConfigured === "boolean" &&
+      typeof voiceCapabilities?.asrPreferred === "boolean";
   }),
   await assertJson("/api/public/tasks/not-a-task", undefined, 401, (payload) => payload?.error?.code === "missing_session")
 ];
@@ -130,6 +135,12 @@ checks.push(await assertJson(
 checks.push(await assertJson(
   "/api/public/voice/transcribe",
   { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ audioBase64: "UklGRg==", mimeType: "audio/wav" }) },
+  200,
+  (payload) => payload?.data?.configured === false || typeof payload?.data?.transcript === "string"
+));
+checks.push(await assertJson(
+  "/api/public/voice/transcribe",
+  { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ audioBase64: "UklGRg==", mimeType: "audio/webm;codecs=opus" }) },
   200,
   (payload) => payload?.data?.configured === false || typeof payload?.data?.transcript === "string"
 ));

@@ -38,6 +38,12 @@ let appSystem = Object.assign({
   voice_enabled: true,
   file_export_enabled: true
 }, adminMockConfig.system || {});
+let runtimeCapabilities = Object.assign({
+  voice: {
+    ttsConfigured: false,
+    asrConfigured: false
+  }
+}, adminMockConfig.capabilities || {});
 
 function readAdminMockConfig() {
   return window.XiabiStore.getAdminConfig();
@@ -48,6 +54,7 @@ function applyAdminConfig(config) {
   commerceConfig = Object.assign({}, commerceConfig, adminMockConfig.pricing || {});
   homePage = Object.assign({}, homePage, adminMockConfig.homeConfig || {});
   appSystem = Object.assign({}, appSystem, adminMockConfig.system || {});
+  runtimeCapabilities = Object.assign({}, runtimeCapabilities, adminMockConfig.capabilities || {});
   questions = buildQuestionsFromConfig(adminMockConfig.guideStages);
 }
 
@@ -200,6 +207,9 @@ let assistantPromptKey = "";
 let voiceRecorder = null;
 let voiceStream = null;
 let voiceChunks = [];
+let voiceRecordingRequested = false;
+let voiceRecordingTimer = null;
+const MAX_RECORDING_MS = 15000;
 
 function persist() {
   window.XiabiStore.persistAppState(state);
@@ -439,6 +449,30 @@ function recordingSupported() {
   return !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
 }
 
+function serverAsrConfigured() {
+  return runtimeCapabilities.voice?.asrConfigured === true;
+}
+
+function serverAsrPreferred() {
+  return runtimeCapabilities.voice?.asrPreferred === true;
+}
+
+function voiceInputAvailable() {
+  if (!voiceEnabled()) return false;
+  if (speechSupported()) return true;
+  return recordingSupported() && serverAsrConfigured();
+}
+
+function shouldUseServerAsrFirst() {
+  return recordingSupported() && serverAsrConfigured() && serverAsrPreferred();
+}
+
+function voiceUnavailableMessage() {
+  if (!voiceEnabled()) return "语音服务暂未开启，请先使用打字模式。";
+  if (!recordingSupported() && !speechSupported()) return "当前浏览器不支持按住说话，请先改用打字模式。";
+  return "语音转文字服务还没有完成配置，请先使用打字模式。";
+}
+
 function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -603,7 +637,7 @@ function renderHome() {
 function renderCall() {
   const q = currentQuestion();
   const enough = canConfirmAnswers();
-  const canUseVoice = voiceEnabled();
+  const canUseVoice = voiceInputAvailable();
   const activeInputMode = canUseVoice ? state.inputMode : "text";
   return shell(`
     <div class="call-top">
@@ -634,7 +668,7 @@ function renderCall() {
     </div>
     ${(state.voiceTranscript || state.voiceError) ? `
       <div class="speech-live ${state.voiceError ? "error" : ""}">
-        ${state.voiceError || `我听到：${state.voiceTranscript}`}
+        ${state.voiceError || (state.speakerOn ? h(state.voiceTranscript) : `我听到：${h(state.voiceTranscript)}`)}
       </div>
     ` : ""}
     ${activeInputMode === "voice" ? `
@@ -660,7 +694,6 @@ function renderCall() {
 }
 
 function renderMicSheet() {
-  const unsupported = !speechSupported() && !recordingSupported();
   return `
     <div class="sheet-mask" data-action="close-sheet"></div>
     <div class="bottom-sheet">
@@ -669,7 +702,7 @@ function renderMicSheet() {
         <div class="sheet-icon">麦</div>
         <div>
           <div class="sheet-title">麦克风权限没有开启</div>
-          <div class="sheet-desc">${state.voiceError || (unsupported ? "当前浏览器不支持按住说话，请先改用打字模式。" : "开启后才能按住说话。你也可以先切换打字模式。")}</div>
+          <div class="sheet-desc">${state.voiceError || (voiceInputAvailable() ? "开启后才能按住说话。你也可以先切换打字模式。" : voiceUnavailableMessage())}</div>
         </div>
       </div>
       <div class="sheet-note">系统弹窗拒绝后，需要到设置里重新开启。</div>
@@ -1260,6 +1293,16 @@ function startVoiceInput() {
   state.voiceError = "";
   state.voiceTranscript = "";
   activeSpeechText = "";
+  if (!voiceInputAvailable()) {
+    state.inputMode = "text";
+    state.voiceError = voiceUnavailableMessage();
+    render();
+    return;
+  }
+  if (shouldUseServerAsrFirst()) {
+    startRecordedVoiceInput();
+    return;
+  }
   const recognition = getSpeechRecognition();
   if (!recognition) {
     startRecordedVoiceInput();
@@ -1309,6 +1352,11 @@ function startVoiceInput() {
 }
 
 function stopVoiceInput() {
+  voiceRecordingRequested = false;
+  if (voiceRecordingTimer) {
+    clearTimeout(voiceRecordingTimer);
+    voiceRecordingTimer = null;
+  }
   if (voiceRecorder && voiceRecorder.state !== "inactive") {
     try {
       voiceRecorder.stop();
@@ -1329,7 +1377,21 @@ function stopVoiceInput() {
 }
 
 async function startRecordedVoiceInput() {
+  voiceRecordingRequested = true;
+  state.holding = true;
+  state.voiceTranscript = "正在准备麦克风...";
+  render();
+  if (!serverAsrConfigured()) {
+    voiceRecordingRequested = false;
+    state.inputMode = "text";
+    state.holding = false;
+    state.voiceError = "语音转文字服务还没有完成配置，请先使用打字模式。";
+    render();
+    return;
+  }
   if (!recordingSupported()) {
+    voiceRecordingRequested = false;
+    state.holding = false;
     state.showMicSheet = true;
     state.voiceError = "当前浏览器不支持按住录音，请先切换打字模式。";
     render();
@@ -1337,12 +1399,25 @@ async function startRecordedVoiceInput() {
   }
   try {
     voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (!voiceRecordingRequested) {
+      voiceStream.getTracks().forEach((track) => track.stop());
+      voiceStream = null;
+      state.holding = false;
+      state.voiceTranscript = "";
+      render();
+      return;
+    }
     voiceChunks = [];
     voiceRecorder = new MediaRecorder(voiceStream);
     voiceRecorder.ondataavailable = (event) => {
       if (event.data && event.data.size) voiceChunks.push(event.data);
     };
     voiceRecorder.onerror = () => {
+      voiceRecordingRequested = false;
+      if (voiceRecordingTimer) {
+        clearTimeout(voiceRecordingTimer);
+        voiceRecordingTimer = null;
+      }
       state.holding = false;
       state.voiceError = "录音失败，请检查麦克风权限。";
       voiceStream?.getTracks().forEach((track) => track.stop());
@@ -1350,6 +1425,11 @@ async function startRecordedVoiceInput() {
       render();
     };
     voiceRecorder.onstop = async () => {
+      voiceRecordingRequested = false;
+      if (voiceRecordingTimer) {
+        clearTimeout(voiceRecordingTimer);
+        voiceRecordingTimer = null;
+      }
       state.holding = false;
       voiceStream?.getTracks().forEach((track) => track.stop());
       voiceStream = null;
@@ -1381,7 +1461,19 @@ async function startRecordedVoiceInput() {
     state.voiceTranscript = "正在录音，松开发送";
     render();
     voiceRecorder.start();
+    voiceRecordingTimer = setTimeout(() => {
+      if (voiceRecorder && voiceRecorder.state !== "inactive") {
+        stopVoiceInput();
+        state.voiceTranscript = "单次语音最多 15 秒，正在发送识别。";
+        if (state.route === "call") render();
+      }
+    }, MAX_RECORDING_MS);
   } catch (error) {
+    voiceRecordingRequested = false;
+    if (voiceRecordingTimer) {
+      clearTimeout(voiceRecordingTimer);
+      voiceRecordingTimer = null;
+    }
     state.holding = false;
     state.showMicSheet = true;
     state.voiceError = "没有麦克风权限，请允许后再试，或切换打字模式。";
@@ -1587,11 +1679,16 @@ document.addEventListener("click", async (event) => {
       return;
     }
     state.answers = [];
-    state.inputMode = voiceEnabled() ? "voice" : "text";
+    state.inputMode = voiceInputAvailable() ? "voice" : "text";
     persist();
     go("call");
   } else if (action === "voice-answer") {
-    if (!voiceEnabled()) return;
+    if (!voiceInputAvailable()) {
+      state.inputMode = "text";
+      state.voiceError = voiceUnavailableMessage();
+      render();
+      return;
+    }
     if (suppressVoiceClick) {
       suppressVoiceClick = false;
       return;
@@ -1602,7 +1699,12 @@ document.addEventListener("click", async (event) => {
     state.inputMode = "text";
     render();
   } else if (action === "voice-mode") {
-    if (!voiceEnabled()) return;
+    if (!voiceInputAvailable()) {
+      state.inputMode = "text";
+      state.voiceError = voiceUnavailableMessage();
+      render();
+      return;
+    }
     state.inputMode = "voice";
     render();
   } else if (action === "send-text") {

@@ -67,6 +67,7 @@
       guideStages: data.guideStages || [],
       templates: data.templates || [],
       system: data.system || {},
+      capabilities: data.capabilities || {},
       versions: data.versions || {},
       updatedAt: new Date().toISOString()
     };

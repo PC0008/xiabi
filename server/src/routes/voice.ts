@@ -55,7 +55,8 @@ export const voiceRoutes = new Hono()
     const body = await readJson<TranscribeBody>(c);
     const text = body.text ? String(body.text) : "";
     const audioBase64 = body.audioBase64 ? String(body.audioBase64).trim() : "";
-    const mimeType = body.mimeType ? String(body.mimeType).trim().toLowerCase() : "";
+    const rawMimeType = body.mimeType ? String(body.mimeType).trim().toLowerCase() : "";
+    const mimeType = rawMimeType.split(";")[0].trim();
     if (text.length > MAX_TRANSCRIBE_TEXT_LENGTH) return fail(c, "text_too_long", "输入内容过长，请分几次发送。", 413);
     if (audioBase64.length > MAX_AUDIO_BASE64_LENGTH) return fail(c, "audio_too_large", "录音太长，请缩短后再试。", 413);
     if (audioBase64 && mimeType && !ALLOWED_AUDIO_MIME.has(mimeType)) return fail(c, "unsupported_audio_type", "当前录音格式暂不支持。", 415);
@@ -65,7 +66,7 @@ export const voiceRoutes = new Hono()
         text,
         audioObjectKey: body.audioObjectKey ? String(body.audioObjectKey) : undefined,
         audioBase64: audioBase64 || undefined,
-        mimeType: mimeType || undefined
+        mimeType: mimeType || rawMimeType || undefined
       }));
     } catch (error) {
       return fail(c, "voice_transcribe_failed", error instanceof Error ? error.message : "语音识别失败，请稍后再试。", 502);
