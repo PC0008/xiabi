@@ -51,11 +51,76 @@ function diagnosticItem(name: string, configured: boolean, required = true) {
   return { name, configured, required };
 }
 
+type StoredWechatNotification = {
+  event_type?: string;
+  resource?: {
+    ciphertext?: string;
+    nonce?: string;
+    associated_data?: string;
+  };
+};
+
+type StoredWechatTransaction = {
+  appid?: string;
+  mchid?: string;
+  out_trade_no?: string;
+  transaction_id?: string;
+  trade_state?: string;
+  amount?: {
+    total?: number;
+    currency?: string;
+  };
+};
+
+function base64ToArrayBuffer(value: string) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function decryptStoredWechatResource(resource: NonNullable<StoredWechatNotification["resource"]>) {
+  const apiV3Key = secret.get("WECHAT_PAY_API_V3_KEY");
+  if (!apiV3Key || !resource.ciphertext || !resource.nonce) throw new Error("wechat_pay_decrypt_config_missing");
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(apiV3Key), "AES-GCM", false, ["decrypt"]);
+  const plain = await crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: new TextEncoder().encode(resource.nonce),
+      additionalData: new TextEncoder().encode(resource.associated_data || ""),
+      tagLength: 128
+    },
+    key,
+    base64ToArrayBuffer(resource.ciphertext)
+  );
+  return JSON.parse(new TextDecoder().decode(plain)) as StoredWechatTransaction;
+}
+
+function validateStoredWechatTransaction(notification: StoredWechatNotification, transaction: StoredWechatTransaction, order: typeof orders.$inferSelect) {
+  if (notification.event_type !== "TRANSACTION.SUCCESS") throw new Error("unexpected_event_type");
+  if (transaction.trade_state !== "SUCCESS") throw new Error("unexpected_trade_state");
+  if (transaction.out_trade_no !== order.providerOrderNo) throw new Error("out_trade_no_mismatch");
+  const expectedAppId = vars.get("WECHAT_PAY_APP_ID");
+  const expectedMchId = vars.get("WECHAT_PAY_MCH_ID");
+  if (expectedAppId && transaction.appid && transaction.appid !== expectedAppId) throw new Error("appid_mismatch");
+  if (expectedMchId && transaction.mchid && transaction.mchid !== expectedMchId) throw new Error("mchid_mismatch");
+  if (transaction.amount?.total !== undefined && Number(transaction.amount.total) !== Number(order.amountCents)) throw new Error("amount_mismatch");
+  if (transaction.amount?.currency && transaction.amount.currency !== order.currency) throw new Error("currency_mismatch");
+}
+
 async function buildDiagnostics() {
   const [adminUser] = await db.select().from(adminUsers).where(eq(adminUsers.tenantId, TENANT_ID)).limit(1);
   const publicBaseUrl = getVar("PUBLIC_BASE_URL");
   const notifyUrl = getVar("PAYMENT_NOTIFY_URL");
   const voiceAsrSecretConfigured = hasSecret("VOICE_ASR_API_KEY") || hasSecret("VOICE_API_KEY");
+  const [paidOrders, entitlements, failedPaymentEvents, failedTasks] = await Promise.all([
+    db.select().from(orders).where(and(eq(orders.tenantId, TENANT_ID), eq(orders.status, "paid"))).orderBy(desc(orders.createdAt)).limit(100),
+    db.select().from(entitlementLedger).where(eq(entitlementLedger.tenantId, TENANT_ID)).orderBy(desc(entitlementLedger.createdAt)).limit(500),
+    db.select().from(paymentWebhookEvents).where(and(eq(paymentWebhookEvents.tenantId, TENANT_ID), eq(paymentWebhookEvents.status, "failed"))).orderBy(desc(paymentWebhookEvents.createdAt)).limit(50),
+    db.select().from(generationTasks).where(and(eq(generationTasks.tenantId, TENANT_ID), eq(generationTasks.status, "failed"))).orderBy(desc(generationTasks.createdAt)).limit(50)
+  ]);
+  const entitlementOrderIds = new Set(entitlements.map((item) => item.orderId).filter(Boolean));
+  const paidOrdersWithoutEntitlement = paidOrders.filter((order) => !entitlementOrderIds.has(order.id));
   const groups = [
     {
       key: "deepseek",
@@ -156,6 +221,17 @@ async function buildDiagnostics() {
         diagnosticItem("PAYMENT_NOTIFY_URL", !!notifyUrl, false)
       ],
       note: "公网地址用于支付回跳、回调定位和线上验收。"
+    },
+    {
+      key: "business_closure",
+      title: "业务闭环",
+      status: diagnosticStatus([paidOrdersWithoutEntitlement.length === 0, failedPaymentEvents.length === 0], [failedTasks.length === 0]),
+      items: [
+        diagnosticItem(`已支付无权益订单：${paidOrdersWithoutEntitlement.length}`, paidOrdersWithoutEntitlement.length === 0),
+        diagnosticItem(`失败支付回调：${failedPaymentEvents.length}`, failedPaymentEvents.length === 0),
+        diagnosticItem(`失败生成任务：${failedTasks.length}`, failedTasks.length === 0, false)
+      ],
+      note: "发现异常时可在订单详情补发权益，或在支付回调详情重新处理。"
     }
   ];
   const summary = groups.reduce((acc, group) => {
@@ -786,6 +862,43 @@ export const adminRoutes = new Hono()
       ? await db.select().from(orders).where(and(eq(orders.tenantId, TENANT_ID), eq(orders.id, event.orderId))).limit(1)
       : [null];
     return ok(c, { event: { ...event, payload: parseJson(event.payloadJson, null) }, order });
+  })
+  .post("/payment-events/:id/reprocess", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const id = c.req.param("id");
+    const [event] = await db.select().from(paymentWebhookEvents).where(and(eq(paymentWebhookEvents.tenantId, TENANT_ID), eq(paymentWebhookEvents.id, id))).limit(1);
+    if (!event) return fail(c, "payment_event_not_found", "没有找到回调事件。", 404);
+    const notification = parseJson<StoredWechatNotification>(event.payloadJson, {});
+    try {
+      const transaction = await decryptStoredWechatResource(notification.resource || {});
+      const [order] = await db
+        .select()
+        .from(orders)
+        .where(and(eq(orders.tenantId, TENANT_ID), eq(orders.providerOrderNo, transaction.out_trade_no || "")))
+        .limit(1);
+      if (!order) throw new Error("order_not_found");
+      validateStoredWechatTransaction(notification, transaction, order);
+      await activateOrderEntitlement(order);
+      if (order.status !== "paid") {
+        await db.update(orders).set({
+          status: "paid",
+          providerTransactionId: transaction.transaction_id || order.providerTransactionId,
+          paidAt: order.paidAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }).where(eq(orders.id, order.id));
+      }
+      await db.update(paymentWebhookEvents).set({ orderId: order.id, status: "processed", errorMessage: null }).where(eq(paymentWebhookEvents.id, event.id));
+      await logAdmin(admin!.id, "payment_event.reprocess", "payment_webhook_event", { eventId: event.id, orderId: order.id });
+      const [updated] = await db.select().from(orders).where(eq(orders.id, order.id)).limit(1);
+      return ok(c, { eventId: event.id, order: updated || order, transaction });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "payment_event_reprocess_failed";
+      await db.update(paymentWebhookEvents).set({ status: "failed", errorMessage: message }).where(eq(paymentWebhookEvents.id, event.id));
+      await logAdmin(admin!.id, "payment_event.reprocess_failed", "payment_webhook_event", { eventId: event.id, error: message });
+      return fail(c, "payment_event_reprocess_failed", "重新处理回调失败。", 502);
+    }
   })
   .get("/audit-logs", async (c) => {
     const admin = await requireAdmin(c);

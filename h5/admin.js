@@ -680,7 +680,10 @@ function renderPaymentEvents() {
     item.status,
     item.errorMessage || "-",
     formatDate(item.createdAt),
-    actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="payment-events" data-detail-id="${h(item.id)}">详情</button>`)
+    actionCell(`
+      <button class="mini-action" data-action="show-detail" data-detail-type="payment-events" data-detail-id="${h(item.id)}">详情</button>
+      ${item.status === "failed" ? `<button class="mini-action warn-action" data-action="reprocess-payment-event" data-event-id="${h(item.id)}">重处理</button>` : ""}
+    `)
   ]);
   return layout(tablePanel("支付回调", "查看微信支付回调事件、失败原因和关联订单。", ["事件ID", "渠道", "回调ID", "订单", "状态", "错误", "时间", "操作"], rows));
 }
@@ -860,6 +863,7 @@ function buildDetailHtml(type, data) {
         ["订单", shortId(event.orderId)],
         ["错误", event.errorMessage || "-"]
       ]),
+      event.status === "failed" ? `<div class="detail-actions"><button class="primary" data-action="reprocess-payment-event" data-event-id="${h(event.id)}">重新处理回调</button></div>` : "",
       renderJson(event.payload || {})
     ].join("");
   }
@@ -1033,6 +1037,15 @@ document.addEventListener("click", async (event) => {
       showToast("任务重试完成");
     } catch (error) {
       showToast(error.message || "任务重试失败");
+    }
+  } else if (action === "reprocess-payment-event") {
+    try {
+      await window.XiabiMockStore.adminPost(`/payment-events/${actionTarget.dataset.eventId}/reprocess`);
+      await loadAdminLists();
+      if (adminState.detail?.sub === `payment-events/${actionTarget.dataset.eventId}`) await openDetail("payment-events", actionTarget.dataset.eventId);
+      showToast("支付回调已重新处理");
+    } catch (error) {
+      showToast(error.message || "回调重处理失败");
     }
   }
 });
