@@ -21,6 +21,7 @@
 - 用户端流程验收补强：新增 `npm run verify:journey`，用移动端浏览器自动点击授权、首页、通话问题和确认页；该验收不触发 DeepSeek、短信或支付费用。
 - 生产支付闭环验收补强：`verify:production` 新增 `XIABI_VERIFY_PAID_ORDER_ID`，真实付款后可自动核对订单已支付、权益流水已生成，并可通过 `XIABI_VERIFY_REQUIRE_WEBHOOK=1` 要求存在已处理微信支付回调事件。
 - MiniMax 真实验收发现线上 `VOICE_API_KEY` 会被 MiniMax 判定为 `invalid api key`；语音接口已补强为返回 JSON 业务错误，不再让无效 Key 冒泡成不可读 500。需要重新配置有效 MiniMax Key 后再跑 `XIABI_VERIFY_TTS=1`。
+- DeepSeek 真实写信验收通过：`XIABI_VERIFY_DEEPSEEK=1 npm run verify:production` 已在线上生成任务 `9b8d26e3-7693-4fea-9bff-519a73294201` 和信件 `60ca6afd-e328-4a0b-b88f-e293a8c52848`。
 - 交付文档补强：新增根 `README.md` 和 `docs/生产外部凭据交接清单.md`，明确线上地址、常用命令、验收分级和真实外部联调所需凭据。
 - 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式。
 - 仍需真实外部验收输入：后台账号密码、DeepSeek 真实生成开关、真实支付创建/付款环境、可接收短信手机号、MiniMax TTS 开关、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。
