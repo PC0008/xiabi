@@ -353,7 +353,7 @@ function layout(content) {
           </div>
           <div class="top-actions">
             <span class="pill">tenant_id: main</span>
-            ${adminState.adminUser ? `<span class="pill">${adminState.adminUser.displayName || adminState.adminUser.username}</span>` : ""}
+      ${adminState.adminUser ? `<span class="pill">${h(adminState.adminUser.displayName || adminState.adminUser.username)}</span>` : ""}
             <button class="secondary" data-action="save">保存配置</button>
             <button class="ghost" data-action="preview-user">查看用户端</button>
             <button class="ghost" data-action="admin-logout">退出</button>
@@ -362,7 +362,7 @@ function layout(content) {
         ${content}
       </main>
       ${renderDetailDrawer()}
-      ${adminState.toast ? `<div class="toast">${adminState.toast}</div>` : ""}
+      ${adminState.toast ? `<div class="toast">${h(adminState.toast)}</div>` : ""}
     </div>
   `;
 }
@@ -376,10 +376,10 @@ function renderLogin() {
           <div class="brand-sub">总后台登录</div>
         </div>
         <div class="form-grid login-form">
-          <div class="field full"><label>账号</label><input data-login-field="username" value="${adminState.loginUsername}" autocomplete="username" /></div>
-          <div class="field full"><label>密码</label><input data-login-field="password" type="password" value="${adminState.loginPassword}" autocomplete="current-password" /></div>
+          <div class="field full"><label>账号</label><input data-login-field="username" value="${h(adminState.loginUsername)}" autocomplete="username" /></div>
+          <div class="field full"><label>密码</label><input data-login-field="password" type="password" value="${h(adminState.loginPassword)}" autocomplete="current-password" /></div>
         </div>
-        ${adminState.loginError ? `<div class="login-error">${adminState.loginError}</div>` : ""}
+        ${adminState.loginError ? `<div class="login-error">${h(adminState.loginError)}</div>` : ""}
         <button class="primary login-submit" data-action="admin-login">登录后台</button>
         <div class="login-hint">首次部署后，用 Edgespark 密钥里配置的管理员账号和初始密码登录。</div>
       </section>

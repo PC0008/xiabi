@@ -16,7 +16,12 @@ const forbiddenRuntimeMarkers = [
   "${state.typedText}",
   "${state.phoneInput}",
   "${state.smsCode}",
-  "${state.voiceError ||"
+  "${state.voiceError ||",
+  "${adminState.toast}",
+  "${adminState.loginUsername}",
+  "${adminState.loginPassword}",
+  "${adminState.loginError}",
+  "${adminState.adminUser.displayName"
 ];
 
 function unique(values) {
