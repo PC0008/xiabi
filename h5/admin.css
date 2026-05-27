@@ -427,6 +427,87 @@ button {
   background: rgba(194, 58, 53, 0.10);
 }
 
+.diagnostic-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.diagnostic-card {
+  padding: 16px;
+  border: 1px solid rgba(22, 161, 94, 0.18);
+  border-radius: 16px;
+  background: #fbfcfb;
+}
+
+.diagnostic-card.warn {
+  border-color: rgba(193, 120, 24, 0.24);
+}
+
+.diagnostic-card.danger {
+  border-color: rgba(194, 58, 53, 0.24);
+}
+
+.diagnostic-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.diagnostic-title {
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.diagnostic-note {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.diagnostic-items {
+  display: grid;
+  gap: 8px;
+}
+
+.diagnostic-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff;
+  color: #35423d;
+  font-size: 13px;
+}
+
+.diagnostic-item span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-item strong {
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.diagnostic-item .ready {
+  color: var(--green-strong);
+}
+
+.diagnostic-item .missing {
+  color: var(--danger);
+}
+
+.diagnostic-item .optional {
+  color: var(--warn);
+}
+
 .mini-action {
   min-height: 28px;
   padding: 0 10px;
@@ -683,6 +764,7 @@ td {
   .grid.cols-3,
   .grid.cols-2,
   .split,
+  .diagnostic-grid,
   .form-grid {
     grid-template-columns: 1fr;
   }

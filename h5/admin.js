@@ -69,7 +69,8 @@ const adminState = {
     entitlements: null,
     logs: null,
     tasks: null,
-    paymentEvents: null
+    paymentEvents: null,
+    diagnostics: null
   },
   templates: Array.isArray(savedAdminConfig.templates) ? savedAdminConfig.templates : [],
   selectedTemplateKey: Array.isArray(savedAdminConfig.templates) && savedAdminConfig.templates[0] ? savedAdminConfig.templates[0].key : "",
@@ -98,7 +99,7 @@ function readSavedAdminConfig() {
 async function loadAdminLists() {
   if (!adminState.adminUser) return;
   try {
-    const [dashboard, usersData, lettersData, ordersData, entitlementData, logsData, tasksData, paymentEventsData] = await Promise.all([
+    const [dashboard, usersData, lettersData, ordersData, entitlementData, logsData, tasksData, paymentEventsData, diagnosticsData] = await Promise.all([
       window.XiabiMockStore.adminFetch("/dashboard"),
       window.XiabiMockStore.adminFetch("/users"),
       window.XiabiMockStore.adminFetch("/letters"),
@@ -106,7 +107,8 @@ async function loadAdminLists() {
       window.XiabiMockStore.adminFetch("/entitlements"),
       window.XiabiMockStore.adminFetch("/audit-logs"),
       window.XiabiMockStore.adminFetch("/tasks"),
-      window.XiabiMockStore.adminFetch("/payment-events")
+      window.XiabiMockStore.adminFetch("/payment-events"),
+      window.XiabiMockStore.adminFetch("/diagnostics")
     ]);
     adminState.lists = {
       dashboard,
@@ -116,7 +118,8 @@ async function loadAdminLists() {
       entitlements: entitlementData,
       logs: logsData,
       tasks: tasksData,
-      paymentEvents: paymentEventsData
+      paymentEvents: paymentEventsData,
+      diagnostics: diagnosticsData
     };
   } catch (error) {
     showToast(error.message || "后台数据加载失败");
@@ -143,7 +146,8 @@ const navItems = [
   ["orders", "订单支付", "order"],
   ["paymentEvents", "支付回调", "log"],
   ["ledger", "权益流水", "ledger"],
-  ["logs", "日志审计", "log"]
+  ["logs", "日志审计", "log"],
+  ["diagnostics", "系统自检", "settings"]
 ];
 
 const templates = [
@@ -234,7 +238,8 @@ function icon(name) {
     order: '<svg viewBox="0 0 32 32"><path d="M9 5h14v22H9z"/><path d="M12 11h8M12 16h8M12 21h5"/></svg>',
     ledger: '<svg viewBox="0 0 32 32"><path d="M6 7h20v18H6z"/><path d="M10 13h12M10 18h12M10 23h7"/></svg>',
     log: '<svg viewBox="0 0 32 32"><path d="M7 6h18v20H7z"/><path d="M11 11h10M11 16h10M11 21h6"/></svg>',
-    refresh: '<svg viewBox="0 0 32 32"><path d="M24 10a9 9 0 1 0 1 10"/><path d="M24 5v6h-6"/></svg>'
+    refresh: '<svg viewBox="0 0 32 32"><path d="M24 10a9 9 0 1 0 1 10"/><path d="M24 5v6h-6"/></svg>',
+    settings: '<svg viewBox="0 0 32 32"><path d="M13.5 5.5h5l1 3.1 3 1.3 3-1.4 2.5 4.3-2.5 2.1v3.2l2.5 2.1-2.5 4.3-3-1.4-3 1.3-1 3.1h-5l-1-3.1-3-1.3-3 1.4L4 20.2l2.5-2.1v-3.2L4 12.8l2.5-4.3 3 1.4 3-1.3z"/><circle cx="16" cy="16" r="4"/></svg>'
   };
   return icons[name] || icons.dashboard;
 }
@@ -323,7 +328,8 @@ function pageDescription(route) {
     orders: "查看订单、支付状态、回调和补偿入口。",
     paymentEvents: "查看微信支付回调事件、失败原因和原始数据。",
     ledger: "权益只从订单和权益流水计算，前端不直接决定权限。",
-    logs: "记录配置修改、支付回调、生成失败和敏感操作。"
+    logs: "记录配置修改、支付回调、生成失败和敏感操作。",
+    diagnostics: "检查真实服务配置是否齐全，只显示状态，不显示密钥内容。"
   };
   return desc[route] || "";
 }
@@ -679,6 +685,61 @@ function renderPaymentEvents() {
   return layout(tablePanel("支付回调", "查看微信支付回调事件、失败原因和关联订单。", ["事件ID", "渠道", "回调ID", "订单", "状态", "错误", "时间", "操作"], rows));
 }
 
+function statusLabel(status) {
+  if (status === "ok") return "已就绪";
+  if (status === "warn") return "可优化";
+  return "缺配置";
+}
+
+function statusClass(status) {
+  if (status === "ok") return "";
+  if (status === "warn") return "warn";
+  return "danger";
+}
+
+function renderDiagnostics() {
+  const diagnostics = adminState.lists.diagnostics || {};
+  const summary = diagnostics.summary || {};
+  const groups = diagnostics.groups || [];
+  return layout(`
+    <section class="section grid cols-3">
+      ${metric("已就绪", summary.ok ?? 0, "可直接运行")}
+      ${metric("可优化", summary.warn ?? 0, "建议补齐")}
+      ${metric("缺配置", summary.missing ?? 0, "上线前处理")}
+    </section>
+    <section class="section panel card">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">生产配置自检</div>
+          <div class="panel-desc">最后检查：${h(formatDate(diagnostics.generatedAt))}</div>
+        </div>
+        <button class="secondary" data-action="refresh-diagnostics">刷新自检</button>
+      </div>
+      <div class="diagnostic-grid">
+        ${groups.length ? groups.map((group) => `
+          <article class="diagnostic-card ${statusClass(group.status)}">
+            <div class="diagnostic-head">
+              <div>
+                <div class="diagnostic-title">${h(group.title)}</div>
+                <div class="diagnostic-note">${h(group.note || "")}</div>
+              </div>
+              <span class="tag ${statusClass(group.status)}">${statusLabel(group.status)}</span>
+            </div>
+            <div class="diagnostic-items">
+              ${(group.items || []).map((item) => `
+                <div class="diagnostic-item">
+                  <span>${h(item.name)}</span>
+                  <strong class="${item.configured ? "ready" : item.required ? "missing" : "optional"}">${item.configured ? "已配置" : item.required ? "缺失" : "未填"}</strong>
+                </div>
+              `).join("")}
+            </div>
+          </article>
+        `).join("") : `<div class="empty">还没有自检结果，请刷新后台数据。</div>`}
+      </div>
+    </section>
+  `);
+}
+
 function metric(label, value, note) {
   return `<div class="metric card"><div class="metric-label">${label}</div><div class="metric-value">${value}</div><div class="metric-note">${note}</div></div>`;
 }
@@ -862,7 +923,8 @@ function render() {
     orders: renderOrders,
     paymentEvents: renderPaymentEvents,
     ledger: renderLedger,
-    logs: renderLogs
+    logs: renderLogs,
+    diagnostics: renderDiagnostics
   };
   const view = routes[adminState.route] || renderDashboard;
   document.getElementById("adminApp").innerHTML = view();
@@ -910,6 +972,13 @@ document.addEventListener("click", async (event) => {
     }
   } else if (action === "preview-user") {
     window.open("./index.html#home", "_blank");
+  } else if (action === "refresh-diagnostics") {
+    try {
+      adminState.lists.diagnostics = await window.XiabiMockStore.adminFetch("/diagnostics");
+      showToast("系统自检已刷新");
+    } catch (error) {
+      showToast(error.message || "系统自检刷新失败");
+    }
   } else if (action === "close-detail") {
     adminState.detail = null;
     render();

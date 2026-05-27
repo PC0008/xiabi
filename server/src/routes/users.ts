@@ -1,5 +1,5 @@
 import { db } from "edgespark";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { guestSessions, smsCodes, users } from "@defs";
@@ -40,8 +40,24 @@ export const userRoutes = new Hono()
       .where(and(eq(smsCodes.tenantId, TENANT_ID), eq(smsCodes.phoneHash, phoneHash), eq(smsCodes.status, "pending")))
       .orderBy(desc(smsCodes.createdAt))
       .limit(1);
-    if (!row || row.codeHash !== codeHash || new Date(row.expiresAt).getTime() < Date.now()) {
+    if (!row) {
       return fail(c, "code_not_match", "验证码不正确或已过期。", 400);
+    }
+    if (Number(row.attempts || 0) >= 5) {
+      await db.update(smsCodes).set({ status: "locked" }).where(eq(smsCodes.id, row.id));
+      return fail(c, "code_locked", "验证码错误次数过多，请重新获取。", 429);
+    }
+    if (new Date(row.expiresAt).getTime() < Date.now()) {
+      await db.update(smsCodes).set({ status: "expired" }).where(eq(smsCodes.id, row.id));
+      return fail(c, "code_not_match", "验证码不正确或已过期。", 400);
+    }
+    if (row.codeHash !== codeHash) {
+      const nextAttempts = Number(row.attempts || 0) + 1;
+      await db.update(smsCodes).set({
+        attempts: sql`${smsCodes.attempts} + 1`,
+        status: nextAttempts >= 5 ? "locked" : "pending"
+      }).where(eq(smsCodes.id, row.id));
+      return fail(c, nextAttempts >= 5 ? "code_locked" : "code_not_match", nextAttempts >= 5 ? "验证码错误次数过多，请重新获取。" : "验证码不正确或已过期。", nextAttempts >= 5 ? 429 : 400);
     }
 
     const [existing] = await db.select().from(users).where(eq(users.phoneHash, phoneHash)).limit(1);

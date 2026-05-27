@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { orders, salesLetters } from "@defs";
-import { createWechatPayment } from "../adapters/payment/wechat";
+import { createWechatPayment, getWechatPaymentReadiness } from "../adapters/payment/wechat";
 import { getConfigScope } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, readJson } from "../domain/http";
@@ -48,6 +48,10 @@ export const orderRoutes = new Hono()
     if (productType === "single" && !letterId) return fail(c, "missing_letter", "单封解锁需要关联一封销售信。", 400);
     const amount = Number(productType === "annual" ? pricing.annual || 2000 : pricing.single || 200);
     const title = productType === "annual" ? "年卡会员" : "单封解锁";
+    const readiness = getWechatPaymentReadiness();
+    if (!readiness.configured) {
+      return fail(c, "wechat_pay_not_configured", readiness.message, 503);
+    }
     const orderId = crypto.randomUUID();
     const providerOrderNo = `xiabi_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
     await db.insert(orders).values({
@@ -62,14 +66,24 @@ export const orderRoutes = new Hono()
       amountCents: Math.round(amount * 100),
       status: "pending"
     });
-    const payment = await createWechatPayment({
-      orderId,
-      providerOrderNo,
-      title,
-      amountCents: Math.round(amount * 100),
-      notifyUrl: vars.get("PAYMENT_NOTIFY_URL") || `${vars.get("PUBLIC_BASE_URL") || ""}/api/webhooks/wechat-pay`,
-      clientIp: c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
-    });
+    let payment;
+    try {
+      payment = await createWechatPayment({
+        orderId,
+        providerOrderNo,
+        title,
+        amountCents: Math.round(amount * 100),
+        notifyUrl: vars.get("PAYMENT_NOTIFY_URL") || `${vars.get("PUBLIC_BASE_URL") || ""}/api/webhooks/wechat-pay`,
+        clientIp: c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
+      });
+    } catch (error) {
+      await db.update(orders).set({ status: "payment_failed", updatedAt: new Date().toISOString() }).where(eq(orders.id, orderId));
+      return fail(c, "payment_create_failed", error instanceof Error ? error.message : "微信支付拉起失败。", 502);
+    }
+    if (!payment.configured) {
+      await db.update(orders).set({ status: "payment_failed", updatedAt: new Date().toISOString() }).where(eq(orders.id, orderId));
+      return fail(c, "wechat_pay_not_configured", payment.message || "微信支付还没有完成配置。", 503);
+    }
     return ok(c, {
       orderId,
       providerOrderNo,
@@ -100,14 +114,23 @@ export const orderRoutes = new Hono()
     if (!order) return fail(c, "order_not_found", "没有找到订单。", 404);
     if (order.status === "paid") return fail(c, "order_already_paid", "这笔订单已经支付完成。", 409);
     if (!order.providerOrderNo) return fail(c, "missing_provider_order_no", "订单缺少商户订单号。", 400);
-    const payment = await createWechatPayment({
-      orderId: order.id,
-      providerOrderNo: order.providerOrderNo,
-      title: order.title,
-      amountCents: order.amountCents,
-      notifyUrl: vars.get("PAYMENT_NOTIFY_URL") || `${vars.get("PUBLIC_BASE_URL") || ""}/api/webhooks/wechat-pay`,
-      clientIp: c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
-    });
+    const readiness = getWechatPaymentReadiness();
+    if (!readiness.configured) return fail(c, "wechat_pay_not_configured", readiness.message, 503);
+    let payment;
+    try {
+      payment = await createWechatPayment({
+        orderId: order.id,
+        providerOrderNo: order.providerOrderNo,
+        title: order.title,
+        amountCents: order.amountCents,
+        notifyUrl: vars.get("PAYMENT_NOTIFY_URL") || `${vars.get("PUBLIC_BASE_URL") || ""}/api/webhooks/wechat-pay`,
+        clientIp: c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
+      });
+    } catch (error) {
+      await db.update(orders).set({ status: "payment_failed", updatedAt: new Date().toISOString() }).where(eq(orders.id, order.id));
+      return fail(c, "payment_create_failed", error instanceof Error ? error.message : "微信支付拉起失败。", 502);
+    }
+    if (!payment.configured) return fail(c, "wechat_pay_not_configured", payment.message || "微信支付还没有完成配置。", 503);
     await db.update(orders).set({ updatedAt: new Date().toISOString() }).where(eq(orders.id, order.id));
     return ok(c, { orderId: order.id, providerOrderNo: order.providerOrderNo, status: order.status, amount: order.amountCents / 100, payment });
   })

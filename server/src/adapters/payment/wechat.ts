@@ -72,7 +72,35 @@ function getMerchantAuthConfig() {
   return { mchId, serialNo };
 }
 
+export function getWechatPaymentReadiness() {
+  const items = {
+    appId: !!vars.get("WECHAT_PAY_APP_ID"),
+    mchId: !!vars.get("WECHAT_PAY_MCH_ID"),
+    privateKey: !!secret.get("WECHAT_PAY_PRIVATE_KEY"),
+    certSerialNo: !!secret.get("WECHAT_PAY_CERT_SERIAL_NO"),
+    apiV3Key: !!secret.get("WECHAT_PAY_API_V3_KEY"),
+    platformPublicKey: !!secret.get("WECHAT_PAY_PLATFORM_PUBLIC_KEY" as any),
+    notifyUrl: !!(vars.get("PAYMENT_NOTIFY_URL") || vars.get("PUBLIC_BASE_URL"))
+  };
+  return {
+    configured: Object.values(items).every(Boolean),
+    items,
+    message: "微信支付、回调验签或回调解密配置还不完整。"
+  };
+}
+
 export async function createWechatPayment(input: CreateWechatPaymentInput) {
+  const readiness = getWechatPaymentReadiness();
+  if (!readiness.configured) {
+    return {
+      provider: "wechat",
+      configured: false,
+      orderId: input.orderId,
+      providerOrderNo: input.providerOrderNo,
+      amountCents: input.amountCents,
+      message: readiness.message
+    };
+  }
   const appId = vars.get("WECHAT_PAY_APP_ID");
   const authConfig = getMerchantAuthConfig();
   if (!appId || !authConfig) {

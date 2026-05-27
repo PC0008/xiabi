@@ -26,6 +26,148 @@ type AdminConfigBody = {
   system?: unknown;
 };
 
+type DiagnosticStatus = "ok" | "warn" | "missing";
+
+function getVar(key: string) {
+  return String(vars.get(key as any) || "").trim();
+}
+
+function hasVar(key: string) {
+  return !!getVar(key);
+}
+
+function hasSecret(key: string) {
+  return !!String(secret.get(key as any) || "").trim();
+}
+
+function diagnosticStatus(required: boolean[], optional: boolean[] = []): DiagnosticStatus {
+  if (required.every(Boolean) && optional.every(Boolean)) return "ok";
+  if (required.every(Boolean)) return "warn";
+  return "missing";
+}
+
+function diagnosticItem(name: string, configured: boolean, required = true) {
+  return { name, configured, required };
+}
+
+async function buildDiagnostics() {
+  const [adminUser] = await db.select().from(adminUsers).where(eq(adminUsers.tenantId, TENANT_ID)).limit(1);
+  const publicBaseUrl = getVar("PUBLIC_BASE_URL");
+  const notifyUrl = getVar("PAYMENT_NOTIFY_URL");
+  const voiceAsrSecretConfigured = hasSecret("VOICE_ASR_API_KEY") || hasSecret("VOICE_API_KEY");
+  const groups = [
+    {
+      key: "deepseek",
+      title: "DeepSeek 写信",
+      status: diagnosticStatus([hasSecret("DEEPSEEK_API_KEY")], [hasVar("LETTER_PROVIDER"), hasVar("DEEPSEEK_MODEL"), hasVar("DEEPSEEK_BASE_URL")]),
+      items: [
+        diagnosticItem("LETTER_PROVIDER", hasVar("LETTER_PROVIDER"), false),
+        diagnosticItem("DEEPSEEK_API_KEY", hasSecret("DEEPSEEK_API_KEY")),
+        diagnosticItem("DEEPSEEK_MODEL", hasVar("DEEPSEEK_MODEL"), false),
+        diagnosticItem("DEEPSEEK_BASE_URL", hasVar("DEEPSEEK_BASE_URL"), false)
+      ],
+      note: "缺少 DeepSeek Key 时，写信任务会真实失败，不会生成本地兜底内容。"
+    },
+    {
+      key: "wechat_pay",
+      title: "微信 H5 支付",
+      status: diagnosticStatus([
+        hasVar("WECHAT_PAY_APP_ID"),
+        hasVar("WECHAT_PAY_MCH_ID"),
+        hasSecret("WECHAT_PAY_PRIVATE_KEY"),
+        hasSecret("WECHAT_PAY_CERT_SERIAL_NO"),
+        hasSecret("WECHAT_PAY_API_V3_KEY"),
+        hasSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY")
+      ], [hasVar("PAYMENT_PROVIDER"), !!publicBaseUrl, !!notifyUrl]),
+      items: [
+        diagnosticItem("PAYMENT_PROVIDER", hasVar("PAYMENT_PROVIDER"), false),
+        diagnosticItem("WECHAT_PAY_APP_ID", hasVar("WECHAT_PAY_APP_ID")),
+        diagnosticItem("WECHAT_PAY_MCH_ID", hasVar("WECHAT_PAY_MCH_ID")),
+        diagnosticItem("WECHAT_PAY_PRIVATE_KEY", hasSecret("WECHAT_PAY_PRIVATE_KEY")),
+        diagnosticItem("WECHAT_PAY_CERT_SERIAL_NO", hasSecret("WECHAT_PAY_CERT_SERIAL_NO")),
+        diagnosticItem("WECHAT_PAY_API_V3_KEY", hasSecret("WECHAT_PAY_API_V3_KEY")),
+        diagnosticItem("WECHAT_PAY_PLATFORM_PUBLIC_KEY", hasSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY")),
+        diagnosticItem("PUBLIC_BASE_URL", !!publicBaseUrl, false),
+        diagnosticItem("PAYMENT_NOTIFY_URL", !!notifyUrl, false)
+      ],
+      note: "缺少平台公钥会导致正式回调验签失败；微信内支付通常还需要 JSAPI/openid 链路。"
+    },
+    {
+      key: "sms",
+      title: "阿里云短信",
+      status: diagnosticStatus([
+        hasVar("SMS_ALIYUN_SIGN_NAME"),
+        hasVar("SMS_ALIYUN_TEMPLATE_CODE"),
+        hasSecret("SMS_API_KEY"),
+        hasSecret("SMS_API_SECRET")
+      ], [hasVar("SMS_PROVIDER")]),
+      items: [
+        diagnosticItem("SMS_PROVIDER", hasVar("SMS_PROVIDER"), false),
+        diagnosticItem("SMS_ALIYUN_SIGN_NAME", hasVar("SMS_ALIYUN_SIGN_NAME")),
+        diagnosticItem("SMS_ALIYUN_TEMPLATE_CODE", hasVar("SMS_ALIYUN_TEMPLATE_CODE")),
+        diagnosticItem("SMS_API_KEY", hasSecret("SMS_API_KEY")),
+        diagnosticItem("SMS_API_SECRET", hasSecret("SMS_API_SECRET"))
+      ],
+      note: "未配置完整时，用户端不会假提示验证码已发送。"
+    },
+    {
+      key: "voice_tts",
+      title: "MiniMax 说话",
+      status: diagnosticStatus([hasSecret("VOICE_API_KEY"), hasVar("MINIMAX_VOICE_ID")], [hasVar("VOICE_PROVIDER")]),
+      items: [
+        diagnosticItem("VOICE_PROVIDER", hasVar("VOICE_PROVIDER"), false),
+        diagnosticItem("VOICE_API_KEY", hasSecret("VOICE_API_KEY")),
+        diagnosticItem("MINIMAX_VOICE_ID", hasVar("MINIMAX_VOICE_ID"))
+      ],
+      note: "用于智多星说话播放，当前按 MiniMax TTS 接入。"
+    },
+    {
+      key: "voice_asr",
+      title: "语音输入转写",
+      status: diagnosticStatus([hasVar("VOICE_ASR_ENDPOINT"), voiceAsrSecretConfigured], [hasVar("VOICE_ASR_PROVIDER"), hasVar("VOICE_ASR_MODEL")]),
+      items: [
+        diagnosticItem("VOICE_ASR_ENDPOINT", hasVar("VOICE_ASR_ENDPOINT")),
+        diagnosticItem("VOICE_ASR_API_KEY 或 VOICE_API_KEY", voiceAsrSecretConfigured),
+        diagnosticItem("VOICE_ASR_PROVIDER", hasVar("VOICE_ASR_PROVIDER"), false),
+        diagnosticItem("VOICE_ASR_MODEL", hasVar("VOICE_ASR_MODEL"), false)
+      ],
+      note: "浏览器不支持直接语音识别时会走这里；未配置则提示用户切换打字模式。"
+    },
+    {
+      key: "admin",
+      title: "管理员安全",
+      status: diagnosticStatus([!!adminUser, hasSecret("ADMIN_PASSWORD_PEPPER")], [hasVar("ADMIN_INITIAL_USERNAME"), hasSecret("ADMIN_INITIAL_PASSWORD")]),
+      items: [
+        diagnosticItem("admin_user_created", !!adminUser),
+        diagnosticItem("ADMIN_INITIAL_USERNAME", hasVar("ADMIN_INITIAL_USERNAME"), false),
+        diagnosticItem("ADMIN_PASSWORD_PEPPER", hasSecret("ADMIN_PASSWORD_PEPPER")),
+        diagnosticItem("ADMIN_INITIAL_PASSWORD", hasSecret("ADMIN_INITIAL_PASSWORD"), false)
+      ],
+      note: "管理员登录失败会写审计日志；初始密码只用于首次创建管理员。"
+    },
+    {
+      key: "runtime",
+      title: "运行地址",
+      status: diagnosticStatus([!!publicBaseUrl]),
+      items: [
+        diagnosticItem("PUBLIC_BASE_URL", !!publicBaseUrl),
+        diagnosticItem("PAYMENT_NOTIFY_URL", !!notifyUrl, false)
+      ],
+      note: "公网地址用于支付回跳、回调定位和线上验收。"
+    }
+  ];
+  const summary = groups.reduce((acc, group) => {
+    acc[group.status] += 1;
+    return acc;
+  }, { ok: 0, warn: 0, missing: 0 } as Record<DiagnosticStatus, number>);
+  return {
+    generatedAt: new Date().toISOString(),
+    publicBaseUrl: publicBaseUrl || null,
+    summary,
+    groups
+  };
+}
+
 function asRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -342,6 +484,12 @@ export const adminRoutes = new Hono()
     const admin = await requireAdmin(c);
     if (!admin) return fail(c, "not_authenticated", "请先登录后台。", 401);
     return ok(c, await getAdminConfig(db));
+  })
+  .get("/diagnostics", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    return ok(c, await buildDiagnostics());
   })
   .patch("/config", async (c) => {
     const admin = await requireAdmin(c);

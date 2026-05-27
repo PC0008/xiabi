@@ -82,6 +82,31 @@ checks.push(await assertJson(
   200,
   (payload) => payload?.data?.configured === false || typeof payload?.data?.transcript === "string"
 ));
+checks.push(await assertJson(
+  "/api/public/admin/diagnostics",
+  undefined,
+  401,
+  (payload) => payload?.error?.code === "not_authenticated"
+));
+
+if (process.env.XIABI_VERIFY_ADMIN_USERNAME && process.env.XIABI_VERIFY_ADMIN_PASSWORD) {
+  const login = await fetch(`${baseUrl}/api/public/admin/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      username: process.env.XIABI_VERIFY_ADMIN_USERNAME,
+      password: process.env.XIABI_VERIFY_ADMIN_PASSWORD
+    })
+  });
+  const adminCookie = getCookie(login.headers);
+  if (!login.ok || !adminCookie) throw new Error(`admin login returned ${login.status}`);
+  checks.push(await assertJson(
+    "/api/public/admin/diagnostics",
+    { headers: { cookie: adminCookie } },
+    200,
+    (payload) => Array.isArray(payload?.data?.groups) && payload.data.groups.length >= 5 && !JSON.stringify(payload).includes(process.env.XIABI_VERIFY_ADMIN_PASSWORD)
+  ));
+}
 
 const screenshots = [
   await screenshot(`${baseUrl}/index.html`, path.join(assetsDir, "verify-home-mobile.png"), "390,844"),
