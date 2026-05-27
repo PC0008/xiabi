@@ -27,7 +27,7 @@ npm run verify:production
 
 ## 当前真实状态
 
-项目已经部署到 Edgespark 生产环境，基础 API、后台配置、用户端主流程、订单/权益、微信支付接入位、短信接入位、MiniMax TTS、ASR 转发接入位和 DeepSeek 写信链路均已接入代码。
+项目已经部署到 Edgespark 生产环境，基础 API、后台配置、用户端主流程、订单/权益、微信支付接入位、短信接入位、MiniMax TTS、ASR 转发接入位和 DeepSeek 写信链路均已接入代码。写信任务创建后会通过 Edgespark 后台执行能力推进，前端轮询负责查询和兜底恢复。
 
 完整商业闭环仍需要一次带真实外部凭据的生产联调：后台登录、真实 DeepSeek 生成、真实短信绑定、真实微信小额付款与回调、MiniMax TTS、ASR 音频样本。
 

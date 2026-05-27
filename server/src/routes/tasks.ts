@@ -1,4 +1,4 @@
-import { db } from "edgespark";
+import { ctx, db } from "edgespark";
 import { and, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
@@ -120,6 +120,21 @@ async function processGenerationTask(task: typeof generationTasks.$inferSelect) 
   return updatedTask;
 }
 
+async function runGenerationTaskInBackground(taskId: string) {
+  try {
+    const [task] = await db.select().from(generationTasks).where(eq(generationTasks.id, taskId)).limit(1);
+    if (task) await processGenerationTask(task);
+  } catch (error) {
+    await db.update(generationTasks).set({
+      status: "failed",
+      progressJson: JSON.stringify({ percent: 0, stage: "failed", provider: "deepseek" }),
+      errorCode: "background_generation_failed",
+      errorMessage: error instanceof Error ? error.message.slice(0, 500) : "Background generation failed.",
+      updatedAt: new Date().toISOString()
+    }).where(eq(generationTasks.id, taskId));
+  }
+}
+
 export const taskRoutes = new Hono()
   .post("/", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
@@ -147,6 +162,7 @@ export const taskRoutes = new Hono()
       progressJson: JSON.stringify({ percent: 5, stage: "queued", provider: "deepseek" }),
       attempts: 0
     });
+    ctx.runInBackground(runGenerationTaskInBackground(taskId));
     return ok(c, { taskId, status: "queued" });
   })
   .get("/:id", async (c) => {
