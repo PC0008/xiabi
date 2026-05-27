@@ -412,15 +412,39 @@ async function verifyDeepSeek() {
   const current = await createDeepSeekLetter(cookie, "production-verification");
   const taskId = current.taskId;
   addCheck("deepseek generation", "ok", { taskId, letterId: current.letterId });
-  const claimed = await api(`/api/public/letters/${current.letterId}/claim`, { method: "POST" }, cookie);
+  let claimedLetterId = current.letterId;
+  let claimed;
+  let repeatGuard = null;
+  if (process.env.XIABI_VERIFY_REPEAT_FREE === "1") {
+    const second = await createDeepSeekLetter(cookie, "production-repeat-free-verification");
+    const claims = await Promise.all([
+      claimLetterForVerification(cookie, current.letterId),
+      claimLetterForVerification(cookie, second.letterId)
+    ]);
+    const successes = claims.filter((item) => item.ok);
+    const firstFreeRejected = claims.filter((item) => !item.ok && item.code === "first_free_used");
+    if (successes.length !== 1 || firstFreeRejected.length !== 1) {
+      throw new Error(`Concurrent first-free claim guard expected one success and one first_free_used rejection, got ${claims.map((item) => `${item.letterId}:${item.status}:${item.code || "ok"}`).join(", ")}`);
+    }
+    claimed = successes[0].data;
+    claimedLetterId = successes[0].letterId;
+    repeatGuard = {
+      firstLetterId: current.letterId,
+      secondLetterId: second.letterId,
+      claimedLetterId,
+      rejectedLetterId: firstFreeRejected[0].letterId
+    };
+  } else {
+    claimed = await api(`/api/public/letters/${current.letterId}/claim`, { method: "POST" }, cookie);
+  }
   if (!claimed.access?.complete || !claimed.claimedAt) throw new Error("First free claim did not unlock the generated letter");
   const entitlements = await api("/api/public/entitlements", {}, cookie);
   const rows = Array.isArray(entitlements.entitlements) ? entitlements.entitlements : [];
-  const firstFree = rows.find((item) => item.type === "first_free_letter" && item.letterId === current.letterId);
+  const firstFree = rows.find((item) => item.type === "first_free_letter" && item.letterId === claimedLetterId);
   if (!entitlements.summary?.firstFreeUsed || !firstFree) {
     throw new Error("First free entitlement ledger was not created for the generated letter");
   }
-  const exported = await api(`/api/public/exports/letters/${current.letterId}`, { method: "POST" }, cookie);
+  const exported = await api(`/api/public/exports/letters/${claimedLetterId}`, { method: "POST" }, cookie);
   if (!exported.downloadUrl || exported.fileType !== "print_html") {
     throw new Error("Printable export did not return a download URL");
   }
@@ -431,26 +455,42 @@ async function verifyDeepSeek() {
     throw new Error("Printable export did not contain the expected letter HTML");
   }
   addCheck("first free entitlement and export", "ok", {
-    letterId: current.letterId,
+    letterId: claimedLetterId,
     entitlementId: firstFree.id,
     objectKey: exported.objectKey
   });
   deepSeekVerification = {
     cookie,
-    letterId: current.letterId,
+    letterId: claimedLetterId,
     entitlementId: firstFree.id,
     exportObjectKey: exported.objectKey
   };
   if (process.env.XIABI_VERIFY_REPEAT_FREE === "1") {
-    const second = await createDeepSeekLetter(cookie, "production-repeat-free-verification");
-    await expectApiError(`/api/public/letters/${second.letterId}/claim`, { method: "POST" }, cookie, 403, "first_free_used");
     addCheck("first free repeat guard", "ok", {
-      firstLetterId: current.letterId,
-      secondLetterId: second.letterId
+      ...repeatGuard,
+      mode: "concurrent"
     });
   } else {
     skipOrStrict("first free repeat guard", "set XIABI_VERIFY_REPEAT_FREE=1 to generate a second letter and verify repeat free claim is rejected");
   }
+}
+
+async function claimLetterForVerification(cookie, letterId) {
+  const response = await fetch(`${baseUrl}/api/public/letters/${encodeURIComponent(letterId)}/claim`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      cookie
+    }
+  });
+  const payload = await response.json().catch(() => ({}));
+  return {
+    letterId,
+    status: response.status,
+    ok: response.ok && payload?.ok !== false,
+    code: payload?.error?.code || "",
+    data: payload?.data
+  };
 }
 
 async function createDeepSeekLetter(cookie, source) {

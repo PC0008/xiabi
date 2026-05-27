@@ -32,7 +32,7 @@
 运行变量：
 
 ```powershell
-edgespark var set PUBLIC_BASE_URL=https://你的域名 PAYMENT_PROVIDER=wechat PAYMENT_NOTIFY_URL=https://你的域名/api/webhooks/wechat-pay WECHAT_PAY_APP_ID=你的公众号或开放平台AppID WECHAT_PAY_MCH_ID=你的微信支付商户号 SMS_PROVIDER=aliyun SMS_ALIYUN_SIGN_NAME=你的短信签名 SMS_ALIYUN_TEMPLATE_CODE=你的短信模板Code LETTER_PROVIDER=deepseek DEEPSEEK_MODEL=deepseek-v4-pro DEEPSEEK_BASE_URL=https://api.deepseek.com VOICE_PROVIDER=minimax MINIMAX_VOICE_ID=你的MiniMax音色ID TASK_QUEUE_NAME=xiabi-generation ADMIN_INITIAL_USERNAME=admin
+edgespark var set PUBLIC_BASE_URL=https://你的域名 PAYMENT_PROVIDER=wechat PAYMENT_NOTIFY_URL=https://你的域名/api/webhooks/wechat-pay WECHAT_PAY_APP_ID=你的公众号或开放平台AppID WECHAT_PAY_MCH_ID=你的微信支付商户号 SMS_PROVIDER=aliyun SMS_ALIYUN_SIGN_NAME=你的短信签名 SMS_ALIYUN_TEMPLATE_CODE=你的短信模板Code LETTER_PROVIDER=deepseek DEEPSEEK_MODEL=deepseek-v4-pro DEEPSEEK_BASE_URL=https://api.deepseek.com VOICE_PROVIDER=minimax MINIMAX_GROUP_ID=你的MiniMax Group ID MINIMAX_VOICE_ID=你的MiniMax音色ID TASK_QUEUE_NAME=xiabi-generation ADMIN_INITIAL_USERNAME=admin
 ```
 
 密钥：

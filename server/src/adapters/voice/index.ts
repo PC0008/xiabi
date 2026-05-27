@@ -138,6 +138,18 @@ async function callOpenAiCompatibleAsr(endpoint: string, apiKey: string, audioBa
   return readAsrPayload(response);
 }
 
+function withMiniMaxGroupId(endpoint: string, groupId: string) {
+  if (!groupId) return endpoint;
+  try {
+    const url = new URL(endpoint);
+    if (!url.searchParams.has("GroupId")) url.searchParams.set("GroupId", groupId);
+    return url.toString();
+  } catch {
+    const separator = endpoint.includes("?") ? "&" : "?";
+    return endpoint.includes("GroupId=") ? endpoint : `${endpoint}${separator}GroupId=${encodeURIComponent(groupId)}`;
+  }
+}
+
 async function callMiniMaxTts(endpoint: string, apiKey: string, voiceId: string, text: string, outputFormat: string): Promise<MiniMaxTtsResult> {
   const response = await fetch(endpoint, {
     method: "POST",
@@ -195,12 +207,16 @@ export async function speakWithMiniMax(text: string) {
   const configuredOutput = String(vars.get("MINIMAX_TTS_OUTPUT_FORMAT") || "").trim().toLowerCase();
   const outputFormat = configuredOutput === "url" ? "url" : "hex";
   const primaryEndpoint = vars.get("MINIMAX_TTS_ENDPOINT") || "https://api.minimax.io/v1/t2a_v2";
-  const endpoints = Array.from(new Set([
+  const groupId = String(vars.get("MINIMAX_GROUP_ID") || "").trim();
+  const baseEndpoints = [
     primaryEndpoint,
     "https://api-uw.minimax.io/v1/t2a_v2",
     "https://api.minimax.io/v1/t2a_v2",
     "https://api.minimaxi.com/v1/t2a_v2"
-  ]));
+  ];
+  const endpoints = Array.from(new Set(baseEndpoints.flatMap((endpoint) => (
+    groupId ? [withMiniMaxGroupId(endpoint, groupId), endpoint] : [endpoint]
+  ))));
   const errors: string[] = [];
   for (const endpoint of endpoints) {
     try {

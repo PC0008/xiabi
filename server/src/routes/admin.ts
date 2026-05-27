@@ -231,6 +231,7 @@ async function buildDiagnostics() {
       items: [
         diagnosticItem("VOICE_PROVIDER", hasVar("VOICE_PROVIDER"), false),
         diagnosticItem("VOICE_API_KEY", hasSecret("VOICE_API_KEY")),
+        diagnosticItem("MINIMAX_GROUP_ID", hasVar("MINIMAX_GROUP_ID"), false),
         diagnosticItem("MINIMAX_VOICE_ID", hasVar("MINIMAX_VOICE_ID")),
         diagnosticItem("MINIMAX_TTS_ENDPOINT", hasVar("MINIMAX_TTS_ENDPOINT"), false),
         diagnosticItem("MINIMAX_TTS_OUTPUT_FORMAT", hasVar("MINIMAX_TTS_OUTPUT_FORMAT"), false),

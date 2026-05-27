@@ -31,6 +31,10 @@ function entitlementOwnerWhere(session: GuestSession) {
     : eq(entitlementLedger.sessionId, session.id);
 }
 
+function firstFreeDedupeKey(session: GuestSession) {
+  return `first_free_letter:${session.userId ? `user:${session.userId}` : `session:${session.id}`}`;
+}
+
 async function hasLetterAccess(session: GuestSession, letter: typeof salesLetters.$inferSelect) {
   if (letter.claimedAt) return true;
   const rows = await db
@@ -122,21 +126,34 @@ export const letterRoutes = new Hono()
       .where(and(eq(salesLetters.tenantId, TENANT_ID), eq(salesLetters.id, letterId), sessionOwnerWhere(session)))
       .limit(1);
     if (!letter) return fail(c, "letter_not_found", "没有找到这封销售信。", 404);
-    try {
-      await db.insert(entitlementLedger).values({
-        id: crypto.randomUUID(),
-        tenantId: TENANT_ID,
-        userId: session.userId || null,
-        sessionId,
-        letterId: letter.id,
-        type: "first_free_letter",
-        status: "used",
-        quantity: 1,
-        dedupeKey: `first_free_letter:${sessionId}:${letter.id}`,
-        startsAt: new Date().toISOString()
-      }).onConflictDoNothing();
-    } catch (error) {
-      return fail(c, "claim_entitlement_failed", "首次免费权益写入失败，请稍后再试。", 502);
+    if (!existingFree) {
+      const dedupeKey = firstFreeDedupeKey(session);
+      try {
+        const [inserted] = await db.insert(entitlementLedger).values({
+          id: crypto.randomUUID(),
+          tenantId: TENANT_ID,
+          userId: session.userId || null,
+          sessionId,
+          letterId: letter.id,
+          type: "first_free_letter",
+          status: "used",
+          quantity: 1,
+          dedupeKey,
+          startsAt: new Date().toISOString()
+        }).onConflictDoNothing().returning();
+        if (!inserted) {
+          const [guard] = await db
+            .select()
+            .from(entitlementLedger)
+            .where(and(eq(entitlementLedger.tenantId, TENANT_ID), eq(entitlementLedger.dedupeKey, dedupeKey)))
+            .limit(1);
+          if (!guard || guard.letterId !== letter.id) {
+            return fail(c, "first_free_used", "首次免费权益已经使用过，可以选择单封解锁或开通年卡。", 403);
+          }
+        }
+      } catch (error) {
+        return fail(c, "claim_entitlement_failed", "首次免费权益写入失败，请稍后再试。", 502);
+      }
     }
     const [claimedLetter] = await db
       .update(salesLetters)
