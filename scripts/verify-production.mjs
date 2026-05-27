@@ -93,7 +93,7 @@ function buildReadinessReport() {
       requirement: "语音输入转写",
       status: readinessStatus(["voice asr"]),
       evidence: ["voice asr"],
-      next: "配置 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验；兼容 JSON base64 和 OpenAI-compatible multipart。"
+      next: "MiniMax 官方 API 总览当前未列独立 ASR 端点；拿到可用 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验，兼容 JSON base64 和 OpenAI-compatible multipart。"
     }
   ];
   return {
@@ -742,7 +742,7 @@ function normalizeTranscript(value) {
 async function verifyAsr() {
   const audioPath = process.env.XIABI_VERIFY_ASR_AUDIO;
   if (!audioPath) {
-    skipOrStrict("voice asr", "set XIABI_VERIFY_ASR_AUDIO to an audio file path");
+    skipOrStrict("voice asr", "set XIABI_VERIFY_ASR_AUDIO to an audio file path after configuring a real VOICE_ASR_ENDPOINT");
     return;
   }
   const cookie = await createGuestSession();

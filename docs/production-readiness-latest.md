@@ -1,6 +1,6 @@
 # 生产验收状态报告
 
-生成时间：2026-05-27T23:06:27.206Z
+生成时间：2026-05-27T23:09:30.024Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 整体结果：基础通过：仍有真实外部链路等待输入或付费验收。
 完整可用：否
@@ -26,7 +26,7 @@
 | 短信发送与手机号绑定 | 待输入 | sms send, sms bind | 设置 XIABI_VERIFY_SMS_PHONE 发送验证码；收到后设置 XIABI_VERIFY_SMS_CODE 复验绑定。 |
 | 手机号绑定后资产归属 | 待输入 | sms ownership propagation | 同一轮设置 XIABI_VERIFY_DEEPSEEK=1、XIABI_VERIFY_SMS_PHONE 和 XIABI_VERIFY_SMS_CODE，可复验绑定后信件和权益归属到手机号用户。 |
 | MiniMax 说话播放 | 待输入 | minimax tts | 设置 XIABI_VERIFY_TTS=1 会真实调用一次 MiniMax TTS。 |
-| 语音输入转写 | 待输入 | voice asr | 配置 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验；兼容 JSON base64 和 OpenAI-compatible multipart。 |
+| 语音输入转写 | 待输入 | voice asr | MiniMax 官方 API 总览当前未列独立 ASR 端点；拿到可用 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验，兼容 JSON base64 和 OpenAI-compatible multipart。 |
 
 ## 原始检查项
 
@@ -46,4 +46,4 @@
 - paid entitlement idempotency: skipped；set XIABI_VERIFY_PAID_ORDER_ID to verify repeated entitlement repair is idempotent
 - sms send: skipped；set XIABI_VERIFY_SMS_PHONE to send a real SMS code
 - minimax tts: skipped；set XIABI_VERIFY_TTS=1 to call MiniMax TTS
-- voice asr: skipped；set XIABI_VERIFY_ASR_AUDIO to an audio file path
+- voice asr: skipped；set XIABI_VERIFY_ASR_AUDIO to an audio file path after configuring a real VOICE_ASR_ENDPOINT

@@ -257,7 +257,7 @@ async function buildDiagnostics() {
         diagnosticItem("VOICE_INPUT_MODE", hasVar("VOICE_INPUT_MODE" as any), false),
         diagnosticItem("VOICE_ASR_VERIFIED", hasVar("VOICE_ASR_VERIFIED" as any), false)
       ],
-      note: "浏览器不支持直接语音识别，或配置 VOICE_INPUT_MODE=server 时会走这里；支持 JSON base64 和 OpenAI-compatible multipart，真实音频验收通过并设置 VOICE_ASR_VERIFIED=1 后，用户端才会把服务端录音转写视为可用。"
+      note: "浏览器不支持直接语音识别，或配置 VOICE_INPUT_MODE=server 时会走这里；支持 JSON base64 和 OpenAI-compatible multipart，真实音频验收通过并设置 VOICE_ASR_VERIFIED=1 后，用户端才会把服务端录音转写视为可用。MiniMax 官方 API 总览当前公开列出的是 T2A、T2A Async、Voice Cloning、Voice Design、Voice Management，未列出独立 ASR 端点；若要输入也走 MiniMax，需要先拿到账号后台实际转写 endpoint。"
     },
     {
       key: "admin",

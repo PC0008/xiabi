@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- MiniMax ASR 口径复核：已重新核对 MiniMax 官方 API Overview，Speech 目录仍只公开列出 T2A、T2A Async、Voice Cloning、Voice Design、Voice Management，未列独立 ASR/语音转文字端点；新增 `docs/minimax-asr-status-2026-05-28.md` 作为交付说明，项目继续保留可配置 ASR 接入槽，不臆造 MiniMax 转写 URL。
+
 - 生产验收补强：`verify:production` 在提供后台账号密码时，会在保存配置后检查最近的 `config.update` 审计日志是否包含 `changedCount`、`truncated` 和 `changes` 字段，防止后台控制链路只验保存、不验可追溯。
 
 - 后台审计详情补强：日志审计详情页不再只展示原始 JSON；配置变更会以“字段 / 修改前 / 修改后”的表格展示，同时保留原始详情，运营可以直接看懂后台改动。
