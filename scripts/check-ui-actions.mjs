@@ -64,6 +64,11 @@ const requiredMarkers = [
     message: "admin login must reject oversized credentials before hashing or auditing"
   },
   {
+    file: "server/src/routes/admin.ts",
+    marker: "buildConfigAuditDiff",
+    message: "admin config updates must record field-level audit diffs"
+  },
+  {
     file: "server/src/routes/profiles.ts",
     marker: "MAX_PROFILES_PER_OWNER",
     message: "public product profile writes must have count and length limits"

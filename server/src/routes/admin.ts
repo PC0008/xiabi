@@ -18,6 +18,7 @@ const ADMIN_LOGIN_FAILURE_LIMIT = 8;
 const ADMIN_LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 const ADMIN_USERNAME_MAX_LENGTH = 64;
 const ADMIN_PASSWORD_MAX_LENGTH = 256;
+const MAX_CONFIG_AUDIT_CHANGES = 80;
 
 type AdminLoginBody = {
   username: string;
@@ -417,6 +418,59 @@ function sanitizeConfigScope(scope: ConfigScope, value: unknown) {
   return asRecord(value);
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function jsonEqual(left: unknown, right: unknown) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function compactAuditValue(value: unknown): unknown {
+  if (typeof value === "string") return value.length > 160 ? `${value.slice(0, 157)}...` : value;
+  if (typeof value === "number" || typeof value === "boolean" || value === null || value === undefined) return value ?? null;
+  if (Array.isArray(value)) {
+    return {
+      type: "array",
+      length: value.length,
+      preview: value.slice(0, 3).map(compactAuditValue)
+    };
+  }
+  if (isPlainObject(value)) {
+    return {
+      type: "object",
+      keys: Object.keys(value).slice(0, 12)
+    };
+  }
+  return String(value);
+}
+
+function collectConfigChanges(scope: string, before: unknown, after: unknown, path: string[], changes: Array<Record<string, unknown>>) {
+  if (changes.length >= MAX_CONFIG_AUDIT_CHANGES || jsonEqual(before, after)) return;
+  if (isPlainObject(before) && isPlainObject(after)) {
+    const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)])).sort();
+    for (const key of keys) collectConfigChanges(scope, before[key], after[key], [...path, key], changes);
+    return;
+  }
+  changes.push({
+    path: [scope, ...path].join("."),
+    before: compactAuditValue(before),
+    after: compactAuditValue(after)
+  });
+}
+
+function buildConfigAuditDiff(beforeConfig: Record<string, unknown>, afterConfig: Partial<Record<ConfigScope, unknown>>) {
+  const changes: Array<Record<string, unknown>> = [];
+  for (const [scope, data] of Object.entries(afterConfig)) {
+    collectConfigChanges(scope, beforeConfig[scope], data, [], changes);
+  }
+  return {
+    changedCount: changes.length,
+    truncated: changes.length >= MAX_CONFIG_AUDIT_CHANGES,
+    changes
+  };
+}
+
 async function logAdmin(adminId: string, action: string, targetType?: string, detail?: unknown, targetId?: string) {
   await db.insert(auditLogs).values({
     id: crypto.randomUUID(),
@@ -746,10 +800,12 @@ export const adminRoutes = new Hono()
     } catch (error) {
       return fail(c, "invalid_config", error instanceof Error ? error.message : "后台配置格式不正确。", 400);
     }
+    const beforeConfig = await getAdminConfig(db) as Record<string, unknown>;
+    const auditDiff = buildConfigAuditDiff(beforeConfig, sanitized);
     for (const [scope, data] of Object.entries(sanitized)) {
       await upsertConfigScope(db, scope as ConfigScope, data, admin.id);
     }
-    await logAdmin(admin.id, "config.update", "app_config", { scopes: Object.keys(sanitized) });
+    await logAdmin(admin.id, "config.update", "app_config", { scopes: Object.keys(sanitized), ...auditDiff });
     return ok(c, await getAdminConfig(db));
   })
   .get("/dashboard", async (c) => {
