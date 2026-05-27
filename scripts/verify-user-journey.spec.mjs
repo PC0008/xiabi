@@ -213,3 +213,48 @@ test("call page records to server ASR when browser speech start fails", async ({
   await voiceButton.dispatchEvent("pointerup", { pointerType: "touch" });
   await expect.poll(() => transcribeCalled).toBe(true);
 });
+
+test("start call waits for latest public config", async ({ page }) => {
+  let configCalls = 0;
+  await page.addInitScript(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.route("**/api/public/config", async (route) => {
+    configCalls += 1;
+    const generationEnabled = configCalls === 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          homeConfig: {},
+          pricing: {},
+          guideStages: [],
+          system: { voice_enabled: true, sms_enabled: true, file_export_enabled: true, generation_enabled: generationEnabled },
+          capabilities: {
+            voice: {
+              ttsConfigured: true,
+              asrConfigured: false,
+              asrVerified: false,
+              asrPreferred: false
+            }
+          },
+          versions: {}
+        }
+      })
+    });
+  });
+
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+
+  await expect.poll(() => configCalls).toBeGreaterThanOrEqual(1);
+  await page.locator('[data-action="auth"]').click();
+  const startCall = page.locator('[data-action="start-call"]');
+  await expect(startCall).toBeVisible();
+  await startCall.click();
+  await expect(page.locator(".question-card")).toHaveCount(0);
+  await expect(page.locator(".home-title")).toBeVisible();
+  await expect(page.locator("button", { hasText: "生成入口暂未开放" })).toBeVisible();
+});

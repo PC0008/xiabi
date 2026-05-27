@@ -198,7 +198,8 @@ const state = {
   phoneInput: "",
   smsCode: "",
   smsNotice: "",
-  sessionNotice: ""
+  sessionNotice: "",
+  configSyncing: false
 };
 
 let speechRecognition = null;
@@ -345,6 +346,18 @@ window.addEventListener("xiabi:config-updated", (event) => {
   applyAdminConfig(event.detail || readAdminMockConfig());
   render();
 });
+
+async function syncConfigBeforeAction() {
+  state.configSyncing = true;
+  render();
+  try {
+    const config = await window.XiabiStore.syncPublicConfig();
+    applyAdminConfig(config);
+  } finally {
+    state.configSyncing = false;
+    render();
+  }
+}
 
 function topbar() {
   return `
@@ -627,13 +640,17 @@ function renderAuth() {
 function renderHome() {
   const lines = titleLines();
   const canGenerate = generationEnabled();
+  const startCallReady = canGenerate && !state.configSyncing;
+  const startCallText = state.configSyncing
+    ? "正在同步配置..."
+    : (canGenerate ? h(homePage.primary_button_text) : "生成入口暂未开放");
   return shell(`
     ${topbar()}
     <h1 class="home-title"><span>${h(lines[0])}</span>${h(lines[1])}</h1>
     <p class="home-copy">${h(homePage.hero_subtitle)}</p>
     <img class="home-ill" src="${ASSETS.home}" alt="写销售信插画" />
     <div class="free-hint">${h(homePage.free_hint)}</div>
-    <button class="primary-btn ${canGenerate ? "" : "disabled"}" data-action="start-call">${uiIcon("spark", "btn-svg")} ${canGenerate ? h(homePage.primary_button_text) : "生成入口暂未开放"}</button>
+    <button class="primary-btn ${startCallReady ? "" : "disabled"}" ${startCallReady ? `data-action="start-call"` : "disabled"}>${uiIcon("spark", "btn-svg")} ${startCallText}</button>
     ${state.pendingLetter ? `
       <div class="pending-card card">
         <div class="pending-title">${h(homePage.unclaimed_notice)}</div>
@@ -1696,13 +1713,15 @@ document.addEventListener("click", async (event) => {
     window.XiabiStore.setGuest(true);
     go("home");
   } else if (action === "start-call") {
-    if (!generationEnabled()) return;
+    if (state.configSyncing) return;
     if (!state.authed) {
       state.guest = false;
       window.XiabiStore.clearGuest();
       go("auth");
       return;
     }
+    await syncConfigBeforeAction();
+    if (!generationEnabled()) return;
     state.answers = [];
     state.inputMode = voiceInputAvailable() ? "voice" : "text";
     persist();
