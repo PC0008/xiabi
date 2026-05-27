@@ -14,6 +14,9 @@
 - 用户端开关闭环补强：用户端 H5 已读取公开配置里的 `system.voice_enabled`；后台关闭语音服务后，通话页会直接降级为打字模式，隐藏/阻止按住说话和切回语音入口。
 - 生成入口开关闭环补强：用户端首页现在同时尊重 `home.generation_entry_enabled` 和 `system.generation_enabled`；后台关闭后端写信服务时，首页按钮会禁用且不会进入通话流程。
 - 短信/导出开关闭环补强：用户端 H5 现在同时尊重 `system.sms_enabled` 和 `system.file_export_enabled`；后台关闭短信后不会继续展示可操作验证码绑定，关闭导出后用户端保留记录但不再提供打印版入口；服务端绑定手机号和导出接口也会按配置真实拒绝。
+- 配置真实生效补强：后台“游客可浏览首页”、未领取说明/按钮、通话阶段必答/可跳过、付费页预览和系统开关概览已补齐到用户端真实逻辑；微信内支付授权回跳统一回到订单页，重新拉起失败订单会恢复待支付状态。
+- 支付权益闭环补强：用户查单补偿、微信支付回调、后台订单查单和失败回调重处理统一走同一个“标记已支付并发放权益”的幂等服务函数，减少订单状态和权益流水分叉。
+- 交付文档补强：新增根 `README.md` 和 `docs/生产外部凭据交接清单.md`，明确线上地址、常用命令、验收分级和真实外部联调所需凭据。
 - 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式。
 - 仍需真实外部验收输入：后台账号密码、DeepSeek 真实生成开关、真实支付创建/付款环境、可接收短信手机号、MiniMax TTS 开关、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。
 

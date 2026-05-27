@@ -44,6 +44,8 @@ const adminState = {
     primary_button_text: "开始语音通话 · 首次免费",
     free_hint: "首次体验可免费生成一封",
     unclaimed_notice: "你有一封已经写好的销售信，还没有领取。",
+    unclaimed_notice_desc: "可以继续回来查看完整内容。",
+    unclaimed_button_text: "领取我的销售信",
     allow_guest_preview: true,
     generation_entry_enabled: true,
     text_mode_enabled: true,
@@ -467,7 +469,7 @@ function renderDashboard() {
       <div class="panel card">
         <div class="panel-head"><div><div class="panel-title">系统开关</div><div class="panel-desc">一期关键能力必须能随时关闭。</div></div></div>
         ${switchRow("新通话入口", "开启后用户可进入通话页", adminState.homeConfig.generation_entry_enabled, "homeConfig.generation_entry_enabled")}
-        ${switchRow("新生成任务", "关闭后只保留历史查看", adminState.homeConfig.generation_entry_enabled, "homeConfig.generation_entry_enabled")}
+        ${switchRow("新生成任务", "关闭后只保留历史查看", adminState.system.generation_enabled, "system.generation_enabled")}
         ${switchRow("支付入口", "正式支付异常时可临时关闭", adminState.pricing.payment_enabled, "pricing.payment_enabled")}
         ${switchRow("打字模式", "用户不想语音时可切换", adminState.homeConfig.text_mode_enabled, "homeConfig.text_mode_enabled")}
       </div>
@@ -487,6 +489,8 @@ function renderMiniapp() {
           ${area("首页副标题", "hero_subtitle", adminState.homeConfig.hero_subtitle)}
           ${field("首次免费提示", "free_hint", adminState.homeConfig.free_hint)}
           ${field("未领取提醒", "unclaimed_notice", adminState.homeConfig.unclaimed_notice)}
+          ${field("未领取说明", "unclaimed_notice_desc", adminState.homeConfig.unclaimed_notice_desc)}
+          ${field("未领取按钮", "unclaimed_button_text", adminState.homeConfig.unclaimed_button_text)}
         </div>
       </div>
       <div class="panel card">

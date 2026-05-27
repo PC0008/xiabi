@@ -6,7 +6,7 @@ import { guestSessions, orders, salesLetters } from "@defs";
 import { buildWechatOAuthUrl, createWechatJsapiPayment, createWechatPayment, getWechatPaymentReadiness, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { getConfigScope } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
-import { activateOrderEntitlement } from "../domain/entitlements";
+import { markOrderPaidAndGrantEntitlement } from "../domain/entitlements";
 import { fail, ok, readJson } from "../domain/http";
 
 const SESSION_COOKIE = "xiabi_session";
@@ -31,7 +31,7 @@ function getReturnUrl(c: any) {
   }
 }
 
-function wechatAuthResponse(c: any) {
+function wechatAuthResponse(c: any, returnUrl = getReturnUrl(c)) {
   return ok(c, {
     requiresWechatAuth: true,
     payment: {
@@ -39,7 +39,7 @@ function wechatAuthResponse(c: any) {
       configured: false,
       message: "请先完成微信授权后再继续支付。"
     },
-    oauthUrl: buildWechatOAuthUrl(getReturnUrl(c))
+    oauthUrl: buildWechatOAuthUrl(returnUrl)
   });
 }
 
@@ -120,7 +120,7 @@ export const orderRoutes = new Hono()
     }
     const openid = getCookie(c, WECHAT_OPENID_COOKIE);
     const useJsapi = isWeChatBrowser(c);
-    if (useJsapi && !openid) return wechatAuthResponse(c);
+    if (useJsapi && !openid) return wechatAuthResponse(c, "/index.html#orders");
     const orderId = crypto.randomUUID();
     const providerOrderNo = createProviderOrderNo();
     await db.insert(orders).values({
@@ -187,15 +187,8 @@ export const orderRoutes = new Hono()
     if (order.status === "pending" && order.providerOrderNo) {
       const query = await queryWechatPaymentByOutTradeNo(order.providerOrderNo).catch(() => null);
       if (query?.configured && query.transaction && paymentMatchesOrder(order, query.transaction)) {
-        await activateOrderEntitlement(order);
-        await db.update(orders).set({
-          status: "paid",
-          providerTransactionId: query.transaction.transaction_id || order.providerTransactionId,
-          paidAt: order.paidAt || new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }).where(eq(orders.id, order.id));
-        const [updated] = await db.select().from(orders).where(eq(orders.id, order.id)).limit(1);
-        return ok(c, { orderId: updated?.id || order.id, status: updated?.status || "paid", paidAt: updated?.paidAt || order.paidAt });
+        const updated = await markOrderPaidAndGrantEntitlement(order, query.transaction);
+        return ok(c, { orderId: updated.id, status: updated.status, paidAt: updated.paidAt });
       }
     }
     return ok(c, { orderId: order.id, status: order.status, paidAt: order.paidAt });
@@ -217,7 +210,7 @@ export const orderRoutes = new Hono()
     if (!readiness.configured) return fail(c, "wechat_pay_not_configured", readiness.message, 503);
     const openid = getCookie(c, WECHAT_OPENID_COOKIE);
     const useJsapi = isWeChatBrowser(c);
-    if (useJsapi && !openid) return wechatAuthResponse(c);
+    if (useJsapi && !openid) return wechatAuthResponse(c, "/index.html#orders");
     let payment;
     try {
       if (useJsapi && openid) {
@@ -244,8 +237,8 @@ export const orderRoutes = new Hono()
       return fail(c, "payment_create_failed", error instanceof Error ? error.message : "微信支付拉起失败。", 502);
     }
     if (!payment.configured) return fail(c, "wechat_pay_not_configured", payment.message || "微信支付还没有完成配置。", 503);
-    await db.update(orders).set({ updatedAt: new Date().toISOString() }).where(eq(orders.id, order.id));
-    return ok(c, { orderId: order.id, providerOrderNo: order.providerOrderNo, status: order.status, amount: order.amountCents / 100, payment });
+    await db.update(orders).set({ status: "pending", updatedAt: new Date().toISOString() }).where(eq(orders.id, order.id));
+    return ok(c, { orderId: order.id, providerOrderNo: order.providerOrderNo, status: "pending", amount: order.amountCents / 100, payment });
   })
   .get("/:id", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);

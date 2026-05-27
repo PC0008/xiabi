@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { orders, paymentWebhookEvents } from "@defs";
 import { verifyWechatWebhook } from "../adapters/payment/wechat";
 import { TENANT_ID } from "../domain/defaults";
-import { activateOrderEntitlement } from "../domain/entitlements";
+import { markOrderPaidAndGrantEntitlement } from "../domain/entitlements";
 import { fail, ok } from "../domain/http";
 
 type WechatNotification = {
@@ -108,15 +108,7 @@ export const webhookRoutes = new Hono()
         .limit(1);
       if (!order) throw new Error("order_not_found");
       validateWechatTransaction(notification, transaction, order);
-      await activateOrderEntitlement(order);
-      if (order.status !== "paid") {
-        await db.update(orders).set({
-          status: "paid",
-          providerTransactionId: transaction.transaction_id || null,
-          paidAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }).where(eq(orders.id, order.id));
-      }
+      await markOrderPaidAndGrantEntitlement(order, transaction);
       await db.update(paymentWebhookEvents).set({ orderId: order.id, status: "processed" }).where(eq(paymentWebhookEvents.id, event.id));
       return ok(c, { received: true });
     } catch (error) {

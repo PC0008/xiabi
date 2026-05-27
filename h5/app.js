@@ -26,7 +26,8 @@ let homePage = Object.assign({
   free_hint: "首次体验可免费生成一封",
   unclaimed_notice: "你有一封已经写好的销售信，还没有领取。",
   unclaimed_notice_desc: "可以继续回来查看完整内容。",
-  unclaimed_button_text: "领取我的销售信"
+  unclaimed_button_text: "领取我的销售信",
+  allow_guest_preview: true
 }, adminMockConfig.homeConfig || {});
 
 let appSystem = Object.assign({
@@ -125,6 +126,7 @@ function buildQuestionsFromConfig(stages) {
       title: stage.question || defaultQuestions[stageIndex]?.title || stage.title,
       desc: stage.desc || defaultQuestions[stageIndex]?.desc || "你可以直接说，也可以点一下。",
       stage: `正在确认${stage.title || "信息"}`,
+      required: stage.required !== false,
       options: (stage.options || []).map((label, optionIndex) => ({
         label,
         value: `${label}。`,
@@ -294,7 +296,7 @@ async function resumePaymentIntent() {
       productType: intent.productType,
       letterId: intent.letterId || null
     });
-    clearPaymentIntent();
+    if (!result?.requiresWechatAuth) clearPaymentIntent();
     if (continueWechatPayment(result)) return;
     state.paymentNotice = result.payment?.message || "支付暂时无法拉起，请稍后再试。";
     await loadAccountData();
@@ -355,6 +357,13 @@ function tabbar(active) {
 
 function currentQuestion() {
   return questions[Math.min(state.answers.length, questions.length - 1)];
+}
+
+function canConfirmAnswers() {
+  return questions
+    .map((question, index) => ({ question, index }))
+    .filter((item) => item.question.required !== false)
+    .every((item) => state.answers[item.index]);
 }
 
 function getSpeechRecognition() {
@@ -522,7 +531,7 @@ function renderAuth() {
     <p class="auth-desc">开始体验后，智多星会通过几句对话帮你整理目标，并保存写好的销售信。</p>
     <div class="agreement"><span class="agree-dot"></span>我已阅读并同意《用户协议》和《隐私政策》</div>
     <button class="primary-btn" data-action="auth">${uiIcon("user", "btn-svg")}开始体验</button>
-    <div class="look-around" data-action="guest">暂不登录，先看看</div>
+    ${homePage.allow_guest_preview === false ? "" : `<div class="look-around" data-action="guest">暂不登录，先看看</div>`}
   `);
 }
 
@@ -548,7 +557,7 @@ function renderHome() {
 
 function renderCall() {
   const q = currentQuestion();
-  const enough = state.answers.length >= 3;
+  const enough = canConfirmAnswers();
   const canUseVoice = voiceEnabled();
   const activeInputMode = canUseVoice ? state.inputMode : "text";
   return shell(`
@@ -576,6 +585,7 @@ function renderCall() {
         `).join("")}
       </div>
       ${enough ? `<button class="ready-mini" data-go="confirm">信息够了，查看整理结果</button>` : ""}
+      ${q.required === false ? `<button class="ready-mini" data-action="skip-question">这一步先跳过</button>` : ""}
     </div>
     ${(state.voiceTranscript || state.voiceError) ? `
       <div class="speech-live ${state.voiceError ? "error" : ""}">
@@ -780,14 +790,18 @@ function renderPaywall() {
   const single = state.selectedPlan === "single";
   const canPay = paymentOpen() && availablePlans.length;
   const buttonText = single ? `单封解锁 ${money(commerceConfig.single)}` : `开通年卡 ${money(commerceConfig.annual)}/年`;
+  const previewParagraphs = (state.letter?.paragraphs || []).filter(Boolean);
+  const firstPreview = previewParagraphs[0] || "这封信已经写好，前半段会先帮你把客户最关心的问题讲清楚。";
+  const secondPreview = previewParagraphs[1] || "完整内容会继续补上案例、行动建议和成交承接，让你可以直接发给客户。";
+  const hiddenPreview = previewParagraphs[2] || "解锁后查看后续完整内容。";
   return shell(`
     ${topbar()}
     <div class="tag">${uiIcon("check", "tag-svg")} 新信件已写好</div>
     <h1 class="page-title">这封信先给你看前半段</h1>
     <div class="preview-card card">
-      <p class="paragraph">你现在卡住的地方，不是产品没有价值，而是客户还没有看见这件事和他自己的关系。</p>
-      <p class="paragraph">所以这封信不会一上来就介绍功能，而是先把他正在损失的机会讲清楚。</p>
-      <p class="paragraph blurred">接下来要把你的案例、价格和行动建议放在同一条成交线上...</p>
+      <p class="paragraph">${h(firstPreview)}</p>
+      <p class="paragraph">${h(secondPreview)}</p>
+      <p class="paragraph blurred">${h(hiddenPreview)}</p>
       <div class="fade-lock">解锁后查看完整成交逻辑</div>
     </div>
     ${commerceConfig.single_enabled !== false ? offerCard("single", "doc", "单封解锁", "解锁当前这封销售信，7 天内升级年卡可抵扣。", money(commerceConfig.single)) : ""}
@@ -1147,7 +1161,7 @@ function profileRow(icon, name, meta, action, orange) {
 function render() {
   const route = state.route;
   let html;
-  if (route === "auth" && !state.authed && !state.guest) html = renderAuth();
+  if (route === "auth" && !state.authed && (!state.guest || homePage.allow_guest_preview === false)) html = renderAuth();
   else if (route === "auth") html = renderHome();
   else if (route === "home") html = renderHome();
   else if (route === "call") html = renderCall();
@@ -1164,6 +1178,7 @@ function render() {
   else if (route === "settings") html = renderSettings();
   else if (route === "memory") html = renderMemory();
   else html = renderHome();
+  if (!state.authed && homePage.allow_guest_preview === false && route !== "auth") html = renderAuth();
   document.getElementById("app").innerHTML = html;
 }
 
@@ -1467,6 +1482,7 @@ document.addEventListener("click", async (event) => {
     window.XiabiMockStore.setAuthed(true);
     go("home");
   } else if (action === "guest") {
+    if (homePage.allow_guest_preview === false) return;
     state.guest = true;
     window.XiabiMockStore.setGuest(true);
     go("home");
@@ -1501,6 +1517,10 @@ document.addEventListener("click", async (event) => {
     const input = document.getElementById("typedText");
     const value = input && input.value.trim();
     if (value) addAnswer(value);
+  } else if (action === "skip-question") {
+    const question = currentQuestion();
+    if (question?.required !== false) return;
+    addAnswer("这一步先跳过，暂不补充。");
   } else if (action === "speaker") {
     state.speakerOn = !state.speakerOn;
     render();

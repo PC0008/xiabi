@@ -7,7 +7,7 @@ import { generateSalesLetterWithDeepSeek, SalesLetterContent } from "../adapters
 import { queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { getAdminConfig, upsertConfigScope } from "../domain/config";
 import { ConfigScope, configScopes, TENANT_ID } from "../domain/defaults";
-import { activateOrderEntitlement } from "../domain/entitlements";
+import { activateOrderEntitlement, markOrderPaidAndGrantEntitlement } from "../domain/entitlements";
 import { fail, ok, parseJson, readJson } from "../domain/http";
 import { createToken, daysFromNow, hashPassword, hashToken, isFuture } from "../domain/security";
 
@@ -296,6 +296,8 @@ function sanitizeHomeConfig(value: unknown) {
     primary_button_text: cleanText(input.primary_button_text || "开始语音通话 · 首次免费", 40),
     free_hint: cleanText(input.free_hint || "首次体验可免费生成一封", 60),
     unclaimed_notice: cleanText(input.unclaimed_notice || "你有一封已经写好的销售信，还没有领取。", 80),
+    unclaimed_notice_desc: cleanText(input.unclaimed_notice_desc || "可以继续回来查看完整内容。", 100),
+    unclaimed_button_text: cleanText(input.unclaimed_button_text || "领取我的销售信", 40),
     allow_guest_preview: cleanBoolean(input.allow_guest_preview, true),
     generation_entry_enabled: cleanBoolean(input.generation_entry_enabled, true),
     text_mode_enabled: cleanBoolean(input.text_mode_enabled, true),
@@ -844,15 +846,7 @@ export const adminRoutes = new Hono()
     const transaction = query.transaction;
     if (!transaction) return fail(c, "wechat_pay_empty_query", "微信支付查单没有返回交易数据。", 502);
     if (transaction.trade_state === "SUCCESS") {
-      if (order.status !== "paid") {
-        await db.update(orders).set({
-          status: "paid",
-          providerTransactionId: transaction.transaction_id || null,
-          paidAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }).where(eq(orders.id, order.id));
-      }
-      await activateOrderEntitlement(order);
+      await markOrderPaidAndGrantEntitlement(order, transaction);
     }
     await logAdmin(admin!.id, "order.reconcile", "order", {
       orderId: order.id,
@@ -962,15 +956,7 @@ export const adminRoutes = new Hono()
         .limit(1);
       if (!order) throw new Error("order_not_found");
       validateStoredWechatTransaction(notification, transaction, order);
-      await activateOrderEntitlement(order);
-      if (order.status !== "paid") {
-        await db.update(orders).set({
-          status: "paid",
-          providerTransactionId: transaction.transaction_id || order.providerTransactionId,
-          paidAt: order.paidAt || new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }).where(eq(orders.id, order.id));
-      }
+      await markOrderPaidAndGrantEntitlement(order, transaction);
       await db.update(paymentWebhookEvents).set({ orderId: order.id, status: "processed", errorMessage: null }).where(eq(paymentWebhookEvents.id, event.id));
       await logAdmin(admin!.id, "payment_event.reprocess", "payment_webhook_event", { eventId: event.id, orderId: order.id });
       const [updated] = await db.select().from(orders).where(eq(orders.id, order.id)).limit(1);
