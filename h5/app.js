@@ -68,8 +68,8 @@ const defaultQuestions = [
     desc: "如果没有档案，边聊边建立临时档案。",
     stage: "正在匹配产品档案",
     options: [
-      { label: "门店复购方案", value: "产品是门店复购方案，帮助商家提升老客户回购。", icon: "archive" },
-      { label: "销售表达辅导", value: "产品是销售表达辅导服务，帮助客户把复杂价值讲得更清楚。", icon: "edit" },
+      { label: "我来描述产品", value: "我会直接描述这次要写的产品或服务。", icon: "edit" },
+      { label: "匹配已有档案", value: "这次先匹配已有产品档案。", icon: "archive" },
       { label: "新建临时产品", value: "本次先新建临时产品档案，生成前再确认归属。", icon: "plus" }
     ]
   },
@@ -792,7 +792,7 @@ function renderProfile() {
   return shell(`
     ${topbar()}
     <div class="profile-card card">
-      <img class="avatar" src="${ASSETS.callAvatar}" alt="王总" />
+      <img class="avatar" src="${ASSETS.callAvatar}" alt="用户头像" />
       <div>
         <div class="profile-name">${state.phoneMasked ? "已绑定用户" : "访客用户"}</div>
         <div class="profile-member">${accountLabel} · ${annualActive ? "年卡会员" : "免费体验用户"}</div>
@@ -945,7 +945,7 @@ function renderMemory() {
       <div class="section-head"><div class="section-icon">${uiIcon("archive")}</div><div class="section-title">产品档案</div></div>
       <div class="empty-card inline-empty">
         <div class="empty-title">产品档案还没有正式开放编辑</div>
-        <div class="empty-desc">当前会先从每次通话和销售信记录里保存上下文，避免展示不存在的样例档案。</div>
+        <div class="empty-desc">当前会先从每次通话和销售信记录里保存上下文，避免展示尚未创建的档案。</div>
       </div>
     </div>
     <div class="memory-card card">
