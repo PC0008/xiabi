@@ -151,6 +151,11 @@
     });
   }
 
+  async function getGenerationTask(taskId) {
+    await ensureGuestSession();
+    return apiFetch(`/tasks/${taskId}`);
+  }
+
   async function getLetter(letterId) {
     return apiFetch(`/letters/${letterId}`);
   }
@@ -179,6 +184,11 @@
   async function getOrderPaymentStatus(orderId) {
     await ensureGuestSession();
     return apiFetch(`/orders/${orderId}/payment-status`);
+  }
+
+  async function continueOrderPayment(orderId) {
+    await ensureGuestSession();
+    return apiFetch(`/orders/${orderId}/pay`, { method: "POST" });
   }
 
   async function getEntitlements() {
@@ -295,12 +305,14 @@
     ensureGuestSession,
     getSession,
     createGenerationTask,
+    getGenerationTask,
     getLetter,
     listLetters,
     claimLetter,
     createOrder,
     listOrders,
     getOrderPaymentStatus,
+    continueOrderPayment,
     getEntitlements,
     sendSmsCode,
     bindPhone,

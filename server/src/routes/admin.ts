@@ -147,6 +147,18 @@ async function logAdmin(adminId: string, action: string, targetType?: string, de
   });
 }
 
+async function logAdminFailure(action: string, detail?: unknown) {
+  await db.insert(auditLogs).values({
+    id: crypto.randomUUID(),
+    tenantId: TENANT_ID,
+    actorId: null,
+    actorType: "admin",
+    action,
+    targetType: "admin_user",
+    detailJson: detail ? JSON.stringify(detail) : null
+  });
+}
+
 async function findAdminSession(c: Parameters<Hono["fetch"]>[0] extends never ? never : any) {
   const token = getCookie(c, ADMIN_COOKIE);
   if (!token) return null;
@@ -298,11 +310,17 @@ export const adminRoutes = new Hono()
       .from(adminUsers)
       .where(and(eq(adminUsers.tenantId, TENANT_ID), eq(adminUsers.username, username), eq(adminUsers.status, "active")))
       .limit(1);
-    if (!admin) return fail(c, "invalid_credentials", "账号或密码不正确。", 401);
+    if (!admin) {
+      await logAdminFailure("admin.login_failed", { username, reason: "admin_not_found" });
+      return fail(c, "invalid_credentials", "账号或密码不正确。", 401);
+    }
 
     const pepper = secret.get("ADMIN_PASSWORD_PEPPER") || "";
     const passwordHash = await hashPassword(password, pepper);
-    if (passwordHash !== admin.passwordHash) return fail(c, "invalid_credentials", "账号或密码不正确。", 401);
+    if (passwordHash !== admin.passwordHash) {
+      await logAdminFailure("admin.login_failed", { username, reason: "password_not_match" });
+      return fail(c, "invalid_credentials", "账号或密码不正确。", 401);
+    }
 
     await createSession(c, admin.id);
     await db.update(adminUsers).set({ lastLoginAt: new Date().toISOString() }).where(eq(adminUsers.id, admin.id));

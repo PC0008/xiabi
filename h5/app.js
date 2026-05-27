@@ -141,6 +141,7 @@ const state = {
   letter: storedState.letter,
   remoteLetters: [],
   remoteOrders: [],
+  recordFilter: "all",
   entitlements: [],
   entitlementSummary: { annualActive: false, singleCredits: 0, firstFreeUsed: false },
   sessionUser: null,
@@ -151,7 +152,9 @@ const state = {
   paymentRefreshing: false,
   phoneInput: "",
   smsCode: "",
-  smsNotice: ""
+  smsNotice: "",
+  reminderEnabled: true,
+  saveProfileEnabled: true
 };
 
 let speechRecognition = null;
@@ -293,6 +296,10 @@ function paymentModeLabel(mode) {
 
 function moneyFromCents(cents) {
   return `¥${(Number(cents || 0) / 100).toFixed(2).replace(/\.00$/, "")}`;
+}
+
+function formatDateText(value) {
+  return value ? new Date(value).toLocaleString() : "刚刚";
 }
 
 async function loadAccountData() {
@@ -727,14 +734,29 @@ function getRecords() {
 }
 
 function renderRecords() {
+  const filterLabels = [
+    ["all", "全部"],
+    ["incomplete", "信息未完成"],
+    ["claim", "待领取"],
+    ["unlock", "待解锁"],
+    ["done", "已完成"]
+  ];
+  const records = getRecords().filter((item) => {
+    if (state.recordFilter === "all") return true;
+    if (state.recordFilter === "claim") return item.status === "待领取";
+    if (state.recordFilter === "unlock") return item.status === "待解锁";
+    if (state.recordFilter === "incomplete") return item.status === "信息未完成";
+    if (state.recordFilter === "done") return ["已领取", "已导出", "已解锁"].includes(item.status);
+    return true;
+  });
   return shell(`
     ${topbar()}
     <h1 class="record-title">我的销售信</h1>
-    <div class="tabs"><span class="tab active">全部</span><span class="tab">信息未完成</span><span class="tab">待领取</span><span class="tab">待解锁</span><span class="tab">已完成</span></div>
-    ${getRecords().length ? getRecords().map((item) => recordCard(item)).join("") : `
+    <div class="tabs">${filterLabels.map(([key, label]) => `<button class="tab ${state.recordFilter === key ? "active" : ""}" data-record-filter="${key}">${label}</button>`).join("")}</div>
+    ${records.length ? records.map((item) => recordCard(item)).join("") : `
       <div class="empty-card card">
-        <div class="empty-title">还没有保存的销售信</div>
-        <div class="empty-desc">和智多星完成一次通话后，生成的信会自动出现在这里。</div>
+        <div class="empty-title">这里暂时没有对应记录</div>
+        <div class="empty-desc">完成一次通话后，生成的信会自动出现在这里，也可以切换上方状态查看。</div>
         <button class="secondary-btn empty-action" data-go="home">回到首页</button>
       </div>
     `}
@@ -832,6 +854,7 @@ function renderOrders() {
           </div>
           <div class="order-amount">${order.amount}</div>
           ${order.status === "待支付" && order.id ? `<button class="mini-outline" data-action="refresh-order" data-order-id="${order.id}">刷新</button>` : ""}
+          ${order.status === "待支付" && order.id ? `<button class="mini-outline" data-action="continue-payment" data-order-id="${order.id}">继续支付</button>` : ""}
         </div>
       `).join("")}
     </div>
@@ -888,14 +911,14 @@ function renderSettings() {
           <div class="setting-title">生成完成提醒</div>
           <div class="setting-desc">用于提醒你回来领取写好的销售信。</div>
         </div>
-        <span class="switch on"></span>
+        <button class="switch ${state.reminderEnabled ? "on" : ""}" data-action="toggle-reminder" aria-label="生成完成提醒"></button>
       </div>
       <div class="setting-row">
         <div>
           <div class="setting-title">保存我的档案</div>
           <div class="setting-desc">开启后，下次写信会少问重复问题。</div>
         </div>
-        <span class="switch on"></span>
+        <button class="switch ${state.saveProfileEnabled ? "on" : ""}" data-action="toggle-profile-save" aria-label="保存我的档案"></button>
       </div>
     </div>
     <div class="settings-card card">
@@ -907,26 +930,32 @@ function renderSettings() {
 }
 
 function renderMemory() {
+  const letters = state.remoteLetters.length ? state.remoteLetters.slice(0, 3) : [];
   return shell(`
     ${topbar()}
     <h1 class="memory-title">我的档案</h1>
     <div class="privacy-note">这些内容只用于帮智多星更好地理解你，你可以随时修改或删除。</div>
     <div class="memory-card card">
-      <div class="section-head"><div class="section-icon">${uiIcon("user")}</div><div class="section-title">个人档案</div><div class="text-link">编辑</div></div>
-      <div class="kv-row"><span>常用称呼</span><span>王总</span></div>
-      <div class="kv-row"><span>写信偏好</span><span>表达直接一点</span></div>
+      <div class="section-head"><div class="section-icon">${uiIcon("user")}</div><div class="section-title">个人档案</div></div>
+      <div class="kv-row"><span>账号状态</span><span>${state.phoneMasked ? "已绑定手机号" : "未绑定手机号"}</span></div>
+      <div class="kv-row"><span>手机号</span><span>${state.phoneMasked || "-"}</span></div>
+      <div class="kv-row"><span>年卡权益</span><span>${hasAnnualEntitlement() ? "生效中" : "未开通"}</span></div>
     </div>
     <div class="memory-card card">
       <div class="section-head"><div class="section-icon">${uiIcon("archive")}</div><div class="section-title">产品档案</div></div>
-      <div class="segment-row"><span class="segment active">我的产品</span><span class="segment">朋友/客户的产品</span><span class="segment">临时产品</span></div>
-      ${profileRow("doc", "门店复购方案", "我的产品", "查看 〉")}
-      ${profileRow("spark", "朋友的茶叶礼盒", "临时产品", "确认归属 〉", true)}
-      <div class="add-profile">${uiIcon("plus", "plus-svg")}新增产品档案</div>
+      <div class="empty-card inline-empty">
+        <div class="empty-title">产品档案还没有正式开放编辑</div>
+        <div class="empty-desc">当前会先从每次通话和销售信记录里保存上下文，避免展示不存在的样例档案。</div>
+      </div>
     </div>
     <div class="memory-card card">
       <div class="section-head"><div class="section-icon">${uiIcon("records")}</div><div class="section-title">写信项目</div></div>
-      ${profileRow("doc", "给老客户的复购邀约信", "发信主体：我　使用产品：门店复购方案", "查看 〉")}
-      ${profileRow("user", "帮朋友写招商信", "发信主体：朋友　使用产品：朋友的茶叶礼盒", "查看 〉", true)}
+      ${letters.length ? letters.map((letter) => profileRow("doc", letter.title, `${letter.scene || letter.content?.scene || "销售信"} · ${formatDateText(letter.createdAt)}`, "查看 〉")).join("") : `
+        <div class="empty-card inline-empty">
+          <div class="empty-title">还没有写信项目</div>
+          <div class="empty-desc">完成一次通话后，真实项目会出现在这里。</div>
+        </div>
+      `}
     </div>
   `, { tab: "profile" });
 }
@@ -1077,6 +1106,19 @@ async function refreshOrders(orderId) {
   }
 }
 
+async function waitForGenerationTask(task) {
+  if (task?.letterId) return task.letterId;
+  const taskId = task?.taskId || task?.id;
+  if (!taskId) throw new Error("写信任务没有返回任务编号。");
+  for (let index = 0; index < 30; index += 1) {
+    const current = await window.XiabiMockStore.getGenerationTask(taskId);
+    if (current.status === "succeeded" && current.letterId) return current.letterId;
+    if (current.status === "failed") throw new Error(current.errorMessage || "写信服务暂时没有完成。");
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  throw new Error("写信还在排队，请稍后到记录里查看。");
+}
+
 document.addEventListener("pointerdown", (event) => {
   const voiceTarget = event.target.closest('[data-action="voice-answer"]');
   if (!voiceTarget) return;
@@ -1100,9 +1142,9 @@ document.addEventListener("click", async (event) => {
   const goTarget = event.target.closest("[data-go]");
   if (goTarget) {
     go(goTarget.dataset.go);
-    if (["records", "orders", "profile"].includes(goTarget.dataset.go)) {
+    if (["records", "orders", "profile", "memory", "settings"].includes(goTarget.dataset.go)) {
       loadAccountData().then(() => {
-        if (["records", "orders", "profile"].includes(state.route)) render();
+        if (["records", "orders", "profile", "memory", "settings"].includes(state.route)) render();
       });
     }
     return;
@@ -1124,6 +1166,13 @@ document.addEventListener("click", async (event) => {
   const feedbackTag = event.target.closest("[data-feedback-tag]");
   if (feedbackTag) {
     state.feedbackText = `${feedbackTag.dataset.feedbackTag}：`;
+    render();
+    return;
+  }
+
+  const recordFilter = event.target.closest("[data-record-filter]");
+  if (recordFilter) {
+    state.recordFilter = recordFilter.dataset.recordFilter;
     render();
     return;
   }
@@ -1206,6 +1255,12 @@ document.addEventListener("click", async (event) => {
     state.showMicSheet = false;
     state.inputMode = "text";
     render();
+  } else if (action === "toggle-reminder") {
+    state.reminderEnabled = !state.reminderEnabled;
+    render();
+  } else if (action === "toggle-profile-save") {
+    state.saveProfileEnabled = !state.saveProfileEnabled;
+    render();
   } else if (action === "generate") {
     state.letter = null;
     state.pendingLetter = false;
@@ -1215,7 +1270,8 @@ document.addEventListener("click", async (event) => {
     go("generating");
     startGenerationTicker();
     window.XiabiMockStore.createGenerationTask(state.answers)
-      .then((task) => window.XiabiMockStore.getLetter(task.letterId))
+      .then((task) => waitForGenerationTask(task))
+      .then((letterId) => window.XiabiMockStore.getLetter(letterId))
       .then((remoteLetter) => {
         state.generationPending = false;
         applyRemoteLetter(remoteLetter);
@@ -1267,6 +1323,15 @@ document.addEventListener("click", async (event) => {
     await refreshOrders();
   } else if (action === "refresh-order") {
     await refreshOrders(actionTarget.dataset.orderId);
+  } else if (action === "continue-payment") {
+    try {
+      const result = await window.XiabiMockStore.continueOrderPayment(actionTarget.dataset.orderId);
+      if (continueWechatPayment(result)) return;
+      state.paymentNotice = result.payment?.message || "支付暂时无法拉起，请稍后再试。";
+    } catch (error) {
+      state.paymentNotice = error.message || "继续支付失败，请稍后再试。";
+    }
+    render();
   } else if (action === "skip-phone") {
     if (!state.letter) {
       state.generationError = "还没有可保存的销售信。";

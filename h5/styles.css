@@ -1937,6 +1937,7 @@ button {
 .switch {
   width: 48px;
   height: 28px;
+  border: 0;
   border-radius: 999px;
   position: relative;
   background: #d9dfdc;
@@ -1975,6 +1976,11 @@ button {
   text-align: left;
   font-size: 17px;
   font-weight: 900;
+}
+
+.inline-empty {
+  margin: 0;
+  box-shadow: none;
 }
 
 .settings-action:last-child {

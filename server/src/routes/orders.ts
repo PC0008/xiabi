@@ -89,6 +89,28 @@ export const orderRoutes = new Hono()
     if (!order) return fail(c, "order_not_found", "没有找到订单。", 404);
     return ok(c, { orderId: order.id, status: order.status, paidAt: order.paidAt });
   })
+  .post("/:id/pay", async (c) => {
+    const sessionId = getCookie(c, SESSION_COOKIE);
+    if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(and(eq(orders.id, c.req.param("id")), eq(orders.sessionId, sessionId), eq(orders.tenantId, TENANT_ID)))
+      .limit(1);
+    if (!order) return fail(c, "order_not_found", "没有找到订单。", 404);
+    if (order.status === "paid") return fail(c, "order_already_paid", "这笔订单已经支付完成。", 409);
+    if (!order.providerOrderNo) return fail(c, "missing_provider_order_no", "订单缺少商户订单号。", 400);
+    const payment = await createWechatPayment({
+      orderId: order.id,
+      providerOrderNo: order.providerOrderNo,
+      title: order.title,
+      amountCents: order.amountCents,
+      notifyUrl: vars.get("PAYMENT_NOTIFY_URL") || `${vars.get("PUBLIC_BASE_URL") || ""}/api/webhooks/wechat-pay`,
+      clientIp: c.req.header("cf-connecting-ip") || c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
+    });
+    await db.update(orders).set({ updatedAt: new Date().toISOString() }).where(eq(orders.id, order.id));
+    return ok(c, { orderId: order.id, providerOrderNo: order.providerOrderNo, status: order.status, amount: order.amountCents / 100, payment });
+  })
   .get("/:id", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
     if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
