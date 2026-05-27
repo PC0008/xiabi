@@ -147,6 +147,8 @@ const state = {
   remoteOrders: [],
   entitlements: [],
   entitlementSummary: { annualActive: false, singleCredits: 0, firstFreeUsed: false },
+  sessionUser: null,
+  phoneMasked: "",
   generationPending: false,
   generationError: "",
   paymentNotice: "",
@@ -285,11 +287,15 @@ function moneyFromCents(cents) {
 
 async function loadAccountData() {
   try {
-    const [lettersData, ordersData, entitlementData] = await Promise.all([
+    const [sessionData, lettersData, ordersData, entitlementData] = await Promise.all([
+      window.XiabiMockStore.getSession(),
       window.XiabiMockStore.listLetters(),
       window.XiabiMockStore.listOrders(),
       window.XiabiMockStore.getEntitlements()
     ]);
+    state.sessionUser = sessionData.user || null;
+    state.phoneMasked = state.sessionUser?.phoneMasked || "";
+    state.phoneBound = !!state.phoneMasked;
     state.remoteLetters = lettersData.letters || [];
     state.remoteOrders = ordersData.orders || [];
     state.entitlements = entitlementData.entitlements || [];
@@ -751,13 +757,14 @@ function recordCard(item) {
 function renderProfile() {
   const annualActive = hasAnnualEntitlement();
   const savedCount = state.letter ? 1 : 0;
+  const accountLabel = state.phoneMasked || (state.phoneBound ? "手机号已绑定" : "手机号未绑定");
   return shell(`
     ${topbar()}
     <div class="profile-card card">
       <img class="avatar" src="${ASSETS.callAvatar}" alt="王总" />
       <div>
-        <div class="profile-name">王总</div>
-        <div class="profile-member">${state.phoneBound ? "手机号已绑定" : "手机号未绑定"} · ${annualActive ? "年卡会员" : "免费体验用户"}</div>
+        <div class="profile-name">${state.phoneMasked ? "已绑定用户" : "访客用户"}</div>
+        <div class="profile-member">${accountLabel} · ${annualActive ? "年卡会员" : "免费体验用户"}</div>
       </div>
       <button class="bind-btn">${state.phoneBound ? "已绑定" : "绑定手机号"}</button>
     </div>
@@ -852,6 +859,7 @@ function renderFeedback() {
 }
 
 function renderSettings() {
+  const accountLabel = state.phoneMasked || (state.phoneBound ? "手机号已绑定" : "手机号未绑定");
   return shell(`
     ${topbar()}
     <h1 class="record-title">设置</h1>
@@ -859,7 +867,7 @@ function renderSettings() {
       <div class="setting-row">
         <div>
           <div class="setting-title">当前账号</div>
-          <div class="setting-desc">王总 · ${state.phoneBound ? "手机号已绑定" : "手机号未绑定"}</div>
+          <div class="setting-desc">${accountLabel}</div>
         </div>
         <button class="mini-outline" data-go="generating">绑定手机号</button>
       </div>
@@ -1197,6 +1205,7 @@ document.addEventListener("click", async (event) => {
     try {
       const result = await window.XiabiMockStore.bindPhone(state.phoneInput, state.smsCode);
       state.phoneBound = true;
+      state.phoneMasked = result.phoneMasked || state.phoneMasked;
       state.smsNotice = `已绑定 ${result.phoneMasked}`;
     } catch (error) {
       state.smsNotice = error.message || "手机号绑定失败，请检查验证码。";
@@ -1302,6 +1311,8 @@ document.addEventListener("click", async (event) => {
     state.answers = [];
     state.pendingLetter = false;
     state.phoneBound = false;
+    state.phoneMasked = "";
+    state.sessionUser = null;
     state.annualActive = false;
     state.letter = null;
     go("auth");
@@ -1309,6 +1320,9 @@ document.addEventListener("click", async (event) => {
     window.XiabiMockStore.logout();
     state.authed = false;
     state.guest = false;
+    state.phoneBound = false;
+    state.phoneMasked = "";
+    state.sessionUser = null;
     go("auth");
   }
 });

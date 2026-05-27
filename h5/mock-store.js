@@ -109,6 +109,11 @@
     }
   }
 
+  async function getSession() {
+    await ensureGuestSession();
+    return apiFetch("/session/me");
+  }
+
   async function syncAdminConfig() {
     try {
       const config = normalizeRemoteConfig(await apiFetch("/admin/config"));
@@ -284,6 +289,7 @@
     syncAdminConfig,
     saveAdminConfig,
     ensureGuestSession,
+    getSession,
     createGenerationTask,
     getLetter,
     listLetters,

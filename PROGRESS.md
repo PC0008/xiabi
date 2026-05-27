@@ -40,6 +40,7 @@
 - 用户端任务查询已收紧为当前会话可见，防止靠任务 ID 读取他人生成任务。
 - 用户端下单会校验 `letterId` 属于当前会话；单封解锁必须关联当前会话的一封销售信。
 - 微信支付回调按 `tenant_id + provider + provider_order_no` 查订单，避免跨 provider/order 误匹配。
+- 用户端“我的/设置”账户状态已接入 `/api/public/session/me`，手机号绑定状态和脱敏手机号从服务端会话读取。
 - 导出、反馈接口已建立：反馈写入审计日志，导出当前为服务端生成文本文件并返回下载地址。
 - 已更新 `.env.example`，补充 `WECHAT_PAY_PLATFORM_PUBLIC_KEY`。
 
