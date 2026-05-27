@@ -31,8 +31,8 @@ $readme = @(
   "",
   "## Notes",
   "",
-  "- This package only contains static H5 pages, mock admin pages, and image assets.",
-  "- Mock config and user state use same-origin localStorage.",
+  "- This package contains the H5 pages, admin pages, and image assets.",
+  "- Runtime config and user state use same-origin API calls with localStorage only as a browser cache.",
   "- Do not put model keys, voice keys, or payment secrets in frontend files.",
   "- Deploy the package root so /h5/index.html and /assets/ui/*.png are directly accessible."
 ) -join [Environment]::NewLine

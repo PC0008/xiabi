@@ -36,6 +36,7 @@
 - 生产验收补强：`XIABI_VERIFY_DEEPSEEK=1` 现在不仅验证 DeepSeek 生成，还会继续验证首次免费领取、权益流水和可打印 HTML 导出。
 - 生产验收补强：新增 `XIABI_VERIFY_REPEAT_FREE=1`，可在同一会话生成第二封信并验证重复首次免费领取会被 `first_free_used` 拒绝。
 - 语音输入接入槽补强：服务端 `/api/public/voice/transcribe` 现在同时支持 JSON base64 和 OpenAI-compatible `/audio/transcriptions` multipart 格式，`VOICE_ASR_REQUEST_FORMAT=openai|json` 可显式指定。
+- 前端运行时命名正式化：用户端和后台入口从 `mock-store.js` 迁移到 `store.js`，应用调用统一改为 `window.XiabiStore`，旧别名仅保留给浏览器缓存兼容。
 - 交付文档补强：新增根 `README.md` 和 `docs/生产外部凭据交接清单.md`，明确线上地址、常用命令、验收分级和真实外部联调所需凭据。
 - 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run check:ui`、`npm run verify:journey`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式；线上公开配置已确认 `payment_enabled`、`annual_enabled`、`single_enabled`、`system.payment_enabled` 均为 `true`。
 - 仍需真实外部验收输入：后台账号密码、微信支付产品权限或微信内 JSAPI 授权配置、真实付款环境、可接收短信手机号、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。

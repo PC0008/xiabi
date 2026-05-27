@@ -311,7 +311,7 @@
     ].forEach((key) => localStorage.removeItem(key));
   }
 
-  window.XiabiMockStore = {
+  const store = {
     getAdminConfig,
     setAdminConfig,
     syncPublicConfig,
@@ -348,4 +348,7 @@
     logout,
     clearAppState
   };
+
+  window.XiabiStore = store;
+  window.XiabiMockStore = store;
 }());

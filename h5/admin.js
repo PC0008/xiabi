@@ -117,23 +117,23 @@ function applyRemoteAdminConfig(config) {
 }
 
 function readSavedAdminConfig() {
-  return window.XiabiMockStore.getAdminConfig();
+  return window.XiabiStore.getAdminConfig();
 }
 
 async function loadAdminLists() {
   if (!adminState.adminUser) return;
   try {
     const [dashboard, usersData, lettersData, ordersData, entitlementData, logsData, tasksData, paymentEventsData, feedbackData, diagnosticsData] = await Promise.all([
-      window.XiabiMockStore.adminFetch("/dashboard"),
-      window.XiabiMockStore.adminFetch("/users"),
-      window.XiabiMockStore.adminFetch(listPath("/letters", adminState.filters.lettersStatus)),
-      window.XiabiMockStore.adminFetch(listPath("/orders", adminState.filters.ordersStatus)),
-      window.XiabiMockStore.adminFetch(listPath("/entitlements", adminState.filters.entitlementsStatus)),
-      window.XiabiMockStore.adminFetch("/audit-logs"),
-      window.XiabiMockStore.adminFetch(listPath("/tasks", adminState.filters.tasksStatus)),
-      window.XiabiMockStore.adminFetch(listPath("/payment-events", adminState.filters.paymentEventsStatus)),
-      window.XiabiMockStore.adminFetch("/feedback"),
-      window.XiabiMockStore.adminFetch("/diagnostics")
+      window.XiabiStore.adminFetch("/dashboard"),
+      window.XiabiStore.adminFetch("/users"),
+      window.XiabiStore.adminFetch(listPath("/letters", adminState.filters.lettersStatus)),
+      window.XiabiStore.adminFetch(listPath("/orders", adminState.filters.ordersStatus)),
+      window.XiabiStore.adminFetch(listPath("/entitlements", adminState.filters.entitlementsStatus)),
+      window.XiabiStore.adminFetch("/audit-logs"),
+      window.XiabiStore.adminFetch(listPath("/tasks", adminState.filters.tasksStatus)),
+      window.XiabiStore.adminFetch(listPath("/payment-events", adminState.filters.paymentEventsStatus)),
+      window.XiabiStore.adminFetch("/feedback"),
+      window.XiabiStore.adminFetch("/diagnostics")
     ]);
     adminState.lists = {
       dashboard,
@@ -1035,7 +1035,7 @@ async function openDetail(type, id) {
   adminState.detail = { title: "详情", sub: `${type}/${id}`, loading: true, html: "" };
   render();
   try {
-    const data = await window.XiabiMockStore.adminFetch(`/${type}/${id}`);
+    const data = await window.XiabiStore.adminFetch(`/${type}/${id}`);
     adminState.detail = { title: "详情", sub: `${type}/${id}`, loading: false, html: buildDetailHtml(type, data) };
   } catch (error) {
     adminState.detail = { title: "详情", sub: `${type}/${id}`, loading: false, html: `<div class="empty">${h(error.message || "详情加载失败")}</div>` };
@@ -1108,8 +1108,8 @@ document.addEventListener("click", async (event) => {
   if (action === "admin-login") {
     try {
       adminState.loginError = "";
-      adminState.adminUser = await window.XiabiMockStore.adminLogin(adminState.loginUsername.trim(), adminState.loginPassword);
-      applyRemoteAdminConfig(await window.XiabiMockStore.syncAdminConfig());
+      adminState.adminUser = await window.XiabiStore.adminLogin(adminState.loginUsername.trim(), adminState.loginPassword);
+      applyRemoteAdminConfig(await window.XiabiStore.syncAdminConfig());
       await loadAdminLists();
       showToast("登录成功");
     } catch (error) {
@@ -1117,13 +1117,13 @@ document.addEventListener("click", async (event) => {
       render();
     }
   } else if (action === "admin-logout") {
-    await window.XiabiMockStore.adminLogout();
+    await window.XiabiStore.adminLogout();
     adminState.adminUser = null;
     adminState.loginPassword = "";
     render();
   } else if (action === "save") {
     try {
-      await window.XiabiMockStore.saveAdminConfig({
+      await window.XiabiStore.saveAdminConfig({
         homeConfig: adminState.homeConfig,
         pricing: adminState.pricing,
         system: adminState.system,
@@ -1139,7 +1139,7 @@ document.addEventListener("click", async (event) => {
     window.open("./index.html#home", "_blank");
   } else if (action === "refresh-diagnostics") {
     try {
-      adminState.lists.diagnostics = await window.XiabiMockStore.adminFetch("/diagnostics");
+      adminState.lists.diagnostics = await window.XiabiStore.adminFetch("/diagnostics");
       showToast("系统自检已刷新");
     } catch (error) {
       showToast(error.message || "系统自检刷新失败");
@@ -1192,7 +1192,7 @@ document.addEventListener("click", async (event) => {
     render();
   } else if (action === "reconcile-order") {
     try {
-      await window.XiabiMockStore.adminPost(`/orders/${actionTarget.dataset.orderId}/reconcile`);
+      await window.XiabiStore.adminPost(`/orders/${actionTarget.dataset.orderId}/reconcile`);
       await loadAdminLists();
       if (adminState.detail?.sub === `orders/${actionTarget.dataset.orderId}`) await openDetail("orders", actionTarget.dataset.orderId);
       showToast("查单完成，订单状态已刷新");
@@ -1201,7 +1201,7 @@ document.addEventListener("click", async (event) => {
     }
   } else if (action === "repair-order-entitlement") {
     try {
-      await window.XiabiMockStore.adminPost(`/orders/${actionTarget.dataset.orderId}/rebuild-entitlement`);
+      await window.XiabiStore.adminPost(`/orders/${actionTarget.dataset.orderId}/rebuild-entitlement`);
       await loadAdminLists();
       if (adminState.detail?.sub === `orders/${actionTarget.dataset.orderId}`) await openDetail("orders", actionTarget.dataset.orderId);
       showToast("权益已按订单补发");
@@ -1210,7 +1210,7 @@ document.addEventListener("click", async (event) => {
     }
   } else if (action === "retry-task") {
     try {
-      await window.XiabiMockStore.adminPost(`/tasks/${actionTarget.dataset.taskId}/retry`);
+      await window.XiabiStore.adminPost(`/tasks/${actionTarget.dataset.taskId}/retry`);
       await loadAdminLists();
       if (adminState.detail?.sub === `tasks/${actionTarget.dataset.taskId}`) await openDetail("tasks", actionTarget.dataset.taskId);
       showToast("任务重试完成");
@@ -1219,7 +1219,7 @@ document.addEventListener("click", async (event) => {
     }
   } else if (action === "reprocess-payment-event") {
     try {
-      await window.XiabiMockStore.adminPost(`/payment-events/${actionTarget.dataset.eventId}/reprocess`);
+      await window.XiabiStore.adminPost(`/payment-events/${actionTarget.dataset.eventId}/reprocess`);
       await loadAdminLists();
       if (adminState.detail?.sub === `payment-events/${actionTarget.dataset.eventId}`) await openDetail("payment-events", actionTarget.dataset.eventId);
       showToast("支付回调已重新处理");
@@ -1232,7 +1232,7 @@ document.addEventListener("click", async (event) => {
         showToast("两次输入的新密码不一致");
         return;
       }
-      await window.XiabiMockStore.adminPost("/password", {
+      await window.XiabiStore.adminPost("/password", {
         currentPassword: adminState.security.currentPassword,
         newPassword: adminState.security.newPassword
       });
@@ -1247,7 +1247,7 @@ document.addEventListener("click", async (event) => {
     try {
       const status = action === "resolve-feedback" ? "resolved" : "open";
       const note = window.prompt(status === "resolved" ? "处理备注（可选）" : "重开原因（可选）", "") || "";
-      await window.XiabiMockStore.adminPost(`/feedback/${actionTarget.dataset.feedbackId}/status`, { status, note });
+      await window.XiabiStore.adminPost(`/feedback/${actionTarget.dataset.feedbackId}/status`, { status, note });
       await loadAdminLists();
       if (adminState.detail?.sub === `feedback/${actionTarget.dataset.feedbackId}`) await openDetail("feedback", actionTarget.dataset.feedbackId);
       showToast(status === "resolved" ? "反馈已标记处理" : "反馈已重新打开");
@@ -1332,9 +1332,9 @@ document.addEventListener("input", (event) => {
 if (!location.hash) location.hash = adminState.route;
 
 async function initAdmin() {
-  adminState.adminUser = await window.XiabiMockStore.getAdminSession();
+  adminState.adminUser = await window.XiabiStore.getAdminSession();
   if (adminState.adminUser) {
-    applyRemoteAdminConfig(await window.XiabiMockStore.syncAdminConfig());
+    applyRemoteAdminConfig(await window.XiabiStore.syncAdminConfig());
     await loadAdminLists();
   }
   adminState.authChecked = true;

@@ -7,7 +7,7 @@ const required = [
   "h5/admin.html",
   "h5/app.js",
   "h5/admin.js",
-  "h5/mock-store.js",
+  "h5/store.js",
   "h5/styles.css",
   "h5/admin.css",
   "assets/ui/zhiduoxing-call-avatar.png"

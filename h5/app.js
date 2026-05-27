@@ -38,7 +38,7 @@ let appSystem = Object.assign({
 }, adminMockConfig.system || {});
 
 function readAdminMockConfig() {
-  return window.XiabiMockStore.getAdminConfig();
+  return window.XiabiStore.getAdminConfig();
 }
 
 function applyAdminConfig(config) {
@@ -144,7 +144,7 @@ const sampleAnswers = [
   "客户担心效果不稳定，也担心投入后没有持续跟进。"
 ];
 
-const storedState = window.XiabiMockStore.getAppState();
+const storedState = window.XiabiStore.getAppState();
 const state = {
   authed: storedState.authed,
   guest: storedState.guest,
@@ -194,7 +194,7 @@ let voiceStream = null;
 let voiceChunks = [];
 
 function persist() {
-  window.XiabiMockStore.persistAppState(state);
+  window.XiabiStore.persistAppState(state);
 }
 
 function hasAnnualEntitlement() {
@@ -291,7 +291,7 @@ async function resumePaymentIntent() {
   state.paymentNotice = "正在继续刚才的微信支付。";
   render();
   try {
-    const result = await window.XiabiMockStore.createOrder({
+    const result = await window.XiabiStore.createOrder({
       productType: intent.productType,
       letterId: intent.letterId || null
     });
@@ -377,7 +377,7 @@ async function playAssistantVoice(text) {
     state.voiceError = "";
     state.voiceTranscript = "智多星正在说话...";
     render();
-    const result = await window.XiabiMockStore.speak(content);
+    const result = await window.XiabiStore.speak(content);
     if (!state.speakerOn) return;
     if (!result.audioUrl) {
       state.speakerOn = false;
@@ -476,10 +476,10 @@ function formatDateText(value) {
 async function loadAccountData() {
   try {
     const [sessionData, lettersData, ordersData, entitlementData] = await Promise.all([
-      window.XiabiMockStore.getSession(),
-      window.XiabiMockStore.listLetters(),
-      window.XiabiMockStore.listOrders(),
-      window.XiabiMockStore.getEntitlements()
+      window.XiabiStore.getSession(),
+      window.XiabiStore.listLetters(),
+      window.XiabiStore.listOrders(),
+      window.XiabiStore.getEntitlements()
     ]);
     state.sessionUser = sessionData.user || null;
     state.phoneMasked = state.sessionUser?.phoneMasked || "";
@@ -1325,7 +1325,7 @@ async function startRecordedVoiceInput() {
       try {
         const dataUrl = await blobToDataUrl(blob);
         const audioBase64 = dataUrl.split(",")[1] || "";
-        const result = await window.XiabiMockStore.transcribeVoice({ audioBase64, mimeType: blob.type || "audio/webm" });
+        const result = await window.XiabiStore.transcribeVoice({ audioBase64, mimeType: blob.type || "audio/webm" });
         if (!result.configured || !result.transcript) {
           throw new Error(result.message || "语音转文字服务还没有完成配置，请先切换打字模式。");
         }
@@ -1373,10 +1373,10 @@ async function refreshOrders(orderId) {
   render();
   try {
     if (orderId) {
-      await window.XiabiMockStore.getOrderPaymentStatus(orderId);
+      await window.XiabiStore.getOrderPaymentStatus(orderId);
     } else {
       const pending = state.remoteOrders.filter((order) => order.status === "pending");
-      await Promise.all(pending.map((order) => window.XiabiMockStore.getOrderPaymentStatus(order.id).catch(() => null)));
+      await Promise.all(pending.map((order) => window.XiabiStore.getOrderPaymentStatus(order.id).catch(() => null)));
     }
     await loadAccountData();
     state.paymentNotice = "支付结果已刷新。如果刚完成付款，微信回调可能还需要一点时间。";
@@ -1393,7 +1393,7 @@ async function waitForGenerationTask(task) {
   const taskId = task?.taskId || task?.id;
   if (!taskId) throw new Error("写信任务没有返回任务编号。");
   for (let index = 0; index < 30; index += 1) {
-    const current = await window.XiabiMockStore.getGenerationTask(taskId);
+    const current = await window.XiabiStore.getGenerationTask(taskId);
     if (current.status === "succeeded" && current.letterId) return current.letterId;
     if (current.status === "failed") throw new Error(current.errorMessage || "写信服务暂时没有完成。");
     await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -1409,7 +1409,7 @@ async function resumeGenerationTask() {
   render();
   try {
     const letterId = await waitForGenerationTask({ taskId: state.generationTaskId });
-    const remoteLetter = await window.XiabiMockStore.getLetter(letterId);
+    const remoteLetter = await window.XiabiStore.getLetter(letterId);
     state.generationTaskId = "";
     state.generationPending = false;
     applyRemoteLetter(remoteLetter);
@@ -1486,7 +1486,7 @@ document.addEventListener("click", async (event) => {
     const letterId = openLetter.dataset.letterId;
     if (letterId) {
       try {
-        applyRemoteLetter(await window.XiabiMockStore.getLetter(letterId));
+        applyRemoteLetter(await window.XiabiStore.getLetter(letterId));
       } catch (error) {
         return;
       }
@@ -1505,18 +1505,18 @@ document.addEventListener("click", async (event) => {
 
   if (action === "auth") {
     state.authed = true;
-    window.XiabiMockStore.setAuthed(true);
+    window.XiabiStore.setAuthed(true);
     go("home");
   } else if (action === "guest") {
     if (homePage.allow_guest_preview === false) return;
     state.guest = true;
-    window.XiabiMockStore.setGuest(true);
+    window.XiabiStore.setGuest(true);
     go("home");
   } else if (action === "start-call") {
     if (!generationEnabled()) return;
     if (!state.authed) {
       state.guest = false;
-      window.XiabiMockStore.clearGuest();
+      window.XiabiStore.clearGuest();
       go("auth");
       return;
     }
@@ -1584,14 +1584,14 @@ document.addEventListener("click", async (event) => {
     persist();
     go("generating");
     startGenerationTicker();
-    window.XiabiMockStore.createGenerationTask(state.answers)
+    window.XiabiStore.createGenerationTask(state.answers)
       .then((task) => {
         state.generationTaskId = task?.taskId || task?.id || "";
         persist();
         return task;
       })
       .then((task) => waitForGenerationTask(task))
-      .then((letterId) => window.XiabiMockStore.getLetter(letterId))
+      .then((letterId) => window.XiabiStore.getLetter(letterId))
       .then((remoteLetter) => {
         state.generationTaskId = "";
         state.generationPending = false;
@@ -1613,7 +1613,7 @@ document.addEventListener("click", async (event) => {
       return;
     }
     try {
-      const result = await window.XiabiMockStore.bindPhone(state.phoneInput, state.smsCode);
+      const result = await window.XiabiStore.bindPhone(state.phoneInput, state.smsCode);
       state.phoneBound = true;
       state.phoneMasked = result.phoneMasked || state.phoneMasked;
       state.smsNotice = `已绑定 ${result.phoneMasked}`;
@@ -1625,7 +1625,7 @@ document.addEventListener("click", async (event) => {
     const shouldClaimLetter = state.route === "generating" && !!state.letter?.id;
     if (shouldClaimLetter) {
       try {
-        const remoteLetter = await window.XiabiMockStore.claimLetter(state.letter.id);
+        const remoteLetter = await window.XiabiStore.claimLetter(state.letter.id);
         applyRemoteLetter(remoteLetter);
       } catch (error) {
         state.generationError = error.message || "领取失败，请稍后再试。";
@@ -1647,7 +1647,7 @@ document.addEventListener("click", async (event) => {
       return;
     }
     try {
-      const result = await window.XiabiMockStore.sendSmsCode(state.phoneInput);
+      const result = await window.XiabiStore.sendSmsCode(state.phoneInput);
       state.smsNotice = `验证码已发送到 ${result.phoneMasked}`;
     } catch (error) {
       state.smsNotice = error.message || "验证码发送失败。";
@@ -1659,7 +1659,7 @@ document.addEventListener("click", async (event) => {
     await refreshOrders(actionTarget.dataset.orderId);
   } else if (action === "continue-payment") {
     try {
-      const result = await window.XiabiMockStore.continueOrderPayment(actionTarget.dataset.orderId);
+      const result = await window.XiabiStore.continueOrderPayment(actionTarget.dataset.orderId);
       if (continueWechatPayment(result)) return;
       state.paymentNotice = result.payment?.message || "支付暂时无法拉起，请稍后再试。";
     } catch (error) {
@@ -1679,7 +1679,7 @@ document.addEventListener("click", async (event) => {
     if (!paymentOpen() || (state.selectedPlan === "single" && commerceConfig.single_enabled === false) || (state.selectedPlan === "annual" && commerceConfig.annual_enabled === false)) return;
     try {
       setPaymentIntent(state.selectedPlan, state.letter?.id || null);
-      const result = await window.XiabiMockStore.createOrder({
+      const result = await window.XiabiStore.createOrder({
         productType: state.selectedPlan,
         letterId: state.letter?.id || null
       });
@@ -1704,7 +1704,7 @@ document.addEventListener("click", async (event) => {
     if (!paymentOpen() || commerceConfig.annual_enabled === false) return;
     try {
       setPaymentIntent("annual", state.letter?.id || null);
-      const result = await window.XiabiMockStore.createOrder({ productType: "annual", letterId: state.letter?.id || null });
+      const result = await window.XiabiStore.createOrder({ productType: "annual", letterId: state.letter?.id || null });
       if (!result?.requiresWechatAuth) clearPaymentIntent();
       if (continueWechatPayment(result)) return;
       clearPaymentIntent();
@@ -1728,7 +1728,7 @@ document.addEventListener("click", async (event) => {
       return;
     }
     try {
-      const result = await window.XiabiMockStore.exportLetter(state.letter.id);
+      const result = await window.XiabiStore.exportLetter(state.letter.id);
       state.letter.exported = true;
       state.pendingLetter = false;
       persist();
@@ -1743,7 +1743,7 @@ document.addEventListener("click", async (event) => {
     const input = document.getElementById("feedbackText");
     state.feedbackText = input ? input.value.trim() : state.feedbackText;
     try {
-      await window.XiabiMockStore.submitFeedback(state.feedbackText);
+      await window.XiabiStore.submitFeedback(state.feedbackText);
       state.feedbackSent = true;
       render();
     } catch (error) {
@@ -1751,7 +1751,7 @@ document.addEventListener("click", async (event) => {
       render();
     }
   } else if (action === "clear-local-cache") {
-    window.XiabiMockStore.clearAppState();
+    window.XiabiStore.clearAppState();
     state.authed = false;
     state.guest = false;
     state.answers = [];
@@ -1765,7 +1765,7 @@ document.addEventListener("click", async (event) => {
     state.letter = null;
     go("auth");
   } else if (action === "logout") {
-    window.XiabiMockStore.logout();
+    window.XiabiStore.logout();
     state.authed = false;
     state.guest = false;
     state.phoneBound = false;
@@ -1803,7 +1803,7 @@ if (!location.hash) {
   location.hash = state.authed || state.guest ? "home" : "auth";
 }
 render();
-window.XiabiMockStore.syncPublicConfig();
+window.XiabiStore.syncPublicConfig();
 loadAccountData().then(() => render());
 if (state.route === "orders") setTimeout(() => resumePaymentIntent(), 0);
 if (state.route === "generating") setTimeout(() => resumeGenerationTask(), 0);
