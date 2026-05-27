@@ -1,6 +1,6 @@
 # 生产验收状态报告
 
-生成时间：2026-05-27T18:41:00.311Z
+生成时间：2026-05-27T18:44:38.228Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 整体结果：未完全通过
 
@@ -16,7 +16,7 @@
 | 能力 | 状态 | 证据 | 下一步 |
 | --- | --- | --- | --- |
 | 线上基础运行 | 已验证 | health, public config |  |
-| 管理后台登录与运营接口 | 待输入 | admin diagnostics, admin read operations | 设置 XIABI_VERIFY_ADMIN_USERNAME / XIABI_VERIFY_ADMIN_PASSWORD 后复验。 |
+| 管理后台登录与运营接口 | 待输入 | admin diagnostics, admin read operations, admin config propagation | 设置 XIABI_VERIFY_ADMIN_USERNAME / XIABI_VERIFY_ADMIN_PASSWORD 后复验。 |
 | DeepSeek 写信闭环 | 已验证 | deepseek generation | 设置 XIABI_VERIFY_DEEPSEEK=1 会真实消耗一次生成额度。 |
 | 首次免费权益与导出 | 已验证 | first free entitlement and export | 设置 XIABI_VERIFY_DEEPSEEK=1 后会在同一会话内验证领取、权益流水和打印版导出。 |
 | 首次免费重复领取限制 | 已验证 | first free repeat guard | 设置 XIABI_VERIFY_DEEPSEEK=1 和 XIABI_VERIFY_REPEAT_FREE=1 后，会生成第二封信并验证重复免费领取被拒绝。 |
@@ -32,6 +32,7 @@
 - health: ok
 - public config: ok
 - admin diagnostics: skipped；set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD
+- admin config propagation: skipped；set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to verify admin config controls public config
 - deepseek generation: ok
 - first free entitlement and export: ok
 - first free repeat guard: ok

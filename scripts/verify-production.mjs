@@ -37,8 +37,8 @@ function buildReadinessReport() {
     },
     {
       requirement: "管理后台登录与运营接口",
-      status: readinessStatus(["admin diagnostics", "admin read operations"]),
-      evidence: ["admin diagnostics", "admin read operations"],
+      status: readinessStatus(["admin diagnostics", "admin read operations", "admin config propagation"]),
+      evidence: ["admin diagnostics", "admin read operations", "admin config propagation"],
       next: "设置 XIABI_VERIFY_ADMIN_USERNAME / XIABI_VERIFY_ADMIN_PASSWORD 后复验。"
     },
     {
@@ -247,6 +247,7 @@ async function verifyAdminDiagnostics() {
   const admin = await adminLogin();
   if (!admin) {
     skipOrStrict("admin diagnostics", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD");
+    skipOrStrict("admin config propagation", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to verify admin config controls public config");
     return;
   }
 
@@ -282,6 +283,30 @@ async function verifyAdminDiagnostics() {
     if (JSON.stringify(payload).includes(admin.password)) throw new Error(`${pathname} leaked the admin password`);
   }
   addCheck("admin read operations", "ok", { routes: listChecks.length });
+
+  const config = await api("/api/public/admin/config", {}, admin.cookie);
+  const saved = await api("/api/public/admin/config", {
+    method: "PATCH",
+    body: JSON.stringify({
+      home: config.homeConfig || config.home || {},
+      pricing: config.pricing || {},
+      guideStages: config.guideStages || [],
+      templates: config.templates || [],
+      system: config.system || {}
+    })
+  }, admin.cookie);
+  const publicConfig = await api("/api/public/config");
+  const savedHome = saved.homeConfig || saved.home || {};
+  const publicHome = publicConfig.homeConfig || publicConfig.home || {};
+  const savedPricing = saved.pricing || {};
+  const publicPricing = publicConfig.pricing || {};
+  if (savedHome.hero_title !== publicHome.hero_title || Number(savedPricing.annual?.amount_cents || 0) !== Number(publicPricing.annual?.amount_cents || 0)) {
+    throw new Error("admin config propagation did not match public config");
+  }
+  addCheck("admin config propagation", "ok", {
+    heroTitleLength: String(publicHome.hero_title || "").length,
+    annualAmountCents: publicPricing.annual?.amount_cents || null
+  });
 }
 
 async function verifyDeepSeek() {
