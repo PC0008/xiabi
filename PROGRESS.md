@@ -11,6 +11,7 @@
 - 反馈处理闭环补强：用户反馈提交现在返回 `feedbackId`，后台反馈详情支持查看处理记录，并可标记已处理/重新打开；处理动作会写入审计事件，不额外引入迁移风险。
 - 账号安全补强：后台新增“账号安全”页和 `/api/public/admin/password`，当前管理员可修改自己的密码；修改成功后会清理该账号所有后台会话并要求重新登录。
 - 验收脚本补强：`verify:live` 覆盖反馈写入、后台改密码未登录保护；`verify:production` 严格模式会要求真实外部链路 verifier 输入，后台账号存在时会读取关键运营列表，短信支持 `XIABI_VERIFY_SMS_CODE` 绑定验证，MiniMax TTS 会校验返回音频资源可访问。
+- 用户端开关闭环补强：用户端 H5 已读取公开配置里的 `system.voice_enabled`；后台关闭语音服务后，通话页会直接降级为打字模式，隐藏/阻止按住说话和切回语音入口。
 - 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式。
 - 仍需真实外部验收输入：后台账号密码、DeepSeek 真实生成开关、真实支付创建/付款环境、可接收短信手机号、MiniMax TTS 开关、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。
 

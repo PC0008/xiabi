@@ -29,6 +29,13 @@ let homePage = Object.assign({
   unclaimed_button_text: "领取我的销售信"
 }, adminMockConfig.homeConfig || {});
 
+let appSystem = Object.assign({
+  generation_enabled: true,
+  sms_enabled: true,
+  voice_enabled: true,
+  file_export_enabled: true
+}, adminMockConfig.system || {});
+
 function readAdminMockConfig() {
   return window.XiabiMockStore.getAdminConfig();
 }
@@ -37,7 +44,12 @@ function applyAdminConfig(config) {
   adminMockConfig = config || {};
   commerceConfig = Object.assign({}, commerceConfig, adminMockConfig.pricing || {});
   homePage = Object.assign({}, homePage, adminMockConfig.homeConfig || {});
+  appSystem = Object.assign({}, appSystem, adminMockConfig.system || {});
   questions = buildQuestionsFromConfig(adminMockConfig.guideStages);
+}
+
+function voiceEnabled() {
+  return appSystem.voice_enabled !== false;
 }
 
 const defaultQuestions = [
@@ -524,11 +536,13 @@ function renderHome() {
 function renderCall() {
   const q = currentQuestion();
   const enough = state.answers.length >= 3;
+  const canUseVoice = voiceEnabled();
+  const activeInputMode = canUseVoice ? state.inputMode : "text";
   return shell(`
     <div class="call-top">
       <button class="call-top-btn" data-go="home">↙</button>
-      <div class="call-timer">语音通话中 00:48</div>
-      <button class="call-top-btn" data-action="show-mic-sheet">•••</button>
+      <div class="call-timer">${canUseVoice ? "语音通话中" : "正在整理"} 00:48</div>
+      ${canUseVoice ? `<button class="call-top-btn" data-action="show-mic-sheet">•••</button>` : `<button class="call-top-btn" data-action="text-mode">Aa</button>`}
     </div>
     <div class="voice-bars"><i></i><i></i><i></i></div>
     <img class="call-avatar" src="${ASSETS.callAvatar}" alt="智多星" />
@@ -555,7 +569,7 @@ function renderCall() {
         ${state.voiceError || `我听到：${state.voiceTranscript}`}
       </div>
     ` : ""}
-    ${state.inputMode === "voice" ? `
+    ${activeInputMode === "voice" ? `
       <div class="voice-controls">
         <div class="call-actions">
           <button class="call-action" data-action="speaker"><span class="action-circle speaker">${callIcon("speaker")}</span><span>扬声器</span></button>
@@ -570,7 +584,7 @@ function renderCall() {
           <input id="typedText" value="${state.typedText}" placeholder="打字告诉智多星" />
           <button class="send-btn" data-action="send-text">发送</button>
         </div>
-        ${homePage.text_mode_enabled !== false ? `<div class="switch-mode" data-action="voice-mode">切回语音模式 〉</div>` : ""}
+        ${homePage.text_mode_enabled !== false && canUseVoice ? `<div class="switch-mode" data-action="voice-mode">切回语音模式 〉</div>` : ""}
       </div>
     `}
     ${state.showMicSheet ? renderMicSheet() : ""}
@@ -1444,10 +1458,11 @@ document.addEventListener("click", async (event) => {
       return;
     }
     state.answers = [];
-    state.inputMode = "voice";
+    state.inputMode = voiceEnabled() ? "voice" : "text";
     persist();
     go("call");
   } else if (action === "voice-answer") {
+    if (!voiceEnabled()) return;
     if (suppressVoiceClick) {
       suppressVoiceClick = false;
       return;
@@ -1458,6 +1473,7 @@ document.addEventListener("click", async (event) => {
     state.inputMode = "text";
     render();
   } else if (action === "voice-mode") {
+    if (!voiceEnabled()) return;
     state.inputMode = "voice";
     render();
   } else if (action === "send-text") {
