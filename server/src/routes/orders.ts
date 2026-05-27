@@ -3,7 +3,7 @@ import { and, desc, eq, or } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { guestSessions, orders, salesLetters } from "@defs";
-import { buildWechatOAuthUrl, createWechatJsapiPayment, createWechatPayment, getWechatOAuthReadiness, getWechatPaymentReadiness, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
+import { buildWechatOAuthUrl, createWechatJsapiPayment, createWechatPayment, getWechatOAuthReadiness, getWechatPaymentReadiness, isWechatPaymentExternalBlock, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { getConfigScope } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { markOrderPaidAndGrantEntitlement } from "../domain/entitlements";
@@ -11,6 +11,7 @@ import { fail, ok, readJson } from "../domain/http";
 
 const SESSION_COOKIE = "xiabi_session";
 const WECHAT_OPENID_COOKIE = "xiabi_wechat_openid";
+const WECHAT_PAY_EXTERNAL_BLOCKED_MESSAGE = "微信支付商户号缺少当前支付产品权限，请到微信支付商户平台产品中心开通 H5 支付或 JSAPI 支付后再试。";
 
 type CreateOrderBody = {
   productType?: "single" | "annual";
@@ -184,6 +185,9 @@ export const orderRoutes = new Hono()
       }
     } catch (error) {
       await db.update(orders).set({ status: "payment_failed", updatedAt: new Date().toISOString() }).where(eq(orders.id, orderId));
+      if (isWechatPaymentExternalBlock(error)) {
+        return fail(c, "wechat_pay_external_blocked", WECHAT_PAY_EXTERNAL_BLOCKED_MESSAGE, 424);
+      }
       return fail(c, "payment_create_failed", error instanceof Error ? error.message : "微信支付拉起失败。", 502);
     }
     if (!payment.configured) {
@@ -262,6 +266,9 @@ export const orderRoutes = new Hono()
       }
     } catch (error) {
       await db.update(orders).set({ status: "payment_failed", updatedAt: new Date().toISOString() }).where(eq(orders.id, order.id));
+      if (isWechatPaymentExternalBlock(error)) {
+        return fail(c, "wechat_pay_external_blocked", WECHAT_PAY_EXTERNAL_BLOCKED_MESSAGE, 424);
+      }
       return fail(c, "payment_create_failed", error instanceof Error ? error.message : "微信支付拉起失败。", 502);
     }
     if (!payment.configured) return fail(c, "wechat_pay_not_configured", payment.message || "微信支付还没有完成配置。", 503);

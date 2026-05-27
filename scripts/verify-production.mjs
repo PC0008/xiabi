@@ -199,6 +199,17 @@ function getCookie(headers) {
   return value.split(";")[0];
 }
 
+class ApiError extends Error {
+  constructor(label, response, payload, text) {
+    const message = payload?.error?.message || payload?.error?.code || text.slice(0, 160);
+    super(`${label} failed: ${response.status} ${message}`);
+    this.name = "ApiError";
+    this.status = response.status;
+    this.code = payload?.error?.code || "";
+    this.payload = payload;
+  }
+}
+
 async function readJsonResponse(response, label) {
   const text = await response.text();
   let payload = null;
@@ -208,8 +219,7 @@ async function readJsonResponse(response, label) {
     throw new Error(`${label} returned non-JSON: ${text.slice(0, 160)}`);
   }
   if (!response.ok || payload?.ok === false) {
-    const message = payload?.error?.message || payload?.error?.code || text.slice(0, 160);
-    throw new Error(`${label} failed: ${response.status} ${message}`);
+    throw new ApiError(label, response, payload, text);
   }
   return payload.data ?? payload;
 }
@@ -579,6 +589,13 @@ async function verifyPaymentCreate() {
       body: JSON.stringify({ productType: "annual" })
     }, cookie);
   } catch (error) {
+    if (error instanceof ApiError && error.code === "wechat_pay_external_blocked") {
+      addCheck("wechat payment create", "external_blocked", {
+        reason: error.message,
+        next: "在微信支付商户平台产品中心开通 H5 支付；微信内支付还需要开通 JSAPI 支付并补齐公众号网页授权配置。"
+      });
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error || "");
     if (message.includes("产品权限未开通")) {
       addCheck("wechat payment create", "external_blocked", {

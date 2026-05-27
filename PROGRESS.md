@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 微信支付外部阻塞识别补强：微信下单返回 `NO_AUTH`、商户无权限或产品权限未开通时，服务端会把订单标记为 `payment_failed` 并返回结构化错误 `wechat_pay_external_blocked`，生产验收据此标为 `external_blocked`，不再靠供应商中文报错字符串猜测。
+
 - 打印版导出正式化：服务端导出不再为没有正文的信件生成空白文件，返回 `letter_not_ready`；导出结果补充 `contentType` 和安全文件名，用户端内部动作从 `export-pdf` 改为 `export-print`，避免把当前可打印 HTML 误标成服务端直出 PDF。
 
 - MiniMax ASR 口径复核：已重新核对 MiniMax 官方 API Overview，Speech 目录仍只公开列出 T2A、T2A Async、Voice Cloning、Voice Design、Voice Management，未列独立 ASR/语音转文字端点；新增 `docs/minimax-asr-status-2026-05-28.md` 作为交付说明，项目继续保留可配置 ASR 接入槽，不臆造 MiniMax 转写 URL。

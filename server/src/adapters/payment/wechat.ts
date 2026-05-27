@@ -31,6 +31,18 @@ export type NormalizedWechatWebhook = {
   raw: unknown;
 };
 
+export class WechatPayApiError extends Error {
+  wechatCode?: string;
+  httpStatus?: number;
+
+  constructor(message: string, wechatCode?: string, httpStatus?: number) {
+    super(message);
+    this.name = "WechatPayApiError";
+    this.wechatCode = wechatCode;
+    this.httpStatus = httpStatus;
+  }
+}
+
 type WechatCertificateResponse = {
   data?: Array<{
     serial_no?: string;
@@ -46,6 +58,16 @@ type WechatCertificateResponse = {
 };
 
 const platformCertificateCache = new Map<string, string>();
+
+export function isWechatPaymentExternalBlock(error: unknown) {
+  const code = error instanceof WechatPayApiError ? error.wechatCode : "";
+  const message = error instanceof Error ? error.message : String(error || "");
+  return code === "NO_AUTH" ||
+    message.includes("商户无权限") ||
+    message.includes("产品权限") ||
+    message.includes("权限未开通") ||
+    message.includes("未开通");
+}
 
 function base64UrlEncode(value: string | ArrayBuffer) {
   let binary = "";
@@ -304,7 +326,7 @@ export async function createWechatPayment(input: CreateWechatPaymentInput) {
   });
   const payload = await response.json().catch(() => ({})) as { h5_url?: string; message?: string; code?: string };
   if (!response.ok || !payload.h5_url) {
-    throw new Error(payload.message || payload.code || `WeChat Pay request failed: ${response.status}`);
+    throw new WechatPayApiError(payload.message || payload.code || `WeChat Pay request failed: ${response.status}`, payload.code, response.status);
   }
   return {
     provider: "wechat",
@@ -360,7 +382,7 @@ export async function createWechatJsapiPayment(input: CreateWechatPaymentInput &
   });
   const payload = await response.json().catch(() => ({})) as { prepay_id?: string; message?: string; code?: string };
   if (!response.ok || !payload.prepay_id) {
-    throw new Error(payload.message || payload.code || `WeChat Pay JSAPI request failed: ${response.status}`);
+    throw new WechatPayApiError(payload.message || payload.code || `WeChat Pay JSAPI request failed: ${response.status}`, payload.code, response.status);
   }
   const payTimestamp = String(Math.floor(Date.now() / 1000));
   const payNonce = crypto.randomUUID().replace(/-/g, "");
