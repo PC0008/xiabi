@@ -530,11 +530,13 @@ export const adminRoutes = new Hono()
         letters: letterRows.length,
         orders: orderRows.length,
         failedTasks: taskRows.filter((task) => task.status === "failed").length,
-        pendingOrders: orderRows.filter((order) => order.status === "pending").length
+        pendingOrders: orderRows.filter((order) => order.status === "pending").length,
+        failedPayments: orderRows.filter((order) => order.status === "payment_failed").length
       },
       todo: [
         { title: "生成失败任务", count: taskRows.filter((task) => task.status === "failed").length, level: "danger" },
         { title: "待支付订单", count: orderRows.filter((order) => order.status === "pending").length, level: "warn" },
+        { title: "支付未完成订单", count: orderRows.filter((order) => order.status === "payment_failed").length, level: "warn" },
         { title: "待领取销售信", count: letterRows.filter((letter) => letter.status === "ready").length, level: "normal" }
       ]
     });

@@ -833,12 +833,25 @@ function renderProfile() {
   `, { tab: "profile" });
 }
 
+function orderStatusText(status) {
+  if (status === "paid") return "已支付";
+  if (status === "pending") return "待支付";
+  if (status === "payment_failed") return "支付未完成";
+  return status || "-";
+}
+
+function orderCanContinuePayment(status) {
+  return status === "pending" || status === "payment_failed";
+}
+
 function renderOrders() {
   const remoteOrders = state.remoteOrders.map((order) => ({
     id: order.id,
     title: order.title,
     amount: moneyFromCents(order.amountCents),
-    status: order.status === "paid" ? "已支付" : order.status === "pending" ? "待支付" : order.status,
+    status: orderStatusText(order.status),
+    rawStatus: order.status,
+    canContinuePayment: orderCanContinuePayment(order.status),
     time: `${order.createdAt ? new Date(order.createdAt).toLocaleString() : "刚刚"} · ${paymentModeLabel(order.provider)}`,
     icon: order.productType === "annual" ? "crown" : "doc",
     highlight: order.productType === "annual"
@@ -869,8 +882,8 @@ function renderOrders() {
             <div class="order-meta">${order.time} · ${order.status}</div>
           </div>
           <div class="order-amount">${order.amount}</div>
-          ${order.status === "待支付" && order.id ? `<button class="mini-outline" data-action="refresh-order" data-order-id="${order.id}">刷新</button>` : ""}
-          ${order.status === "待支付" && order.id ? `<button class="mini-outline" data-action="continue-payment" data-order-id="${order.id}">继续支付</button>` : ""}
+          ${order.rawStatus === "pending" && order.id ? `<button class="mini-outline" data-action="refresh-order" data-order-id="${order.id}">刷新</button>` : ""}
+          ${order.canContinuePayment && order.id ? `<button class="mini-outline" data-action="continue-payment" data-order-id="${order.id}">${order.rawStatus === "payment_failed" ? "重新支付" : "继续支付"}</button>` : ""}
         </div>
       `).join("")}
     </div>
@@ -878,6 +891,7 @@ function renderOrders() {
       <div class="status-head">订单说明</div>
       <div class="legend-row"><span class="dot green"></span><span>已支付</span><span>已完成支付并写入权益流水，可继续使用对应权益。</span></div>
       <div class="legend-row"><span class="dot orange"></span><span>待支付</span><span>还没有完成支付，不会发放年卡权益。</span></div>
+      <div class="legend-row"><span class="dot orange"></span><span>支付未完成</span><span>支付暂时没有拉起成功，稍后可以重新支付。</span></div>
     </div>
   `, { tab: "profile" });
 }
