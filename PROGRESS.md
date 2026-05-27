@@ -59,6 +59,7 @@
 - 语音能力下发补强：公开配置新增 `capabilities.voice` 布尔状态，只暴露 TTS/ASR 是否可用，不暴露密钥；用户端在浏览器语音识别和服务端 ASR 都不可用时会提前降级到打字模式，不再让用户录完才失败。
 - 语音录音体验补强：服务端兼容 `audio/webm;codecs=opus` 等浏览器 MIME，前端修复快速松手竞态，单次录音最多 15 秒自动送识别，并支持未来通过 `VOICE_INPUT_MODE=server` 或 `VOICE_ASR_PROVIDER=minimax` 优先走服务端 ASR。
 - 语音配置交接补强：`.env.example`、Edgespark 接入清单和生产验收清单已补齐 `VOICE_INPUT_MODE=server` 说明，方便正式配置“输入走服务端/MiniMax ASR”。
+- 后台自检补强：系统自检的“语音输入转写”组已展示 `VOICE_INPUT_MODE`，管理员能直接确认按住说话是否优先走服务端 ASR。
 - ASR 生产验收补强：`XIABI_VERIFY_ASR_EXPECTED_TEXT` 可验证音频转写结果包含预期关键句，避免只验证“返回了任意文本”。
 - 前端运行时命名正式化：用户端和后台入口从 `mock-store.js` 迁移到 `store.js`，应用调用统一改为 `window.XiabiStore`，旧别名仅保留给浏览器缓存兼容。
 - 运营漏洞修复：旧订单继续支付会重新读取后台支付开关，关闭支付/单封/年卡后不再拉起微信支付。

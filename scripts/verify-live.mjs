@@ -194,7 +194,15 @@ if (process.env.XIABI_VERIFY_ADMIN_USERNAME && process.env.XIABI_VERIFY_ADMIN_PA
     "/api/public/admin/diagnostics",
     { headers: { cookie: adminCookie } },
     200,
-    (payload) => Array.isArray(payload?.data?.groups) && payload.data.groups.length >= 5 && !JSON.stringify(payload).includes(process.env.XIABI_VERIFY_ADMIN_PASSWORD)
+    (payload) => {
+      const groups = payload?.data?.groups || [];
+      const voiceAsr = groups.find((group) => group.key === "voice_asr");
+      return Array.isArray(groups) &&
+        groups.length >= 5 &&
+        Array.isArray(voiceAsr?.items) &&
+        voiceAsr.items.some((item) => item.name === "VOICE_INPUT_MODE" && item.required === false) &&
+        !JSON.stringify(payload).includes(process.env.XIABI_VERIFY_ADMIN_PASSWORD);
+    }
   ));
   checks.push(await assertJson(
     "/api/public/admin/feedback",
