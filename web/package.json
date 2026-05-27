@@ -1,0 +1,21 @@
+{
+  "name": "xiabi-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync-assets": "node scripts/sync-assets.mjs",
+    "predev": "npm run sync-assets",
+    "dev": "vite --host 127.0.0.1",
+    "typecheck": "node scripts/check-static.mjs",
+    "build": "node scripts/build-static.mjs",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@edgespark/web": ">=0.0.1 <1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vite": "^6.0.0"
+  }
+}

@@ -5,8 +5,8 @@ const ASSETS = {
   generating: "../assets/ui/generating-zdx.png"
 };
 
-const adminMockConfig = readAdminMockConfig();
-const commerceConfig = Object.assign({
+let adminMockConfig = readAdminMockConfig();
+let commerceConfig = Object.assign({
   single: 200,
   annual: 2000,
   payment_mode: "mock",
@@ -18,7 +18,7 @@ const commerceConfig = Object.assign({
   pdf_annual_desc: "一年内正常使用范围内不限次数生成、保存、继续完善和导出。"
 }, adminMockConfig.pricing || {});
 
-const homePage = Object.assign({
+let homePage = Object.assign({
   brand_name: "下笔有元",
   hero_title: "说出目标，\n我们帮你写成销售信。",
   hero_subtitle: "告诉我们你想达成的产品或客户目标，智多星会通过提问帮你理清思路，并为你写成有说服力的销售信。",
@@ -31,6 +31,13 @@ const homePage = Object.assign({
 
 function readAdminMockConfig() {
   return window.XiabiMockStore.getAdminConfig();
+}
+
+function applyAdminConfig(config) {
+  adminMockConfig = config || {};
+  commerceConfig = Object.assign({}, commerceConfig, adminMockConfig.pricing || {});
+  homePage = Object.assign({}, homePage, adminMockConfig.homeConfig || {});
+  questions = buildQuestionsFromConfig(adminMockConfig.guideStages);
 }
 
 function createId(prefix) {
@@ -82,7 +89,7 @@ const defaultQuestions = [
   }
 ];
 
-const questions = buildQuestionsFromConfig(adminMockConfig.guideStages);
+let questions = buildQuestionsFromConfig(adminMockConfig.guideStages);
 
 function buildQuestionsFromConfig(stages) {
   if (!Array.isArray(stages) || !stages.length) return defaultQuestions;
@@ -192,6 +199,11 @@ function go(route) {
 
 window.addEventListener("hashchange", () => {
   state.route = location.hash.replace("#", "") || "auth";
+  render();
+});
+
+window.addEventListener("xiabi:config-updated", (event) => {
+  applyAdminConfig(event.detail || readAdminMockConfig());
   render();
 });
 
@@ -879,14 +891,31 @@ function addAnswer(value) {
 }
 
 function generateLetter(claimed, options = {}) {
-  state.letter = buildLetter();
+  state.letter = state.letter || buildLetter();
   state.letter.claimed = !!claimed;
   state.letter.unlockPlan = options.unlockPlan || null;
   state.pendingLetter = !claimed;
   persist();
 }
 
-document.addEventListener("click", (event) => {
+function applyRemoteLetter(remoteLetter) {
+  if (!remoteLetter) return;
+  const content = remoteLetter.content || {};
+  state.letter = {
+    id: remoteLetter.id,
+    title: content.title || remoteLetter.title || "给潜在客户的一封成交销售信",
+    scene: remoteLetter.scene || content.scene || "成交邀约",
+    version: content.version || 1,
+    claimed: !!remoteLetter.claimedAt,
+    exported: !!remoteLetter.exportedAt,
+    unlockPlan: null,
+    paragraphs: Array.isArray(content.paragraphs) ? content.paragraphs : buildLetter().paragraphs
+  };
+  state.pendingLetter = !state.letter.claimed;
+  persist();
+}
+
+document.addEventListener("click", async (event) => {
   const goTarget = event.target.closest("[data-go]");
   if (goTarget) {
     go(goTarget.dataset.go);
@@ -979,9 +1008,25 @@ document.addEventListener("click", (event) => {
     state.generationStep = 0;
     go("generating");
     startGenerationTicker();
+    window.XiabiMockStore.createGenerationTask(state.answers)
+      .then((task) => window.XiabiMockStore.getLetter(task.letterId))
+      .then((remoteLetter) => {
+        applyRemoteLetter(remoteLetter);
+        if (state.route === "generating" || state.route === "letter") render();
+      })
+      .catch(() => {});
   } else if (action === "bind-phone") {
+    if (state.letter?.id) {
+      try {
+        const remoteLetter = await window.XiabiMockStore.claimLetter(state.letter.id);
+        applyRemoteLetter(remoteLetter);
+      } catch (error) {
+        generateLetter(true);
+      }
+    } else {
+      generateLetter(true);
+    }
     state.phoneBound = true;
-    generateLetter(true);
     state.pendingLetter = false;
     persist();
     go("letter");
@@ -992,6 +1037,16 @@ document.addEventListener("click", (event) => {
     go("letter");
   } else if (action === "mock-pay") {
     if (!paymentOpen() || (state.selectedPlan === "single" && commerceConfig.single_enabled === false) || (state.selectedPlan === "annual" && commerceConfig.annual_enabled === false)) return;
+    try {
+      await window.XiabiMockStore.createOrder({
+        productType: state.selectedPlan,
+        letterId: state.letter?.id || null,
+        amount: state.selectedPlan === "annual" ? commerceConfig.annual : commerceConfig.single,
+        title: state.selectedPlan === "annual" ? "年卡会员" : "单封解锁"
+      });
+    } catch (error) {
+      // Keep local preview usable when API is not running.
+    }
     const order = addMockPayment(state.selectedPlan, "paywall");
     if (!order && state.selectedPlan !== "annual") return;
     generateLetter(true, { unlockPlan: state.selectedPlan });
@@ -1059,3 +1114,4 @@ if (!location.hash) {
   location.hash = state.authed || state.guest ? "home" : "auth";
 }
 render();
+window.XiabiMockStore.syncPublicConfig();

@@ -21,6 +21,18 @@
 
 ### 已完成
 
+- 已初始化本地 Git 仓库，当前主分支为 `main`，初始 checkpoint 提交为 `6c6ab19`，远程已指向 `https://github.com/PC0008/xiabi.git`。
+- 已通过 EdgeSpark CLI 创建项目 `xiabi`，当前 `project_id = 2a5ef7af-ba13-444e-8972-d4e663f0156d`。
+- 已新增 EdgeSpark 标准项目骨架：`edgespark.toml`、`server/`、`web/`、`configs/auth-config.yaml`。
+- 已新增真实后端 Hono API：公共配置、管理员登录、后台配置、用户会话、生成任务、信件领取、订单、支付回调入口。
+- 已新增 Drizzle/D1 数据库 schema 与迁移：租户、管理员、后台配置、用户、会话、销售信、生成任务、订单、权益流水、支付回调事件、文件、短信验证码、审计日志。
+- 已执行 `edgespark db generate --name xiabi_core_schema`、`edgespark db check`、`edgespark db migrate`，远端数据库迁移已应用。
+- 已执行 `edgespark storage apply` 创建 `xiabi-files` 存储桶。
+- 已执行 `edgespark auth apply`，禁用公开注册，仅保留邮箱密码能力供平台侧需要时使用；项目后台采用自有账号密码登录接口。
+- 已新增 `web/` 打包层，将当前 `h5/` 静态前后台和 `assets/` 构建到 `web/dist`，用于 EdgeSpark Web 部署。
+- 已将 `h5/mock-store.js` 扩展为 API 优先、本机兜底的数据适配层；用户端会读取 `/api/public/config`，后台登录/保存会优先走服务端接口。
+- 已将用户端生成动作接入 `/api/public/tasks` 和 `/api/public/letters/:id`，API 可用时会创建真实服务端任务与信件记录。
+- 已新增 `.env.example` 和 `docs/Edgespark真实版本接入清单_v0.1.md`，列出正式部署前必须配置的运行变量和密钥。
 - 已读取并整理原始需求文件：`下笔有元_产品后台与OEM系统详细规划.md`。
 - 已生成早期开发规划：`开发实施规划_v0.1.md`。
 - 已确认用户端统一称呼为“智多星”，用户端不暴露 AI、大模型、prompt、智能体等技术概念。
@@ -59,8 +71,9 @@
 
 ## 下一步
 
-1. 获取 Edgespark.dev 项目入口或账号后，上传/部署 `dist/edgespark-static-20260527-135226.zip` 并验证公网静态资源路径。
-2. 决定公网预览是否包含 `h5/admin.html`；若包含，先配置访问控制。
-3. 将 `h5/mock-store.js` 进一步抽象为 mock/api 双实现的数据适配层，为真实 API 接入做切换点。
-4. 根据 Edgespark.dev 实际能力确认数据库、函数、队列/定时任务、文件存储和支付回调入口。
-5. 开始实现真实后台登录 API 与最小权限模型。
+1. 由用户配置 EdgeSpark 运行变量和密钥：微信支付、短信、语音、管理员初始密码，命令见 `docs/Edgespark真实版本接入清单_v0.1.md`。
+2. 配置完成后重新执行 `edgespark deploy --dry-run`，再执行 `edgespark deploy`。
+3. 补齐微信支付真实实现：H5 下单参数、回调验签/解密、订单状态更新、权益流水幂等发放。
+4. 补齐短信真实实现：验证码发送、校验、手机号 hash/masked 入库和频率限制。
+5. 补齐语音交互真实实现：上传/转写/追问/整理任务化，并替换当前文本兜底生成逻辑。
+6. 管理后台继续正式化用户、信件、订单、权益、日志列表，让静态数组改为真实 API 数据。

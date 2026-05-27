@@ -1,0 +1,12 @@
+{
+  "name": "xiabi",
+  "private": true,
+  "scripts": {
+    "dev": "edgespark dev",
+    "build": "npm --prefix web run build",
+    "typecheck": "npm --prefix server run typecheck && npm --prefix web run typecheck",
+    "deploy:dry": "edgespark deploy --dry-run",
+    "deploy": "edgespark deploy",
+    "logs": "edgespark log tail"
+  }
+}

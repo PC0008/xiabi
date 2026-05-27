@@ -32,6 +32,11 @@ const defaultGuideStages = [
 const adminState = {
   route: location.hash.replace("#", "") || "dashboard",
   toast: "",
+  authChecked: false,
+  adminUser: null,
+  loginUsername: "",
+  loginPassword: "",
+  loginError: "",
   homeConfig: Object.assign({
     brand_name: "下笔有元",
     hero_title: "说出目标，我们帮你写成销售信。",
@@ -57,6 +62,15 @@ const adminState = {
   }, savedAdminConfig.pricing || {}),
   guideStages: savedAdminConfig.guideStages || defaultGuideStages
 };
+
+function applyRemoteAdminConfig(config) {
+  if (!config) return;
+  Object.assign(adminState.homeConfig, config.homeConfig || config.home || {});
+  Object.assign(adminState.pricing, config.pricing || {});
+  if (Array.isArray(config.guideStages) && config.guideStages.length) {
+    adminState.guideStages = config.guideStages;
+  }
+}
 
 function readSavedAdminConfig() {
   return window.XiabiMockStore.getAdminConfig();
@@ -185,13 +199,35 @@ function layout(content) {
           </div>
           <div class="top-actions">
             <span class="pill">tenant_id: main</span>
-            <button class="secondary" data-action="save">保存 mock 配置</button>
+            ${adminState.adminUser ? `<span class="pill">${adminState.adminUser.displayName || adminState.adminUser.username}</span>` : ""}
+            <button class="secondary" data-action="save">保存配置</button>
             <button class="ghost" data-action="preview-user">查看用户端</button>
+            <button class="ghost" data-action="admin-logout">退出</button>
           </div>
         </section>
         ${content}
       </main>
       ${adminState.toast ? `<div class="toast">${adminState.toast}</div>` : ""}
+    </div>
+  `;
+}
+
+function renderLogin() {
+  return `
+    <div class="admin-login-shell">
+      <section class="login-card card">
+        <div class="brand-block login-brand">
+          <div class="brand-name">下笔有元</div>
+          <div class="brand-sub">总后台登录</div>
+        </div>
+        <div class="form-grid login-form">
+          <div class="field full"><label>账号</label><input data-login-field="username" value="${adminState.loginUsername}" autocomplete="username" /></div>
+          <div class="field full"><label>密码</label><input data-login-field="password" type="password" value="${adminState.loginPassword}" autocomplete="current-password" /></div>
+        </div>
+        ${adminState.loginError ? `<div class="login-error">${adminState.loginError}</div>` : ""}
+        <button class="primary login-submit" data-action="admin-login">登录后台</button>
+        <div class="login-hint">本地预览默认账号：admin / ChangeMe123!；正式环境请在 Edgespark 密钥中配置。</div>
+      </section>
     </div>
   `;
 }
@@ -434,6 +470,14 @@ function setPath(path, value) {
 }
 
 function render() {
+  if (!adminState.authChecked) {
+    document.getElementById("adminApp").innerHTML = `<div class="admin-login-shell"><section class="login-card card"><div class="brand-name">下笔有元</div><div class="page-desc">正在检查登录状态...</div></section></div>`;
+    return;
+  }
+  if (!adminState.adminUser) {
+    document.getElementById("adminApp").innerHTML = renderLogin();
+    return;
+  }
   const routes = {
     dashboard: renderDashboard,
     miniapp: renderMiniapp,
@@ -450,7 +494,7 @@ function render() {
   document.getElementById("adminApp").innerHTML = view();
 }
 
-document.addEventListener("click", (event) => {
+document.addEventListener("click", async (event) => {
   const routeTarget = event.target.closest("[data-route]");
   if (routeTarget) {
     setRoute(routeTarget.dataset.route);
@@ -460,14 +504,29 @@ document.addEventListener("click", (event) => {
   const actionTarget = event.target.closest("[data-action]");
   if (!actionTarget) return;
   const action = actionTarget.dataset.action;
-  if (action === "save") {
-    window.XiabiMockStore.setAdminConfig({
+  if (action === "admin-login") {
+    try {
+      adminState.loginError = "";
+      adminState.adminUser = await window.XiabiMockStore.adminLogin(adminState.loginUsername.trim(), adminState.loginPassword);
+      applyRemoteAdminConfig(await window.XiabiMockStore.syncAdminConfig());
+      showToast("登录成功");
+    } catch (error) {
+      adminState.loginError = error.message || "登录失败";
+      render();
+    }
+  } else if (action === "admin-logout") {
+    await window.XiabiMockStore.adminLogout();
+    adminState.adminUser = null;
+    adminState.loginPassword = "";
+    render();
+  } else if (action === "save") {
+    await window.XiabiMockStore.saveAdminConfig({
       homeConfig: adminState.homeConfig,
       pricing: adminState.pricing,
       guideStages: adminState.guideStages,
       updatedAt: new Date().toISOString()
     });
-    showToast("mock 配置已保存");
+    showToast("配置已保存");
   } else if (action === "preview-user") {
     window.open("./index.html#home", "_blank");
   } else if (action === "toggle") {
@@ -477,6 +536,16 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("input", (event) => {
+  const loginField = event.target.dataset.loginField;
+  if (loginField === "username") {
+    adminState.loginUsername = event.target.value;
+    return;
+  }
+  if (loginField === "password") {
+    adminState.loginPassword = event.target.value;
+    return;
+  }
+
   const fieldName = event.target.dataset.field;
   if (!fieldName) return;
   if (fieldName === "stage_question") {
@@ -496,4 +565,15 @@ document.addEventListener("input", (event) => {
 });
 
 if (!location.hash) location.hash = adminState.route;
+
+async function initAdmin() {
+  adminState.adminUser = await window.XiabiMockStore.getAdminSession();
+  if (adminState.adminUser) {
+    applyRemoteAdminConfig(await window.XiabiMockStore.syncAdminConfig());
+  }
+  adminState.authChecked = true;
+  render();
+}
+
 render();
+initAdmin();
