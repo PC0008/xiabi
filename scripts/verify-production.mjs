@@ -9,6 +9,83 @@ function addCheck(name, status, detail = {}) {
   checks.push({ name, status, ...detail });
 }
 
+function findCheck(name) {
+  return checks.find((item) => item.name === name) || null;
+}
+
+function checkStatus(name) {
+  return findCheck(name)?.status || "not_run";
+}
+
+function readinessStatus(names) {
+  const statuses = names.map(checkStatus);
+  if (statuses.every((status) => status === "ok")) return "verified";
+  if (statuses.includes("external_blocked")) return "external_blocked";
+  if (statuses.includes("missing") || statuses.includes("failed")) return "failed";
+  return "pending_input";
+}
+
+function buildReadinessReport() {
+  const matrix = [
+    {
+      requirement: "线上基础运行",
+      status: readinessStatus(["health", "public config"]),
+      evidence: ["health", "public config"]
+    },
+    {
+      requirement: "管理后台登录与运营接口",
+      status: readinessStatus(["admin diagnostics", "admin read operations"]),
+      evidence: ["admin diagnostics", "admin read operations"],
+      next: "设置 XIABI_VERIFY_ADMIN_USERNAME / XIABI_VERIFY_ADMIN_PASSWORD 后复验。"
+    },
+    {
+      requirement: "DeepSeek 写信闭环",
+      status: readinessStatus(["deepseek generation"]),
+      evidence: ["deepseek generation"],
+      next: "设置 XIABI_VERIFY_DEEPSEEK=1 会真实消耗一次生成额度。"
+    },
+    {
+      requirement: "微信支付下单",
+      status: readinessStatus(["wechat payment create"]),
+      evidence: ["wechat payment create"],
+      next: findCheck("wechat payment create")?.next || "设置 XIABI_VERIFY_PAYMENT_CREATE=1 后复验。"
+    },
+    {
+      requirement: "微信付款回调与权益到账",
+      status: readinessStatus(["wechat paid order closure"]),
+      evidence: ["wechat paid order closure"],
+      next: "完成真实付款后设置 XIABI_VERIFY_PAID_ORDER_ID，并可设置 XIABI_VERIFY_REQUIRE_WEBHOOK=1。"
+    },
+    {
+      requirement: "短信发送与手机号绑定",
+      status: checkStatus("sms bind") === "ok" ? "verified" : readinessStatus(["sms send"]),
+      evidence: ["sms send", "sms bind"],
+      next: "设置 XIABI_VERIFY_SMS_PHONE 发送验证码；收到后设置 XIABI_VERIFY_SMS_CODE 复验绑定。"
+    },
+    {
+      requirement: "MiniMax 说话播放",
+      status: readinessStatus(["minimax tts"]),
+      evidence: ["minimax tts"],
+      next: "设置 XIABI_VERIFY_TTS=1 会真实调用一次 MiniMax TTS。"
+    },
+    {
+      requirement: "语音输入转写",
+      status: readinessStatus(["voice asr"]),
+      evidence: ["voice asr"],
+      next: "配置 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验。"
+    }
+  ];
+  return {
+    summary: {
+      verified: matrix.filter((item) => item.status === "verified").length,
+      pendingInput: matrix.filter((item) => item.status === "pending_input").length,
+      externalBlocked: matrix.filter((item) => item.status === "external_blocked").length,
+      failed: matrix.filter((item) => item.status === "failed").length
+    },
+    matrix
+  };
+}
+
 function skipOrStrict(name, reason) {
   addCheck(name, "skipped", { reason });
   if (strict) throw new Error(`strict verification requires ${name}: ${reason}`);
@@ -286,9 +363,10 @@ await verifyTts();
 await verifyAsr();
 
 const failed = checks.filter((item) => ["missing", "failed", "external_blocked"].includes(item.status));
+const readiness = buildReadinessReport();
 if (failed.length) {
-  console.error(JSON.stringify({ ok: false, baseUrl, checks }, null, 2));
+  console.error(JSON.stringify({ ok: false, baseUrl, checks, readiness }, null, 2));
   process.exit(1);
 }
 
-console.log(JSON.stringify({ ok: true, baseUrl, strict, checks }, null, 2));
+console.log(JSON.stringify({ ok: true, baseUrl, strict, checks, readiness }, null, 2));
