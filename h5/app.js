@@ -5,7 +5,7 @@ const ASSETS = {
   generating: "../assets/ui/generating-zdx.png"
 };
 
-let adminMockConfig = readAdminMockConfig();
+let runtimeConfig = readRuntimeConfig();
 let commerceConfig = Object.assign({
   single: 200,
   annual: 2000,
@@ -18,7 +18,7 @@ let commerceConfig = Object.assign({
   upgrade_discount_enabled: true,
   pdf_annual_title: "经常要写销售信，可以开通年卡",
   pdf_annual_desc: "一年内正常使用范围内不限次数生成、保存、继续完善和导出。"
-}, adminMockConfig.pricing || {});
+}, runtimeConfig.pricing || {});
 
 let homePage = Object.assign({
   brand_name: "下笔有元",
@@ -30,14 +30,14 @@ let homePage = Object.assign({
   unclaimed_notice_desc: "可以继续回来查看完整内容。",
   unclaimed_button_text: "领取我的销售信",
   allow_guest_preview: true
-}, adminMockConfig.homeConfig || {});
+}, runtimeConfig.homeConfig || {});
 
 let appSystem = Object.assign({
   generation_enabled: true,
   sms_enabled: true,
   voice_enabled: true,
   file_export_enabled: true
-}, adminMockConfig.system || {});
+}, runtimeConfig.system || {});
 let runtimeCapabilities = Object.assign({
   voice: {
     ttsConfigured: false,
@@ -45,19 +45,19 @@ let runtimeCapabilities = Object.assign({
     asrVerified: false,
     asrPreferred: false
   }
-}, adminMockConfig.capabilities || {});
+}, runtimeConfig.capabilities || {});
 
-function readAdminMockConfig() {
+function readRuntimeConfig() {
   return window.XiabiStore.getAdminConfig();
 }
 
 function applyAdminConfig(config) {
-  adminMockConfig = config || {};
-  commerceConfig = Object.assign({}, commerceConfig, adminMockConfig.pricing || {});
-  homePage = Object.assign({}, homePage, adminMockConfig.homeConfig || {});
-  appSystem = Object.assign({}, appSystem, adminMockConfig.system || {});
-  runtimeCapabilities = Object.assign({}, runtimeCapabilities, adminMockConfig.capabilities || {});
-  questions = buildQuestionsFromConfig(adminMockConfig.guideStages);
+  runtimeConfig = config || {};
+  commerceConfig = Object.assign({}, commerceConfig, runtimeConfig.pricing || {});
+  homePage = Object.assign({}, homePage, runtimeConfig.homeConfig || {});
+  appSystem = Object.assign({}, appSystem, runtimeConfig.system || {});
+  runtimeCapabilities = Object.assign({}, runtimeCapabilities, runtimeConfig.capabilities || {});
+  questions = buildQuestionsFromConfig(runtimeConfig.guideStages);
 }
 
 function voiceEnabled() {
@@ -121,7 +121,7 @@ const defaultQuestions = [
   }
 ];
 
-let questions = buildQuestionsFromConfig(adminMockConfig.guideStages);
+let questions = buildQuestionsFromConfig(runtimeConfig.guideStages);
 
 function buildQuestionsFromConfig(stages) {
   if (!Array.isArray(stages) || !stages.length) return defaultQuestions;
@@ -337,7 +337,7 @@ window.addEventListener("hashchange", () => {
 });
 
 window.addEventListener("xiabi:config-updated", (event) => {
-  applyAdminConfig(event.detail || readAdminMockConfig());
+  applyAdminConfig(event.detail || readRuntimeConfig());
   render();
 });
 

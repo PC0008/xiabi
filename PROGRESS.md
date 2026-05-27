@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 用户端运行时命名正式化：`h5/app.js` 已移除旧的 `adminMockConfig` / `readAdminMockConfig` 命名，改为 `runtimeConfig` / `readRuntimeConfig`；`check:ui` 已加入回归检查，避免用户端真实运行代码再次残留 mock 命名造成验收和维护误判。
 - 语音转写接入位兼容性补强：MiniMax 官方文档索引目前仍未列出独立 Speech-to-Text/ASR 端点，项目不臆造 MiniMax 转写 URL；服务端通用 ASR 解析已扩展支持纯文本、`asr_text`、`data.result.text`、`segments`、`utterances` 和 OpenAI-compatible `choices` 等常见返回结构，拿到真实 endpoint 后只需配置并跑样本验收。
 - 公开写信入口风控补强：`POST /api/public/tasks` 现在会在进入 DeepSeek 队列前拦截超长回答、超多问题、过大的任务输入，并限制同一会话每小时最多创建 6 个写信任务；`verify:live` 已加入不触发真实生成费用的超限验收。
 - 语音输入真实可用口径收紧：公开配置新增 `capabilities.voice.asrVerified`，用户端服务端录音转写只在 `VOICE_ASR_VERIFIED=1` 后视为可用；浏览器语音启动失败时，如果服务端 ASR 已验证，会自动退到录音上传识别，减少手机/微信环境“按了但不能说”的假体验。

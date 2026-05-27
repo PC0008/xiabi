@@ -22,6 +22,8 @@ const forbiddenRuntimeMarkers = [
   "${adminState.loginPassword}",
   "${adminState.loginError}",
   "${adminState.adminUser.displayName",
+  "adminMockConfig",
+  "readAdminMockConfig",
   "const sampleAnswers",
   "state.answers.push(value ||"
 ];
