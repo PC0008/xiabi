@@ -628,6 +628,12 @@ button {
   color: #171c19;
 }
 
+.speaker.speaking {
+  background: var(--green);
+  color: #fff;
+  box-shadow: 0 0 0 12px rgba(41, 212, 122, 0.16), 0 16px 30px rgba(0, 0, 0, 0.20);
+}
+
 .mic {
   background: #141917;
   color: #fff;

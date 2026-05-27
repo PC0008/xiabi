@@ -153,7 +153,7 @@ const state = {
   holding: false,
   voiceTranscript: "",
   voiceError: "",
-  speakerOn: true,
+  speakerOn: false,
   showMicSheet: false,
   typedText: "",
   feedbackText: "",
@@ -188,6 +188,7 @@ let speechRecognition = null;
 let activeSpeechText = "";
 let suppressVoiceClick = false;
 let assistantAudio = null;
+let assistantPromptKey = "";
 let voiceRecorder = null;
 let voiceStream = null;
 let voiceChunks = [];
@@ -373,19 +374,53 @@ async function playAssistantVoice(text) {
   const content = String(text || "").trim();
   if (!content) return;
   try {
+    state.voiceError = "";
+    state.voiceTranscript = "智多星正在说话...";
+    render();
     const result = await window.XiabiMockStore.speak(content);
+    if (!state.speakerOn) return;
     if (!result.audioUrl) {
+      state.speakerOn = false;
+      state.voiceTranscript = "";
       state.voiceError = result.message || "语音播放暂时不可用，请继续按住说话或切换打字模式。";
       render();
       return;
     }
     if (assistantAudio) assistantAudio.pause();
+    if (!state.speakerOn) return;
     assistantAudio = new Audio(result.audioUrl);
+    assistantAudio.onended = () => {
+      state.speakerOn = false;
+      state.voiceTranscript = "";
+      if (state.route === "call") render();
+    };
+    assistantAudio.onerror = () => {
+      state.speakerOn = false;
+      state.voiceTranscript = "";
+      state.voiceError = "语音播放暂时不可用，请继续按住说话或切换打字模式。";
+      if (state.route === "call") render();
+    };
     await assistantAudio.play();
   } catch (error) {
+    state.speakerOn = false;
+    state.voiceTranscript = "";
     state.voiceError = error.message || "语音播放暂时不可用，请继续按住说话或切换打字模式。";
     render();
   }
+}
+
+function stopAssistantVoice() {
+  if (assistantAudio) {
+    assistantAudio.pause();
+    assistantAudio = null;
+  }
+  state.speakerOn = false;
+  if (state.voiceTranscript === "智多星正在说话...") state.voiceTranscript = "";
+}
+
+function currentAssistantPrompt() {
+  const question = currentQuestion();
+  return question ? `${question.title} ${question.desc || ""}`.trim() : "";
 }
 
 function speechSupported() {
@@ -593,7 +628,7 @@ function renderCall() {
     ${activeInputMode === "voice" ? `
       <div class="voice-controls">
         <div class="call-actions">
-          <button class="call-action" data-action="speaker"><span class="action-circle speaker">${callIcon("speaker")}</span><span>扬声器</span></button>
+          <button class="call-action" data-action="speaker"><span class="action-circle speaker ${state.speakerOn ? "speaking" : ""}">${callIcon("speaker")}</span><span>${state.speakerOn ? "停止播放" : "扬声器"}</span></button>
           <button class="call-action" data-action="voice-answer"><span class="action-circle mic ${state.holding ? "holding" : ""}">${callIcon("mic")}</span><span>${state.holding ? "松开发送" : "按住说话"}</span></button>
           <button class="call-action" data-action="hangup"><span class="action-circle hang">${callIcon("hang")}</span><span>挂断</span></button>
         </div>
@@ -1172,6 +1207,10 @@ function render() {
 function addAnswer(value) {
   const nextIndex = state.answers.length;
   state.answers.push(value || sampleAnswers[nextIndex] || sampleAnswers[sampleAnswers.length - 1]);
+  assistantPromptKey = "";
+  if (state.speakerOn) {
+    stopAssistantVoice();
+  }
   persist();
   render();
 }
@@ -1509,13 +1548,21 @@ document.addEventListener("click", async (event) => {
     if (question?.required !== false) return;
     addAnswer("这一步先跳过，暂不补充。");
   } else if (action === "speaker") {
-    state.speakerOn = !state.speakerOn;
+    if (state.speakerOn) {
+      stopAssistantVoice();
+      render();
+      return;
+    }
+    const prompt = currentAssistantPrompt();
+    const promptKey = `${state.answers.length}:${prompt}`;
+    state.speakerOn = true;
+    assistantPromptKey = promptKey;
     render();
-    if (state.speakerOn && state.route === "call") {
-      const question = currentQuestion();
-      playAssistantVoice(question?.title || question?.stage || "");
-    } 
+    playAssistantVoice(prompt).finally(() => {
+      if (assistantPromptKey === promptKey) assistantPromptKey = "";
+    });
   } else if (action === "hangup") {
+    stopAssistantVoice();
     go("home");
   } else if (action === "show-mic-sheet") {
     state.showMicSheet = true;
