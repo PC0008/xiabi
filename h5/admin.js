@@ -509,6 +509,28 @@ function detailMiniTable(title, heads, rows) {
   `;
 }
 
+function detailFileTable(files) {
+  return `
+    <div class="detail-section">
+      <div class="detail-section-title">导出文件</div>
+      <div class="table-wrap mini-table">
+        <table>
+          <thead><tr><th>文件ID</th><th>类型</th><th>状态</th><th>时间</th><th>操作</th></tr></thead>
+          <tbody>${files.length ? files.map((item) => `
+            <tr>
+              <td>${h(shortId(item.id))}</td>
+              <td>${h(item.kind)}</td>
+              <td>${h(item.status)}</td>
+              <td>${h(formatDate(item.createdAt))}</td>
+              <td>${item.downloadUrl ? `<a class="mini-action" href="${h(item.downloadUrl)}" target="_blank" rel="noopener">打开</a>` : "-"}</td>
+            </tr>
+          `).join("") : `<tr><td colspan="5">暂无记录</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
 function renderDashboard() {
   const metrics = adminState.lists.dashboard?.metrics || {};
   const todo = adminState.lists.dashboard?.todo || [];
@@ -1062,7 +1084,7 @@ function buildDetailHtml(type, data) {
       detailMiniTable("生成任务", ["任务ID", "状态", "错误", "时间"], (data.tasks || []).map((item) => [shortId(item.id), item.status, item.errorMessage || "-", formatDate(item.updatedAt || item.createdAt)])),
       detailMiniTable("关联订单", ["订单ID", "商品", "金额", "状态"], (data.orders || []).map((item) => [shortId(item.id), item.title, yuan(item.amountCents), item.status])),
       detailMiniTable("权益流水", ["流水ID", "类型", "状态", "来源"], (data.entitlements || []).map((item) => [shortId(item.id), item.type, item.status, shortId(item.orderId || item.letterId)])),
-      detailMiniTable("导出文件", ["文件ID", "类型", "状态", "时间"], (data.files || []).map((item) => [shortId(item.id), item.kind, item.status, formatDate(item.createdAt)])),
+      detailFileTable(data.files || []),
       renderJson(letter.content || {})
     ].join("");
   }

@@ -108,6 +108,16 @@ const requiredMarkers = [
     file: "h5/admin.js",
     marker: "canAdminWrite",
     message: "admin UI must hide or block owner-only controls for non-owner roles"
+  },
+  {
+    file: "h5/admin.js",
+    marker: "detailFileTable",
+    message: "admin letter details must expose export file download actions"
+  },
+  {
+    file: "server/src/routes/admin.ts",
+    marker: "createPresignedGetUrl(file.objectKey",
+    message: "admin letter details must return temporary download URLs for exported files"
   }
 ];
 

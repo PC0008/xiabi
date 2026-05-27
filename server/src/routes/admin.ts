@@ -1,8 +1,8 @@
-import { db, secret, vars } from "edgespark";
+import { db, secret, storage, vars } from "edgespark";
 import { and, desc, eq } from "drizzle-orm";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { adminSessions, adminUsers, auditLogs, entitlementLedger, files, generationTasks, guestSessions, orders, paymentWebhookEvents, productProfiles, salesLetters, users } from "@defs";
+import { adminSessions, adminUsers, auditLogs, buckets, entitlementLedger, files, generationTasks, guestSessions, orders, paymentWebhookEvents, productProfiles, salesLetters, users } from "@defs";
 import { generateSalesLetterWithDeepSeek, SalesLetterContent } from "../adapters/letter/deepseek";
 import { queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { getAdminConfig, upsertConfigScope } from "../domain/config";
@@ -693,6 +693,18 @@ function publicProfile(profile: typeof productProfiles.$inferSelect) {
   };
 }
 
+async function publicFile(file: typeof files.$inferSelect) {
+  const signed = await storage
+    .from(buckets.xiabiFiles)
+    .createPresignedGetUrl(file.objectKey, 900)
+    .catch(() => null);
+  return {
+    ...file,
+    downloadUrl: signed?.downloadUrl || "",
+    expiresInSeconds: signed ? 900 : 0
+  };
+}
+
 function requireAdminOrFail(c: any, admin: typeof adminUsers.$inferSelect | null) {
   if (!admin) return fail(c, "not_authenticated", "请先登录后台。", 401);
   return null;
@@ -937,7 +949,13 @@ export const adminRoutes = new Hono()
       db.select().from(entitlementLedger).where(and(eq(entitlementLedger.tenantId, TENANT_ID), eq(entitlementLedger.letterId, id))).orderBy(desc(entitlementLedger.createdAt)).limit(20),
       db.select().from(files).where(and(eq(files.tenantId, TENANT_ID), eq(files.letterId, id))).orderBy(desc(files.createdAt)).limit(20)
     ]);
-    return ok(c, { letter: publicLetter(letter), tasks: taskRows.map(publicTask), orders: orderRows, entitlements, files: fileRows });
+    return ok(c, {
+      letter: publicLetter(letter),
+      tasks: taskRows.map(publicTask),
+      orders: orderRows,
+      entitlements,
+      files: await Promise.all(fileRows.map(publicFile))
+    });
   })
   .get("/tasks", async (c) => {
     const admin = await requireAdmin(c);
