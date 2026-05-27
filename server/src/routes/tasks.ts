@@ -4,6 +4,7 @@ import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { generationTasks, salesLetters } from "@defs";
 import { generateSalesLetterWithDeepSeek, type SalesLetterContent } from "../adapters/letter/deepseek";
+import { enqueueTask } from "../adapters/task";
 import { getConfigScope } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, parseJson, readJson } from "../domain/http";
@@ -162,8 +163,9 @@ export const taskRoutes = new Hono()
       progressJson: JSON.stringify({ percent: 5, stage: "queued", provider: "deepseek" }),
       attempts: 0
     });
+    const queue = await enqueueTask({ taskId, type: "sales_letter" });
     ctx.runInBackground(runGenerationTaskInBackground(taskId));
-    return ok(c, { taskId, status: "queued" });
+    return ok(c, { taskId, status: "queued", queue });
   })
   .get("/:id", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);

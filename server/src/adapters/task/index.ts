@@ -5,8 +5,8 @@ export type EnqueueTaskInput = {
 
 export async function enqueueTask(input: EnqueueTaskInput) {
   return {
-    queued: false,
-    mode: "db-polling-placeholder",
+    queued: true,
+    mode: "edgespark-background",
     taskId: input.taskId,
     type: input.type
   };

@@ -28,6 +28,7 @@
 - 首次免费领取补强：领取接口改为先幂等写入 `first_free_letter` 权益流水，再标记信件已领取；如果权益写入失败会返回 JSON 业务错误，避免出现“信件已领取但权益流水缺失”的半完成状态和裸 500。
 - 体验与风控补强：用户端删除未接真实后端的设置开关，记录页去掉不会命中的“信息未完成”筛选，我的档案写信项目可直接打开；语音转写接口增加文本长度、录音大小和音频格式保护。
 - 写信任务补强：创建任务后使用 Edgespark `ctx.runInBackground()` 立即推进生成，前端轮询主要负责查状态；`GET /tasks/:id` 仍保留兜底恢复，避免刷新或后台执行异常时任务完全卡死。
+- 写信任务调度口径补强：任务创建接口现在返回正式的 `edgespark-background` 队列元数据，不再保留 `db-polling-placeholder` 这种临时标识。
 - 用户端流程验收补强：新增 `npm run verify:journey`，用移动端浏览器自动点击授权、首页、通话问题和确认页；该验收不触发 DeepSeek、短信或支付费用。
 - 生产支付闭环验收补强：`verify:production` 新增 `XIABI_VERIFY_PAID_ORDER_ID`，真实付款后可自动核对订单已支付、权益流水已生成，并可通过 `XIABI_VERIFY_REQUIRE_WEBHOOK=1` 要求存在已处理微信支付回调事件。
 - MiniMax 首轮真实验收曾返回 `invalid api key`；语音接口已补强为返回 JSON 业务错误，不再让供应商错误冒泡成不可读 500。

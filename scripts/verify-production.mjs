@@ -509,6 +509,9 @@ async function createDeepSeekLetter(cookie, source) {
   }, cookie);
   const taskId = task.taskId || task.id;
   if (!taskId) throw new Error("DeepSeek generation did not return a task id");
+  if (task.queue?.mode && task.queue.mode !== "edgespark-background") {
+    throw new Error(`Unexpected generation queue mode: ${task.queue.mode}`);
+  }
   let current = task;
   for (let index = 0; index < 30; index += 1) {
     current = await api(`/api/public/tasks/${taskId}`, {}, cookie);
