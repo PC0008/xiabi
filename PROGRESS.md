@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 本地权限残留清理：用户端不再把 `h5PhoneBound` / `h5AnnualActive` 当作当前状态 key 定义或从本地恢复；这两个旧 key 只作为 legacy 清理项保留，手机号绑定和年卡权益继续只以服务端 `/session/me` 与 `/entitlements` 为准，`check:ui` 已加入回归检查。
 - 线上 store 假口径清理：`h5/store.js` 不再把正式运行时对象暴露成 `window.XiabiMockStore`；`check:ui` 和 `verify:live` 已加入回归检查，确保生产静态资源只暴露 `window.XiabiStore`。
 - 生产验收报告口径补强：`verify:production` 报告新增 `complete`、`overallStatus` 和 `completion.summary`；`ok=true` 只代表本次已执行检查没有失败，`complete=true` 才代表所有生产链路均已验收，避免把“基础通过但仍待外部输入”误判为完整交付。
 - 用户端运行时命名正式化：`h5/app.js` 已移除旧的 `adminMockConfig` / `readAdminMockConfig` 命名，改为 `runtimeConfig` / `readRuntimeConfig`；`check:ui` 已加入回归检查，避免用户端真实运行代码再次残留 mock 命名造成验收和维护误判。

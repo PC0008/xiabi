@@ -6,13 +6,12 @@
     answers: "h5Answers",
     answerItems: "h5AnswerItems",
     pendingLetter: "h5PendingLetter",
-    phoneBound: "h5PhoneBound",
-    annualActive: "h5AnnualActive",
     letter: "h5Letter",
     productProfiles: "h5ProductProfiles",
     paymentIntent: "h5PaymentIntent",
     generationTaskId: "h5GenerationTaskId"
   };
+  const legacyStateKeys = ["h5PhoneBound", "h5AnnualActive"];
   const adminAuthKey = "xiabiAdminAuthed";
   const apiBase = window.XIABI_API_BASE || "/api/public";
 
@@ -293,8 +292,6 @@
       answers: readJson(keys.answers, []),
       answerItems: readJson(keys.answerItems, []),
       pendingLetter: readFlag(keys.pendingLetter),
-      phoneBound: false,
-      annualActive: false,
       letter: readJson(keys.letter, null),
       productProfiles: readJson(keys.productProfiles, []),
       paymentIntent: readJson(keys.paymentIntent, null),
@@ -356,12 +353,11 @@
       keys.answers,
       keys.answerItems,
       keys.pendingLetter,
-      keys.phoneBound,
-      keys.annualActive,
       keys.letter,
       keys.productProfiles,
       keys.paymentIntent,
-      keys.generationTaskId
+      keys.generationTaskId,
+      ...legacyStateKeys
     ].forEach((key) => localStorage.removeItem(key));
     return { remoteCleared, message };
   }
