@@ -5,6 +5,18 @@ export type SendSmsCodeInput = {
   code: string;
 };
 
+export class SmsProviderError extends Error {
+  providerCode?: string;
+  httpStatus?: number;
+
+  constructor(message: string, providerCode?: string, httpStatus?: number) {
+    super(message);
+    this.name = "SmsProviderError";
+    this.providerCode = providerCode;
+    this.httpStatus = httpStatus;
+  }
+}
+
 function percentEncode(value: string) {
   return encodeURIComponent(value)
     .replace(/\+/g, "%20")
@@ -66,7 +78,7 @@ export async function sendSmsCode(input: SendSmsCodeInput) {
   const response = await fetch(url);
   const payload = await response.json() as { Code?: string; Message?: string; BizId?: string };
   if (!response.ok || payload.Code !== "OK") {
-    throw new Error(payload.Message || `Aliyun SMS failed: ${response.status}`);
+    throw new SmsProviderError(payload.Message || `Aliyun SMS failed: ${response.status}`, payload.Code, response.status);
   }
   return {
     provider: "aliyun",

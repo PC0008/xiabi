@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { smsCodes } from "@defs";
-import { sendSmsCode } from "../adapters/sms";
+import { sendSmsCode, SmsProviderError } from "../adapters/sms";
 import { getAdminConfig } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, readJson } from "../domain/http";
@@ -13,6 +13,15 @@ const SESSION_COOKIE = "xiabi_session";
 const RESEND_INTERVAL_MS = 60_000;
 const HOURLY_LIMIT = 5;
 const DAILY_LIMIT = 12;
+const SMS_PROVIDER_SETUP_CODES = new Set([
+  "isv.SMS_SIGNATURE_SCENE_ILLEGAL",
+  "isv.SMS_TEMPLATE_ILLEGAL",
+  "isv.SMS_SIGNATURE_ILLEGAL",
+  "isv.BUSINESS_LIMIT_CONTROL",
+  "isv.OUT_OF_SERVICE",
+  "isv.PRODUCT_UN_SUBSCRIPT",
+  "isv.PRODUCT_UNSUBSCRIBE"
+]);
 
 type SendCodeBody = {
   phone?: string;
@@ -30,6 +39,13 @@ function createCode() {
 
 function toTime(value: string) {
   return new Date(value).getTime();
+}
+
+function smsSendFailedMessage(error: unknown) {
+  if (error instanceof SmsProviderError && error.providerCode && SMS_PROVIDER_SETUP_CODES.has(error.providerCode)) {
+    return "短信服务暂时还没有开通完成，请稍后再试或联系管理员。";
+  }
+  return "验证码暂时发送失败，请稍后再试。";
 }
 
 export const smsRoutes = new Hono()
@@ -74,8 +90,7 @@ export const smsRoutes = new Hono()
     try {
       result = await sendSmsCode({ phone, code });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "短信发送失败，请稍后再试。";
-      return fail(c, "sms_send_failed", message, 502);
+      return fail(c, "sms_send_failed", smsSendFailedMessage(error), 502);
     }
     if (!result.configured) {
       return fail(c, "sms_not_configured", result.message || "短信服务还没有完成配置。", 503);

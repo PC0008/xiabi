@@ -710,10 +710,22 @@ async function verifySmsSend() {
   if (!findCheck("sms ownership propagation")) {
     skipOrStrict("sms ownership propagation", "set XIABI_VERIFY_SMS_CODE with XIABI_VERIFY_DEEPSEEK=1 to verify generated letter and entitlement ownership");
   }
-  const result = await api("/api/public/sms/send-code", {
-    method: "POST",
-    body: JSON.stringify({ phone })
-  }, cookie);
+  let result;
+  try {
+    result = await api("/api/public/sms/send-code", {
+      method: "POST",
+      body: JSON.stringify({ phone })
+    }, cookie);
+  } catch (error) {
+    if (error instanceof ApiError && ["sms_send_failed", "sms_not_configured"].includes(error.code)) {
+      addCheck("sms send", "external_blocked", {
+        reason: error.message,
+        next: "检查阿里云短信 AccessKey、签名、模板、产品开通状态和模板审核状态后复验。"
+      });
+      return;
+    }
+    throw error;
+  }
   if (!result.sent || result.configured === false) throw new Error("SMS send did not report sent=true");
   addCheck("sms send", "ok", {
     phoneMasked: result.phoneMasked || result.phone,

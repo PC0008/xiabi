@@ -93,6 +93,11 @@ const requiredMarkers = [
     file: "h5/app.js",
     marker: "userPaymentErrorMessage",
     message: "payment provider setup errors must be shown as user-facing order recovery copy"
+  },
+  {
+    file: "server/src/routes/sms.ts",
+    marker: "smsSendFailedMessage",
+    message: "SMS provider errors must be mapped to user-facing copy"
   }
 ];
 
