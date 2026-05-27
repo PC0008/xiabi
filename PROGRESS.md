@@ -30,6 +30,7 @@
 - 服务端订单创建会尊重后台 `payment_enabled`、`annual_enabled`、`single_enabled` 开关。
 - 微信 H5 支付已接入下单位：`/v3/pay/transactions/h5`；用户端拿到 `h5_url` 后会跳转微信支付。
 - 微信支付回调已做签名验签、AES-GCM 解密、订单置 paid、权益流水发放、重复回调幂等；失败回调允许同事件再次重试处理。
+- 管理后台订单列表已增加“查单”补偿入口，可通过微信商户订单号主动查询支付状态；查到支付成功后会置 paid 并幂等发放权益。
 - 短信已接入阿里云发送位，验证码写入 `sms_codes`，绑定手机号会校验验证码并写入 masked/hash。
 - 用户端领取完整内容前加入手机号验证码绑定流程。
 - 后台配置保存失败不再静默兜底；后台模板可编辑、可新增、可保存，并会进入服务端写信规则。
@@ -50,7 +51,10 @@
   - `POST /api/public/letters/:id/claim` 成功领取并写入权益流水。
   - `GET /api/public/entitlements` 返回 `firstFreeUsed: true`。
   - 后台未开启支付时，`POST /api/public/orders` 返回 403，服务端开关生效。
-- 未完成浏览器自动化截图：当前环境没有可用 Playwright/Puppeteer/browser 工具，已用 HTTP 和构建检查替代，后续仍需真实手机浏览器复验 UI。
+- Playwright Chromium 已安装并完成线上截图验收：
+  - 手机用户端截图：`docs/assets/verify-home-mobile.png`
+  - 后台登录页截图：`docs/assets/verify-admin-login.png`
+- Edgespark dry-run 通过，当前线上部署通过。
 
 ### 还没完成 / 风险
 
