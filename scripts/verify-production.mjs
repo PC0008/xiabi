@@ -53,6 +53,12 @@ function buildReadinessReport() {
       next: "设置 XIABI_VERIFY_DEEPSEEK=1 后会在同一会话内验证领取、权益流水和打印版导出。"
     },
     {
+      requirement: "首次免费重复领取限制",
+      status: readinessStatus(["first free repeat guard"]),
+      evidence: ["first free repeat guard"],
+      next: "设置 XIABI_VERIFY_DEEPSEEK=1 和 XIABI_VERIFY_REPEAT_FREE=1 后，会生成第二封信并验证重复免费领取被拒绝。"
+    },
+    {
       requirement: "微信支付下单",
       status: readinessStatus(["wechat payment create"]),
       evidence: ["wechat payment create"],
@@ -182,6 +188,30 @@ async function api(pathname, init = {}, cookie = "") {
   return readJsonResponse(response, pathname);
 }
 
+async function expectApiError(pathname, init = {}, cookie = "", expectedStatus, expectedCode) {
+  const response = await fetch(`${baseUrl}${pathname}`, {
+    credentials: "include",
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      ...(cookie ? { cookie } : {}),
+      ...(init.headers || {})
+    }
+  });
+  const text = await response.text();
+  let payload = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    throw new Error(`${pathname} returned non-JSON: ${text.slice(0, 160)}`);
+  }
+  const code = payload?.error?.code;
+  if (response.status !== expectedStatus || code !== expectedCode) {
+    throw new Error(`${pathname} expected ${expectedStatus}/${expectedCode}, got ${response.status}/${code || "missing_code"}`);
+  }
+  return payload;
+}
+
 async function createGuestSession() {
   const response = await fetch(`${baseUrl}/api/public/session/guest`, { method: "POST" });
   await readJsonResponse(response, "guest session");
@@ -250,32 +280,13 @@ async function verifyAdminDiagnostics() {
 async function verifyDeepSeek() {
   if (process.env.XIABI_VERIFY_DEEPSEEK !== "1") {
     skipOrStrict("deepseek generation", "set XIABI_VERIFY_DEEPSEEK=1 to run a real generation");
+    skipOrStrict("first free entitlement and export", "set XIABI_VERIFY_DEEPSEEK=1 to verify first free entitlement and export");
+    skipOrStrict("first free repeat guard", "set XIABI_VERIFY_DEEPSEEK=1 and XIABI_VERIFY_REPEAT_FREE=1 to verify repeat guard");
     return;
   }
   const cookie = await createGuestSession();
-  const task = await api("/api/public/tasks", {
-    method: "POST",
-    body: JSON.stringify({
-      answers: [
-        "给我自己的产品写",
-        "让对方愿意预约沟通",
-        "一款帮助销售人员写私聊销售信的服务",
-        "客户担心写出来太硬、不像自己说的话",
-        "语气真诚，适合微信私聊发送"
-      ],
-      input: { source: "production-verification" }
-    })
-  }, cookie);
-  const taskId = task.taskId || task.id;
-  if (!taskId) throw new Error("DeepSeek generation did not return a task id");
-  let current = task;
-  for (let index = 0; index < 30; index += 1) {
-    current = await api(`/api/public/tasks/${taskId}`, {}, cookie);
-    if (current.status === "succeeded" && current.letterId) break;
-    if (current.status === "failed") throw new Error(current.errorMessage || "DeepSeek generation failed");
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-  }
-  if (current.status !== "succeeded" || !current.letterId) throw new Error("DeepSeek generation did not complete before timeout");
+  const current = await createDeepSeekLetter(cookie, "production-verification");
+  const taskId = current.taskId;
   addCheck("deepseek generation", "ok", { taskId, letterId: current.letterId });
   const claimed = await api(`/api/public/letters/${current.letterId}/claim`, { method: "POST" }, cookie);
   if (!claimed.access?.complete || !claimed.claimedAt) throw new Error("First free claim did not unlock the generated letter");
@@ -300,6 +311,43 @@ async function verifyDeepSeek() {
     entitlementId: firstFree.id,
     objectKey: exported.objectKey
   });
+  if (process.env.XIABI_VERIFY_REPEAT_FREE === "1") {
+    const second = await createDeepSeekLetter(cookie, "production-repeat-free-verification");
+    await expectApiError(`/api/public/letters/${second.letterId}/claim`, { method: "POST" }, cookie, 403, "first_free_used");
+    addCheck("first free repeat guard", "ok", {
+      firstLetterId: current.letterId,
+      secondLetterId: second.letterId
+    });
+  } else {
+    skipOrStrict("first free repeat guard", "set XIABI_VERIFY_REPEAT_FREE=1 to generate a second letter and verify repeat free claim is rejected");
+  }
+}
+
+async function createDeepSeekLetter(cookie, source) {
+  const task = await api("/api/public/tasks", {
+    method: "POST",
+    body: JSON.stringify({
+      answers: [
+        "给我自己的产品写",
+        "让对方愿意预约沟通",
+        "一款帮助销售人员写私聊销售信的服务",
+        "客户担心写出来太硬、不像自己说的话",
+        "语气真诚，适合微信私聊发送"
+      ],
+      input: { source }
+    })
+  }, cookie);
+  const taskId = task.taskId || task.id;
+  if (!taskId) throw new Error("DeepSeek generation did not return a task id");
+  let current = task;
+  for (let index = 0; index < 30; index += 1) {
+    current = await api(`/api/public/tasks/${taskId}`, {}, cookie);
+    if (current.status === "succeeded" && current.letterId) break;
+    if (current.status === "failed") throw new Error(current.errorMessage || "DeepSeek generation failed");
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  if (current.status !== "succeeded" || !current.letterId) throw new Error("DeepSeek generation did not complete before timeout");
+  return { ...current, taskId };
 }
 
 async function verifyPaymentCreate() {
