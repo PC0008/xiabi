@@ -137,6 +137,7 @@ const state = {
   phoneBound: storedState.phoneBound,
   annualActive: storedState.annualActive,
   generationStep: 0,
+  generationTaskId: storedState.generationTaskId || "",
   selectedPlan: "annual",
   paymentIntent: storedState.paymentIntent,
   letter: storedState.letter,
@@ -286,6 +287,7 @@ function go(route) {
   location.hash = route;
   render();
   if (route === "orders") setTimeout(() => resumePaymentIntent(), 0);
+  if (route === "generating") setTimeout(() => resumeGenerationTask(), 0);
 }
 
 window.addEventListener("hashchange", () => {
@@ -1304,6 +1306,28 @@ async function waitForGenerationTask(task) {
   throw new Error("写信还在排队，请稍后到记录里查看。");
 }
 
+async function resumeGenerationTask() {
+  if (!state.generationTaskId || state.generationPending || state.letter) return;
+  state.generationPending = true;
+  state.generationError = "";
+  startGenerationTicker();
+  render();
+  try {
+    const letterId = await waitForGenerationTask({ taskId: state.generationTaskId });
+    const remoteLetter = await window.XiabiMockStore.getLetter(letterId);
+    state.generationTaskId = "";
+    state.generationPending = false;
+    applyRemoteLetter(remoteLetter);
+    await loadAccountData();
+  } catch (error) {
+    state.generationPending = false;
+    state.generationError = error.message || "写信服务暂时没有完成，请稍后再试。";
+  } finally {
+    persist();
+    if (state.route === "generating" || state.route === "letter") render();
+  }
+}
+
 document.addEventListener("pointerdown", (event) => {
   const voiceTarget = event.target.closest('[data-action="voice-answer"]');
   if (!voiceTarget) return;
@@ -1451,21 +1475,31 @@ document.addEventListener("click", async (event) => {
     state.pendingLetter = false;
     state.generationPending = true;
     state.generationError = "";
+    state.generationTaskId = "";
     state.generationStep = 0;
+    persist();
     go("generating");
     startGenerationTicker();
     window.XiabiMockStore.createGenerationTask(state.answers)
+      .then((task) => {
+        state.generationTaskId = task?.taskId || task?.id || "";
+        persist();
+        return task;
+      })
       .then((task) => waitForGenerationTask(task))
       .then((letterId) => window.XiabiMockStore.getLetter(letterId))
       .then((remoteLetter) => {
+        state.generationTaskId = "";
         state.generationPending = false;
         applyRemoteLetter(remoteLetter);
         loadAccountData();
         if (state.route === "generating" || state.route === "letter") render();
       })
       .catch(() => {
+        state.generationTaskId = "";
         state.generationPending = false;
         state.generationError = "写信服务暂时没有完成，请稍后再试。";
+        persist();
         if (state.route === "generating") render();
       });
   } else if (action === "bind-phone") {
@@ -1600,6 +1634,7 @@ document.addEventListener("click", async (event) => {
     state.phoneMasked = "";
     state.sessionUser = null;
     state.paymentIntent = null;
+    state.generationTaskId = "";
     state.annualActive = false;
     state.letter = null;
     go("auth");
@@ -1611,6 +1646,7 @@ document.addEventListener("click", async (event) => {
     state.phoneMasked = "";
     state.sessionUser = null;
     state.paymentIntent = null;
+    state.generationTaskId = "";
     go("auth");
   }
 });
@@ -1644,3 +1680,4 @@ render();
 window.XiabiMockStore.syncPublicConfig();
 loadAccountData().then(() => render());
 if (state.route === "orders") setTimeout(() => resumePaymentIntent(), 0);
+if (state.route === "generating") setTimeout(() => resumeGenerationTask(), 0);
