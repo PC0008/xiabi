@@ -2,7 +2,7 @@ import { db, vars } from "edgespark";
 import { eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { entitlementLedger, orders } from "@defs";
+import { orders } from "@defs";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, readJson } from "../domain/http";
 
@@ -48,24 +48,5 @@ export const orderRoutes = new Hono()
   .get("/:id", async (c) => {
     const [order] = await db.select().from(orders).where(eq(orders.id, c.req.param("id"))).limit(1);
     if (!order) return fail(c, "order_not_found", "没有找到订单。", 404);
-    return ok(c, order);
-  })
-  .post("/:id/dev-mark-paid", async (c) => {
-    const [order] = await db
-      .update(orders)
-      .set({ status: "paid", paidAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
-      .where(eq(orders.id, c.req.param("id")))
-      .returning();
-    if (!order) return fail(c, "order_not_found", "没有找到订单。", 404);
-    await db.insert(entitlementLedger).values({
-      id: crypto.randomUUID(),
-      tenantId: TENANT_ID,
-      sessionId: order.sessionId,
-      orderId: order.id,
-      letterId: order.letterId,
-      type: order.productType,
-      status: "active",
-      dedupeKey: `order_paid:${order.id}`
-    }).onConflictDoNothing();
     return ok(c, order);
   });
