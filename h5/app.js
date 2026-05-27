@@ -301,7 +301,7 @@ window.addEventListener("xiabi:config-updated", (event) => {
 function topbar() {
   return `
     <header class="topbar">
-      <button class="brand" data-go="home">${homePage.brand_name}</button>
+      <button class="brand" data-go="home">${h(homePage.brand_name)}</button>
       <nav class="top-links" aria-label="主导航">
         <button data-go="records">记录</button>
         <button data-go="profile">我的</button>
@@ -376,6 +376,15 @@ function titleLines() {
   const match = homePage.hero_title.match(/^(.*?[，,])(.+)$/);
   if (match) return [match[1], match[2]];
   return [homePage.hero_title, ""];
+}
+
+function h(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function money(value) {
@@ -495,16 +504,16 @@ function renderHome() {
   const generationEnabled = homePage.generation_entry_enabled !== false;
   return shell(`
     ${topbar()}
-    <h1 class="home-title"><span>${lines[0]}</span>${lines[1]}</h1>
-    <p class="home-copy">${homePage.hero_subtitle}</p>
+    <h1 class="home-title"><span>${h(lines[0])}</span>${h(lines[1])}</h1>
+    <p class="home-copy">${h(homePage.hero_subtitle)}</p>
     <img class="home-ill" src="${ASSETS.home}" alt="写销售信插画" />
-    <div class="free-hint">${homePage.free_hint}</div>
-    <button class="primary-btn ${generationEnabled ? "" : "disabled"}" data-action="start-call">${uiIcon("spark", "btn-svg")} ${generationEnabled ? homePage.primary_button_text : "生成入口暂未开放"}</button>
+    <div class="free-hint">${h(homePage.free_hint)}</div>
+    <button class="primary-btn ${generationEnabled ? "" : "disabled"}" data-action="start-call">${uiIcon("spark", "btn-svg")} ${generationEnabled ? h(homePage.primary_button_text) : "生成入口暂未开放"}</button>
     ${state.pendingLetter ? `
       <div class="pending-card card">
-        <div class="pending-title">${homePage.unclaimed_notice}</div>
-        <div class="pending-desc">${homePage.unclaimed_notice_desc}</div>
-        <button class="secondary-btn" data-go="generating">${homePage.unclaimed_button_text}</button>
+        <div class="pending-title">${h(homePage.unclaimed_notice)}</div>
+        <div class="pending-desc">${h(homePage.unclaimed_notice_desc)}</div>
+        <button class="secondary-btn" data-go="generating">${h(homePage.unclaimed_button_text)}</button>
       </div>
     ` : ""}
   `, { tab: "home" });
@@ -522,17 +531,17 @@ function renderCall() {
     <div class="voice-bars"><i></i><i></i><i></i></div>
     <img class="call-avatar" src="${ASSETS.callAvatar}" alt="智多星" />
     <div class="assistant-name">智多星</div>
-    <div class="assistant-state">${state.holding ? "正在听你说话" : q.stage}</div>
+    <div class="assistant-state">${state.holding ? "正在听你说话" : h(q.stage)}</div>
     <div class="dots">●●●</div>
     <div class="question-card">
       <div class="question-label">智多星正在提问</div>
-      <div class="question-title">${q.title}</div>
-      <div class="question-desc">${q.desc}</div>
+      <div class="question-title">${h(q.title)}</div>
+      <div class="question-desc">${h(q.desc)}</div>
       <div class="option-grid">
         ${q.options.map((item) => `
-          <button class="quick-option" data-answer="${item.value}">
+          <button class="quick-option" data-answer="${h(item.value)}">
             <span class="option-icon">${uiIcon(item.icon)}</span>
-            <span class="option-label">${item.label}</span>
+            <span class="option-label">${h(item.label)}</span>
             <span>〉</span>
           </button>
         `).join("")}
@@ -679,11 +688,11 @@ function renderLetter(claimedOverride) {
     ${topbar()}
     <div class="letter-head">
       <div class="doc-tag">${uiIcon("doc", "tag-svg")} ${claimed ? "完整销售信" : "待领取销售信"}</div>
-      <h1 class="letter-title">${letter.title}</h1>
-      <div class="letter-meta">智多星整理 · ${letter.scene}场景 · 第 ${letter.version} 版</div>
+      <h1 class="letter-title">${h(letter.title)}</h1>
+      <div class="letter-meta">智多星整理 · ${h(letter.scene)}场景 · 第 ${h(letter.version)} 版</div>
     </div>
     <article class="letter-card card">
-      ${letter.paragraphs.map((p, index) => `<p class="paragraph ${!claimed && index > 1 ? "blurred" : ""}">${p}</p>`).join("")}
+      ${letter.paragraphs.map((p, index) => `<p class="paragraph ${!claimed && index > 1 ? "blurred" : ""}">${h(p)}</p>`).join("")}
       ${claimed ? `
         <div class="image-suggestion">
           <div class="image-icon">${uiIcon("image")}</div>
@@ -757,8 +766,8 @@ function renderExport() {
     <div class="pdf-card card">
       <div class="pdf-sheet">
         <div class="pdf-topline"></div>
-        <div class="pdf-title">${letter.title}</div>
-        <div class="pdf-meta">智多星整理 · ${letter.scene}场景</div>
+        <div class="pdf-title">${h(letter.title)}</div>
+        <div class="pdf-meta">智多星整理 · ${h(letter.scene)}场景</div>
         <div class="pdf-line wide"></div>
         <div class="pdf-line"></div>
         <div class="pdf-line short"></div>
@@ -869,11 +878,11 @@ function recordCard(item) {
     <div class="record-card card" data-letter-id="${item.id || ""}" data-open-letter="${item.claimed ? "true" : "false"}">
       <div class="doc-thumb ${pending ? "orange" : ""}">${uiIcon("doc")}</div>
       <div class="record-main">
-        <div class="record-name">${item.title}</div>
-        <div class="record-meta">${item.scene} · ${item.meta}</div>
+        <div class="record-name">${h(item.title)}</div>
+        <div class="record-meta">${h(item.scene)} · ${h(item.meta)}</div>
         <div class="record-action">${item.claimed ? "查看完整内容" : item.status === "信息未完成" ? "继续补充信息" : "领取完整内容"}</div>
       </div>
-      <div class="status-pill ${pending ? "pending" : ""}">${item.status}</div>
+      <div class="status-pill ${pending ? "pending" : ""}">${h(item.status)}</div>
     </div>
   `;
 }
@@ -955,10 +964,10 @@ function renderOrders() {
         <div class="order-card card ${order.highlight ? "highlight" : ""}">
           <div class="order-icon">${uiIcon(order.icon)}</div>
           <div class="order-main">
-            <div class="order-title">${order.title}</div>
-            <div class="order-meta">${order.time} · ${order.status}</div>
+            <div class="order-title">${h(order.title)}</div>
+            <div class="order-meta">${h(order.time)} · ${h(order.status)}</div>
           </div>
-          <div class="order-amount">${order.amount}</div>
+          <div class="order-amount">${h(order.amount)}</div>
           ${order.rawStatus === "pending" && order.id ? `<button class="mini-outline" data-action="refresh-order" data-order-id="${order.id}">刷新</button>` : ""}
           ${order.canContinuePayment && order.id ? `<button class="mini-outline" data-action="continue-payment" data-order-id="${order.id}">${order.rawStatus === "payment_failed" ? "重新支付" : "继续支付"}</button>` : ""}
         </div>
@@ -1045,7 +1054,7 @@ function renderMemory() {
     <div class="memory-card card">
       <div class="section-head"><div class="section-icon">${uiIcon("user")}</div><div class="section-title">个人档案</div></div>
       <div class="kv-row"><span>账号状态</span><span>${state.phoneMasked ? "已绑定手机号" : "未绑定手机号"}</span></div>
-      <div class="kv-row"><span>手机号</span><span>${state.phoneMasked || "-"}</span></div>
+      <div class="kv-row"><span>手机号</span><span>${h(state.phoneMasked || "-")}</span></div>
       <div class="kv-row"><span>年卡权益</span><span>${hasAnnualEntitlement() ? "生效中" : "未开通"}</span></div>
     </div>
     <div class="memory-card card">
@@ -1072,8 +1081,8 @@ function profileRow(icon, name, meta, action, orange) {
     <div class="profile-row">
       <div class="profile-icon ${orange ? "orange-bg" : ""}">${uiIcon(icon)}</div>
       <div class="profile-row-main">
-        <div class="small-name">${name}</div>
-        <div class="small-meta">${meta}</div>
+        <div class="small-name">${h(name)}</div>
+        <div class="small-meta">${h(meta)}</div>
       </div>
       <div class="text-link">${action.replace("〉", "")}${uiIcon("arrow", "tiny-arrow")}</div>
     </div>
@@ -1246,7 +1255,7 @@ async function startRecordedVoiceInput() {
 function applyRemoteLetter(remoteLetter) {
   if (!remoteLetter) return;
   const content = remoteLetter.content || {};
-  const complete = !!remoteLetter.claimedAt || hasLetterAccess(remoteLetter.id);
+  const complete = !!remoteLetter.access?.complete || !!remoteLetter.claimedAt || hasLetterAccess(remoteLetter.id);
   state.letter = {
     id: remoteLetter.id,
     title: content.title || remoteLetter.title || "给潜在客户的一封成交销售信",
@@ -1525,8 +1534,9 @@ document.addEventListener("click", async (event) => {
         productType: state.selectedPlan,
         letterId: state.letter?.id || null
       });
-      clearPaymentIntent();
+      if (!result?.requiresWechatAuth) clearPaymentIntent();
       if (continueWechatPayment(result)) return;
+      clearPaymentIntent();
       state.paymentNotice = result.payment?.message || "订单已创建，请等待支付结果。";
       await loadAccountData();
       go("orders");
@@ -1541,8 +1551,9 @@ document.addEventListener("click", async (event) => {
     try {
       setPaymentIntent("annual", state.letter?.id || null);
       const result = await window.XiabiMockStore.createOrder({ productType: "annual", letterId: state.letter?.id || null });
-      clearPaymentIntent();
+      if (!result?.requiresWechatAuth) clearPaymentIntent();
       if (continueWechatPayment(result)) return;
+      clearPaymentIntent();
       state.paymentNotice = result.payment?.message || "订单已创建，请等待支付结果。";
       await loadAccountData();
       go("orders");

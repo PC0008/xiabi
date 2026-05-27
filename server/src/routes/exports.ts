@@ -1,8 +1,8 @@
 import { db, storage } from "edgespark";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { buckets, entitlementLedger, files, salesLetters } from "@defs";
+import { buckets, entitlementLedger, files, guestSessions, salesLetters } from "@defs";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, parseJson } from "../domain/http";
 
@@ -55,12 +55,35 @@ function buildPrintableLetterHtml(letter: typeof salesLetters.$inferSelect, para
 </html>`;
 }
 
-async function hasExportAccess(sessionId: string, letter: typeof salesLetters.$inferSelect) {
+type GuestSession = typeof guestSessions.$inferSelect;
+
+async function getCurrentSession(sessionId: string) {
+  const [session] = await db
+    .select()
+    .from(guestSessions)
+    .where(and(eq(guestSessions.tenantId, TENANT_ID), eq(guestSessions.id, sessionId)))
+    .limit(1);
+  return session || null;
+}
+
+function letterOwnerWhere(session: GuestSession) {
+  return session.userId
+    ? or(eq(salesLetters.sessionId, session.id), eq(salesLetters.userId, session.userId))
+    : eq(salesLetters.sessionId, session.id);
+}
+
+function entitlementOwnerWhere(session: GuestSession) {
+  return session.userId
+    ? or(eq(entitlementLedger.sessionId, session.id), eq(entitlementLedger.userId, session.userId))
+    : eq(entitlementLedger.sessionId, session.id);
+}
+
+async function hasExportAccess(session: GuestSession, letter: typeof salesLetters.$inferSelect) {
   if (letter.claimedAt) return true;
   const rows = await db
     .select()
     .from(entitlementLedger)
-    .where(and(eq(entitlementLedger.tenantId, TENANT_ID), eq(entitlementLedger.sessionId, sessionId)))
+    .where(and(eq(entitlementLedger.tenantId, TENANT_ID), entitlementOwnerWhere(session)))
     .limit(100);
   const now = Date.now();
   return rows.some((item) => {
@@ -78,13 +101,15 @@ export const exportRoutes = new Hono()
   .post("/letters/:id", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
     if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const session = await getCurrentSession(sessionId);
+    if (!session) return fail(c, "missing_session", "请先开始一次会话。", 401);
     const [letter] = await db
       .select()
       .from(salesLetters)
-      .where(and(eq(salesLetters.id, c.req.param("id")), eq(salesLetters.sessionId, sessionId)))
+      .where(and(eq(salesLetters.tenantId, TENANT_ID), eq(salesLetters.id, c.req.param("id")), letterOwnerWhere(session)))
       .limit(1);
     if (!letter) return fail(c, "letter_not_found", "没有找到这封销售信。", 404);
-    if (!(await hasExportAccess(sessionId, letter))) {
+    if (!(await hasExportAccess(session, letter))) {
       return fail(c, "letter_locked", "请先领取或解锁这封销售信，再打开打印版。", 403);
     }
     const content = parseJson<{ paragraphs?: string[] }>(letter.contentJson, {});

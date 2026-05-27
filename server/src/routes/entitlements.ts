@@ -1,21 +1,35 @@
 import { db } from "edgespark";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { entitlementLedger } from "@defs";
+import { entitlementLedger, guestSessions } from "@defs";
 import { TENANT_ID } from "../domain/defaults";
 import { ok } from "../domain/http";
 
 const SESSION_COOKIE = "xiabi_session";
 
+async function getCurrentSession(sessionId: string) {
+  const [session] = await db
+    .select()
+    .from(guestSessions)
+    .where(and(eq(guestSessions.tenantId, TENANT_ID), eq(guestSessions.id, sessionId)))
+    .limit(1);
+  return session || null;
+}
+
 export const entitlementRoutes = new Hono()
   .get("/", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
     if (!sessionId) return ok(c, { entitlements: [], summary: { annualActive: false, singleCredits: 0, firstFreeUsed: false } });
+    const session = await getCurrentSession(sessionId);
+    if (!session) return ok(c, { entitlements: [], summary: { annualActive: false, singleCredits: 0, firstFreeUsed: false } });
+    const ownerWhere = session.userId
+      ? or(eq(entitlementLedger.sessionId, session.id), eq(entitlementLedger.userId, session.userId))
+      : eq(entitlementLedger.sessionId, session.id);
     const rows = await db
       .select()
       .from(entitlementLedger)
-      .where(and(eq(entitlementLedger.tenantId, TENANT_ID), eq(entitlementLedger.sessionId, sessionId)))
+      .where(and(eq(entitlementLedger.tenantId, TENANT_ID), ownerWhere))
       .orderBy(desc(entitlementLedger.createdAt))
       .limit(100);
     const now = Date.now();

@@ -1,9 +1,10 @@
-import { db, secret } from "edgespark";
+import { db, secret, vars } from "edgespark";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
-import { entitlementLedger, orders, paymentWebhookEvents } from "@defs";
+import { orders, paymentWebhookEvents } from "@defs";
 import { verifyWechatWebhook } from "../adapters/payment/wechat";
 import { TENANT_ID } from "../domain/defaults";
+import { activateOrderEntitlement } from "../domain/entitlements";
 import { fail, ok } from "../domain/http";
 
 type WechatNotification = {
@@ -17,9 +18,15 @@ type WechatNotification = {
 };
 
 type WechatTransaction = {
+  appid?: string;
+  mchid?: string;
   out_trade_no?: string;
   transaction_id?: string;
   trade_state?: string;
+  amount?: {
+    total?: number;
+    currency?: string;
+  };
 };
 
 function base64ToArrayBuffer(value: string) {
@@ -44,6 +51,18 @@ async function decryptWechatResource(resource: NonNullable<WechatNotification["r
     base64ToArrayBuffer(resource.ciphertext)
   );
   return JSON.parse(new TextDecoder().decode(plain)) as WechatTransaction;
+}
+
+function validateWechatTransaction(notification: WechatNotification, transaction: WechatTransaction, order: typeof orders.$inferSelect) {
+  if (notification.event_type !== "TRANSACTION.SUCCESS") throw new Error("unexpected_event_type");
+  if (transaction.trade_state !== "SUCCESS") throw new Error("unexpected_trade_state");
+  if (transaction.out_trade_no !== order.providerOrderNo) throw new Error("out_trade_no_mismatch");
+  const expectedAppId = vars.get("WECHAT_PAY_APP_ID");
+  const expectedMchId = vars.get("WECHAT_PAY_MCH_ID");
+  if (expectedAppId && transaction.appid && transaction.appid !== expectedAppId) throw new Error("appid_mismatch");
+  if (expectedMchId && transaction.mchid && transaction.mchid !== expectedMchId) throw new Error("mchid_mismatch");
+  if (transaction.amount?.total !== undefined && Number(transaction.amount.total) !== Number(order.amountCents)) throw new Error("amount_mismatch");
+  if (transaction.amount?.currency && transaction.amount.currency !== order.currency) throw new Error("currency_mismatch");
 }
 
 export const webhookRoutes = new Hono()
@@ -85,30 +104,18 @@ export const webhookRoutes = new Hono()
       const [order] = await db
         .select()
         .from(orders)
-        .where(and(eq(orders.tenantId, TENANT_ID), eq(orders.provider, "wechat"), eq(orders.providerOrderNo, transaction.out_trade_no || "")))
+        .where(and(eq(orders.tenantId, TENANT_ID), eq(orders.providerOrderNo, transaction.out_trade_no || "")))
         .limit(1);
       if (!order) throw new Error("order_not_found");
-      if (transaction.trade_state === "SUCCESS" && order.status !== "paid") {
+      validateWechatTransaction(notification, transaction, order);
+      await activateOrderEntitlement(order);
+      if (order.status !== "paid") {
         await db.update(orders).set({
           status: "paid",
           providerTransactionId: transaction.transaction_id || null,
           paidAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }).where(eq(orders.id, order.id));
-        await db.insert(entitlementLedger).values({
-          id: crypto.randomUUID(),
-          tenantId: TENANT_ID,
-          userId: order.userId,
-          sessionId: order.sessionId,
-          orderId: order.id,
-          letterId: order.letterId,
-          type: order.productType,
-          status: "active",
-          quantity: 1,
-          dedupeKey: `order:${order.id}:${order.productType}`,
-          startsAt: new Date().toISOString(),
-          expiresAt: order.productType === "annual" ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() : null
-        }).onConflictDoNothing();
       }
       await db.update(paymentWebhookEvents).set({ orderId: order.id, status: "processed" }).where(eq(paymentWebhookEvents.id, event.id));
       return ok(c, { received: true });

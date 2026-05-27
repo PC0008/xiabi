@@ -67,12 +67,16 @@ async function processGenerationTask(task: typeof generationTasks.$inferSelect) 
   const templates = (await getConfigScope(db, "templates")).data;
   const templateMeta = selectTemplateMeta(templates);
 
-  await db.update(generationTasks).set({
+  const [lockedTask] = await db.update(generationTasks).set({
     status: "running",
     progressJson: JSON.stringify({ percent: 20, stage: task.status === "running" ? "resuming" : "writing", provider: "deepseek" }),
     attempts: Number(task.attempts || 0) + 1,
     updatedAt: new Date().toISOString()
-  }).where(eq(generationTasks.id, task.id));
+  }).where(and(eq(generationTasks.id, task.id), eq(generationTasks.status, task.status), eq(generationTasks.updatedAt, task.updatedAt))).returning();
+  if (!lockedTask) {
+    const [currentTask] = await db.select().from(generationTasks).where(eq(generationTasks.id, task.id)).limit(1);
+    return currentTask || task;
+  }
 
   let content: SalesLetterContent | null = null;
   try {
@@ -124,6 +128,13 @@ export const taskRoutes = new Hono()
     const body = await readJson<CreateTaskBody>(c);
     const answers = Array.isArray(body.answers) ? body.answers.map(String) : [];
     const input = body.input || {};
+    const [homeConfig, systemConfig] = await Promise.all([
+      getConfigScope(db, "home"),
+      getConfigScope(db, "system")
+    ]);
+    if ((homeConfig.data as Record<string, unknown>).generation_entry_enabled === false || (systemConfig.data as Record<string, unknown>).generation_enabled === false) {
+      return fail(c, "generation_disabled", "写信入口暂未开放。", 403);
+    }
     const taskId = crypto.randomUUID();
 
     await db.insert(generationTasks).values({

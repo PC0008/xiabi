@@ -1,11 +1,12 @@
 import { db, vars } from "edgespark";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { orders, salesLetters } from "@defs";
-import { buildWechatOAuthUrl, createWechatJsapiPayment, createWechatPayment, getWechatPaymentReadiness } from "../adapters/payment/wechat";
+import { guestSessions, orders, salesLetters } from "@defs";
+import { buildWechatOAuthUrl, createWechatJsapiPayment, createWechatPayment, getWechatPaymentReadiness, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { getConfigScope } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
+import { activateOrderEntitlement } from "../domain/entitlements";
 import { fail, ok, readJson } from "../domain/http";
 
 const SESSION_COOKIE = "xiabi_session";
@@ -42,14 +43,50 @@ function wechatAuthResponse(c: any) {
   });
 }
 
+function createProviderOrderNo() {
+  return `xiabi${Date.now().toString(36)}${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+}
+
+function paymentMatchesOrder(order: typeof orders.$inferSelect, transaction: { trade_state?: string; amount?: { total?: number; currency?: string } }) {
+  if (transaction.trade_state !== "SUCCESS") return false;
+  if (transaction.amount?.total !== undefined && Number(transaction.amount.total) !== Number(order.amountCents)) return false;
+  if (transaction.amount?.currency && transaction.amount.currency !== order.currency) return false;
+  return true;
+}
+
+type GuestSession = typeof guestSessions.$inferSelect;
+
+async function getCurrentSession(sessionId: string) {
+  const [session] = await db
+    .select()
+    .from(guestSessions)
+    .where(and(eq(guestSessions.tenantId, TENANT_ID), eq(guestSessions.id, sessionId)))
+    .limit(1);
+  return session || null;
+}
+
+function orderOwnerWhere(session: GuestSession) {
+  return session.userId
+    ? or(eq(orders.sessionId, session.id), eq(orders.userId, session.userId))
+    : eq(orders.sessionId, session.id);
+}
+
+function letterOwnerWhere(session: GuestSession) {
+  return session.userId
+    ? or(eq(salesLetters.sessionId, session.id), eq(salesLetters.userId, session.userId))
+    : eq(salesLetters.sessionId, session.id);
+}
+
 export const orderRoutes = new Hono()
   .get("/", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
     if (!sessionId) return ok(c, { orders: [] });
+    const session = await getCurrentSession(sessionId);
+    if (!session) return ok(c, { orders: [] });
     const rows = await db
       .select()
       .from(orders)
-      .where(and(eq(orders.tenantId, TENANT_ID), eq(orders.sessionId, sessionId)))
+      .where(and(eq(orders.tenantId, TENANT_ID), orderOwnerWhere(session)))
       .orderBy(desc(orders.createdAt))
       .limit(50);
     return ok(c, { orders: rows });
@@ -57,6 +94,8 @@ export const orderRoutes = new Hono()
   .post("/", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
     if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const session = await getCurrentSession(sessionId);
+    if (!session) return fail(c, "missing_session", "请先开始一次会话。", 401);
     const body = await readJson<CreateOrderBody>(c);
     const productType = body.productType === "single" ? "single" : "annual";
     const pricing = (await getConfigScope(db, "pricing")).data as Record<string, unknown>;
@@ -68,7 +107,7 @@ export const orderRoutes = new Hono()
       const [letter] = await db
         .select({ id: salesLetters.id })
         .from(salesLetters)
-        .where(and(eq(salesLetters.id, letterId), eq(salesLetters.sessionId, sessionId), eq(salesLetters.tenantId, TENANT_ID)))
+        .where(and(eq(salesLetters.id, letterId), letterOwnerWhere(session), eq(salesLetters.tenantId, TENANT_ID)))
         .limit(1);
       if (!letter) return fail(c, "letter_not_found", "没有找到这封销售信。", 404);
     }
@@ -83,13 +122,14 @@ export const orderRoutes = new Hono()
     const useJsapi = isWeChatBrowser(c);
     if (useJsapi && !openid) return wechatAuthResponse(c);
     const orderId = crypto.randomUUID();
-    const providerOrderNo = `xiabi_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const providerOrderNo = createProviderOrderNo();
     await db.insert(orders).values({
       id: orderId,
       tenantId: TENANT_ID,
       sessionId,
+      userId: session.userId || null,
       letterId,
-      provider: vars.get("PAYMENT_PROVIDER") || "wechat",
+      provider: "wechat",
       providerOrderNo,
       productType,
       title,
@@ -136,21 +176,39 @@ export const orderRoutes = new Hono()
   .get("/:id/payment-status", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
     if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const session = await getCurrentSession(sessionId);
+    if (!session) return fail(c, "missing_session", "请先开始一次会话。", 401);
     const [order] = await db
       .select()
       .from(orders)
-      .where(and(eq(orders.id, c.req.param("id")), eq(orders.sessionId, sessionId)))
+      .where(and(eq(orders.tenantId, TENANT_ID), eq(orders.id, c.req.param("id")), orderOwnerWhere(session)))
       .limit(1);
     if (!order) return fail(c, "order_not_found", "没有找到订单。", 404);
+    if (order.status === "pending" && order.providerOrderNo) {
+      const query = await queryWechatPaymentByOutTradeNo(order.providerOrderNo).catch(() => null);
+      if (query?.configured && query.transaction && paymentMatchesOrder(order, query.transaction)) {
+        await activateOrderEntitlement(order);
+        await db.update(orders).set({
+          status: "paid",
+          providerTransactionId: query.transaction.transaction_id || order.providerTransactionId,
+          paidAt: order.paidAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }).where(eq(orders.id, order.id));
+        const [updated] = await db.select().from(orders).where(eq(orders.id, order.id)).limit(1);
+        return ok(c, { orderId: updated?.id || order.id, status: updated?.status || "paid", paidAt: updated?.paidAt || order.paidAt });
+      }
+    }
     return ok(c, { orderId: order.id, status: order.status, paidAt: order.paidAt });
   })
   .post("/:id/pay", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
     if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const session = await getCurrentSession(sessionId);
+    if (!session) return fail(c, "missing_session", "请先开始一次会话。", 401);
     const [order] = await db
       .select()
       .from(orders)
-      .where(and(eq(orders.id, c.req.param("id")), eq(orders.sessionId, sessionId), eq(orders.tenantId, TENANT_ID)))
+      .where(and(eq(orders.id, c.req.param("id")), orderOwnerWhere(session), eq(orders.tenantId, TENANT_ID)))
       .limit(1);
     if (!order) return fail(c, "order_not_found", "没有找到订单。", 404);
     if (order.status === "paid") return fail(c, "order_already_paid", "这笔订单已经支付完成。", 409);
@@ -192,10 +250,12 @@ export const orderRoutes = new Hono()
   .get("/:id", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
     if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const session = await getCurrentSession(sessionId);
+    if (!session) return fail(c, "missing_session", "请先开始一次会话。", 401);
     const [order] = await db
       .select()
       .from(orders)
-      .where(and(eq(orders.id, c.req.param("id")), eq(orders.sessionId, sessionId)))
+      .where(and(eq(orders.tenantId, TENANT_ID), eq(orders.id, c.req.param("id")), orderOwnerWhere(session)))
       .limit(1);
     if (!order) return fail(c, "order_not_found", "没有找到订单。", 404);
     return ok(c, order);

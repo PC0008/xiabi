@@ -7,6 +7,7 @@ import { generateSalesLetterWithDeepSeek, SalesLetterContent } from "../adapters
 import { queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { getAdminConfig, upsertConfigScope } from "../domain/config";
 import { ConfigScope, configScopes, TENANT_ID } from "../domain/defaults";
+import { activateOrderEntitlement } from "../domain/entitlements";
 import { fail, ok, parseJson, readJson } from "../domain/http";
 import { createToken, daysFromNow, hashPassword, hashToken, isFuture } from "../domain/security";
 
@@ -421,23 +422,6 @@ function publicLetter(letter: typeof salesLetters.$inferSelect) {
 function requireAdminOrFail(c: any, admin: typeof adminUsers.$inferSelect | null) {
   if (!admin) return fail(c, "not_authenticated", "请先登录后台。", 401);
   return null;
-}
-
-async function activateOrderEntitlement(order: typeof orders.$inferSelect) {
-  await db.insert(entitlementLedger).values({
-    id: crypto.randomUUID(),
-    tenantId: TENANT_ID,
-    userId: order.userId,
-    sessionId: order.sessionId,
-    orderId: order.id,
-    letterId: order.letterId,
-    type: order.productType,
-    status: "active",
-    quantity: 1,
-    dedupeKey: `order:${order.id}:${order.productType}`,
-    startsAt: new Date().toISOString(),
-    expiresAt: order.productType === "annual" ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() : null
-  }).onConflictDoNothing();
 }
 
 export const adminRoutes = new Hono()

@@ -11,10 +11,16 @@ export type CreateWechatPaymentInput = {
 };
 
 export type WechatOrderQueryResult = {
+  appid?: string;
+  mchid?: string;
   out_trade_no?: string;
   transaction_id?: string;
   trade_state?: string;
   trade_state_desc?: string;
+  amount?: {
+    total?: number;
+    currency?: string;
+  };
 };
 
 export type NormalizedWechatWebhook = {
