@@ -66,9 +66,9 @@ function buildReadinessReport() {
     },
     {
       requirement: "微信付款回调与权益到账",
-      status: readinessStatus(["wechat paid order closure"]),
-      evidence: ["wechat paid order closure"],
-      next: "完成真实付款后设置 XIABI_VERIFY_PAID_ORDER_ID，并可设置 XIABI_VERIFY_REQUIRE_WEBHOOK=1。"
+      status: readinessStatus(["wechat paid order closure", "paid entitlement idempotency"]),
+      evidence: ["wechat paid order closure", "paid entitlement idempotency"],
+      next: "完成真实付款后设置 XIABI_VERIFY_PAID_ORDER_ID，并可设置 XIABI_VERIFY_REQUIRE_WEBHOOK=1；脚本会复验重复补发不重复加权益。"
     },
     {
       requirement: "短信发送与手机号绑定",
@@ -381,6 +381,7 @@ async function verifyPaidOrderClosure() {
   const orderId = process.env.XIABI_VERIFY_PAID_ORDER_ID;
   if (!orderId) {
     skipOrStrict("wechat paid order closure", "set XIABI_VERIFY_PAID_ORDER_ID after completing a real payment");
+    skipOrStrict("paid entitlement idempotency", "set XIABI_VERIFY_PAID_ORDER_ID to verify repeated entitlement repair is idempotent");
     return;
   }
   const admin = await adminLogin();
@@ -395,11 +396,30 @@ async function verifyPaidOrderClosure() {
   if (process.env.XIABI_VERIFY_REQUIRE_WEBHOOK === "1" && !events.some((item) => item.status === "processed")) {
     throw new Error("paid order closure did not find a processed payment webhook event");
   }
+  const beforeCount = entitlements.length;
+  const firstRepair = await api(`/api/public/admin/orders/${encodeURIComponent(orderId)}/rebuild-entitlement`, { method: "POST" }, admin.cookie);
+  const secondRepair = await api(`/api/public/admin/orders/${encodeURIComponent(orderId)}/rebuild-entitlement`, { method: "POST" }, admin.cookie);
+  const firstCount = Array.isArray(firstRepair.entitlements) ? firstRepair.entitlements.length : 0;
+  const secondEntitlements = Array.isArray(secondRepair.entitlements) ? secondRepair.entitlements : [];
+  const secondCount = secondEntitlements.length;
+  if (firstCount !== secondCount || secondCount < beforeCount || secondCount === 0) {
+    throw new Error(`paid entitlement idempotency expected stable entitlement count, got before=${beforeCount}, first=${firstCount}, second=${secondCount}`);
+  }
+  const dedupeKeys = secondEntitlements.map((item) => item.dedupeKey).filter(Boolean);
+  if (new Set(dedupeKeys).size !== dedupeKeys.length) {
+    throw new Error("paid entitlement idempotency found duplicate dedupe keys");
+  }
   addCheck("wechat paid order closure", "ok", {
     orderId,
     productType: detail.order.productType,
     entitlementCount: entitlements.length,
     processedWebhookEvents: events.filter((item) => item.status === "processed").length
+  });
+  addCheck("paid entitlement idempotency", "ok", {
+    orderId,
+    beforeCount,
+    firstRepairCount: firstCount,
+    secondRepairCount: secondCount
   });
 }
 

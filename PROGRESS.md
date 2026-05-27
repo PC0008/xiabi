@@ -35,6 +35,7 @@
 - 新增 `npm run verify:production:report`，可把生产验收矩阵写入 `docs/production-readiness-latest.md`，用于交付状态留档。
 - 生产验收补强：`XIABI_VERIFY_DEEPSEEK=1` 现在不仅验证 DeepSeek 生成，还会继续验证首次免费领取、权益流水和可打印 HTML 导出。
 - 生产验收补强：新增 `XIABI_VERIFY_REPEAT_FREE=1`，可在同一会话生成第二封信并验证重复首次免费领取会被 `first_free_used` 拒绝。
+- 生产验收补强：`XIABI_VERIFY_PAID_ORDER_ID` 现在会在确认已支付和权益到账后，连续调用两次后台补权益，验证重复补发不会增加重复权益流水。
 - 语音输入接入槽补强：服务端 `/api/public/voice/transcribe` 现在同时支持 JSON base64 和 OpenAI-compatible `/audio/transcriptions` multipart 格式，`VOICE_ASR_REQUEST_FORMAT=openai|json` 可显式指定。
 - 前端运行时命名正式化：用户端和后台入口从 `mock-store.js` 迁移到 `store.js`，应用调用统一改为 `window.XiabiStore`，旧别名仅保留给浏览器缓存兼容。
 - 交付文档补强：新增根 `README.md` 和 `docs/生产外部凭据交接清单.md`，明确线上地址、常用命令、验收分级和真实外部联调所需凭据。
