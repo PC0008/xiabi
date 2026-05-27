@@ -214,6 +214,87 @@ test("call page records to server ASR when browser speech start fails", async ({
   await expect.poll(() => transcribeCalled).toBe(true);
 });
 
+test("call page auto plays assistant prompt when TTS is configured", async ({ page }) => {
+  let spokenText = "";
+  await page.addInitScript(() => {
+    class FakeSpeechRecognition {
+      start() {}
+      stop() {}
+    }
+    Object.defineProperty(window, "SpeechRecognition", { value: FakeSpeechRecognition, configurable: true });
+    Object.defineProperty(window, "webkitSpeechRecognition", { value: undefined, configurable: true });
+    class FakeAudio {
+      constructor(url) {
+        this.url = url;
+      }
+      pause() {}
+      async play() {
+        setTimeout(() => this.onended?.(), 0);
+      }
+    }
+    Object.defineProperty(window, "Audio", { value: FakeAudio, configurable: true });
+  });
+  await page.route("**/api/public/config", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          homeConfig: {},
+          pricing: {},
+          guideStages: [],
+          system: { voice_enabled: true, sms_enabled: true, file_export_enabled: true, generation_enabled: true },
+          capabilities: {
+            voice: {
+              ttsConfigured: true,
+              asrConfigured: false,
+              asrVerified: false,
+              asrPreferred: false
+            }
+          },
+          versions: {}
+        }
+      })
+    });
+  });
+  await page.route("**/api/public/session/guest", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: { sessionId: "voice-session" } })
+    });
+  });
+  await page.route("**/api/public/voice/speak", async (route) => {
+    const body = route.request().postDataJSON();
+    spokenText = String(body.text || "");
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          provider: "minimax",
+          configured: true,
+          audioUrl: "data:audio/mp3;base64,ZmFrZQ=="
+        }
+      })
+    });
+  });
+
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+
+  await page.locator('[data-action="auth"]').click();
+  await page.locator('[data-action="start-call"]').click();
+  await expect(page.locator(".question-card")).toBeVisible();
+  await expect.poll(() => spokenText).toContain("这封信是给你自己的产品写");
+});
+
 test("start call waits for latest public config", async ({ page }) => {
   let configCalls = 0;
   await page.addInitScript(() => {

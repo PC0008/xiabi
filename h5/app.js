@@ -207,6 +207,7 @@ let voiceChunks = [];
 let voiceRecordingRequested = false;
 let voiceRecordingTimer = null;
 const MAX_RECORDING_MS = 15000;
+let lastAutoPromptKey = "";
 
 function persist() {
   window.XiabiStore.persistAppState(state);
@@ -352,6 +353,7 @@ function go(route) {
   state.route = route;
   location.hash = route;
   render();
+  if (route === "call") maybeAutoSpeakCurrentPrompt();
   if (route === "orders") setTimeout(() => resumePaymentIntent(), 0);
   if (route === "generating") setTimeout(() => resumeGenerationTask(), 0);
 }
@@ -364,6 +366,7 @@ window.addEventListener("hashchange", () => {
 window.addEventListener("xiabi:config-updated", (event) => {
   applyAdminConfig(event.detail || readRuntimeConfig());
   render();
+  if (state.route === "call") maybeAutoSpeakCurrentPrompt();
 });
 
 async function syncConfigBeforeAction() {
@@ -489,6 +492,36 @@ function stopAssistantVoice() {
 function currentAssistantPrompt() {
   const question = currentQuestion();
   return question ? `${question.title} ${question.desc || ""}`.trim() : "";
+}
+
+function currentAssistantPromptKey() {
+  return `${state.answers.length}:${currentAssistantPrompt()}`;
+}
+
+function voicePlaybackAvailable() {
+  return voiceEnabled() && runtimeCapabilities.voice?.ttsConfigured === true;
+}
+
+function speakCurrentAssistantPrompt(auto = false) {
+  if (state.route !== "call" || !voiceInputAvailable() || !voicePlaybackAvailable()) return false;
+  const prompt = currentAssistantPrompt();
+  if (!prompt) return false;
+  const promptKey = currentAssistantPromptKey();
+  if (auto && lastAutoPromptKey === promptKey) return false;
+  if (auto) lastAutoPromptKey = promptKey;
+  state.speakerOn = true;
+  assistantPromptKey = promptKey;
+  render();
+  playAssistantVoice(prompt).finally(() => {
+    if (assistantPromptKey === promptKey) assistantPromptKey = "";
+  });
+  return true;
+}
+
+function maybeAutoSpeakCurrentPrompt() {
+  setTimeout(() => {
+    speakCurrentAssistantPrompt(true);
+  }, 0);
 }
 
 function speechSupported() {
@@ -1355,6 +1388,7 @@ function addAnswer(value) {
   }
   persist();
   render();
+  maybeAutoSpeakCurrentPrompt();
 }
 
 function startVoiceInput() {
@@ -1808,14 +1842,7 @@ document.addEventListener("click", async (event) => {
       render();
       return;
     }
-    const prompt = currentAssistantPrompt();
-    const promptKey = `${state.answers.length}:${prompt}`;
-    state.speakerOn = true;
-    assistantPromptKey = promptKey;
-    render();
-    playAssistantVoice(prompt).finally(() => {
-      if (assistantPromptKey === promptKey) assistantPromptKey = "";
-    });
+    speakCurrentAssistantPrompt(false);
   } else if (action === "hangup") {
     stopAssistantVoice();
     go("home");

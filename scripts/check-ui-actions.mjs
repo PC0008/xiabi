@@ -118,6 +118,11 @@ const requiredMarkers = [
     file: "server/src/routes/admin.ts",
     marker: "createPresignedGetUrl(file.objectKey",
     message: "admin letter details must return temporary download URLs for exported files"
+  },
+  {
+    file: "h5/app.js",
+    marker: "maybeAutoSpeakCurrentPrompt",
+    message: "call flow must auto-play configured assistant voice prompts"
   }
 ];
 
