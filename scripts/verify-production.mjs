@@ -4,6 +4,8 @@ import path from "node:path";
 const baseUrl = process.env.XIABI_VERIFY_BASE_URL || "https://immortal-sponge-1728.edgespark.app";
 const strict = process.env.XIABI_PRODUCTION_STRICT === "1";
 const checks = [];
+const reportArgIndex = process.argv.indexOf("--report");
+const reportPath = reportArgIndex >= 0 ? process.argv[reportArgIndex + 1] : process.env.XIABI_VERIFY_REPORT_PATH;
 
 function addCheck(name, status, detail = {}) {
   checks.push({ name, status, ...detail });
@@ -84,6 +86,56 @@ function buildReadinessReport() {
     },
     matrix
   };
+}
+
+function statusLabel(status) {
+  if (status === "verified") return "已验证";
+  if (status === "pending_input") return "待输入";
+  if (status === "external_blocked") return "外部阻塞";
+  if (status === "failed") return "失败";
+  return status;
+}
+
+function renderMarkdownReport(report) {
+  const lines = [
+    "# 生产验收状态报告",
+    "",
+    `生成时间：${report.generatedAt}`,
+    `线上地址：${report.baseUrl}`,
+    `整体结果：${report.ok ? "基础通过" : "未完全通过"}`,
+    "",
+    "## 汇总",
+    "",
+    `- 已验证：${report.readiness.summary.verified}`,
+    `- 待输入：${report.readiness.summary.pendingInput}`,
+    `- 外部阻塞：${report.readiness.summary.externalBlocked}`,
+    `- 失败：${report.readiness.summary.failed}`,
+    "",
+    "## 验收矩阵",
+    "",
+    "| 能力 | 状态 | 证据 | 下一步 |",
+    "| --- | --- | --- | --- |"
+  ];
+  for (const item of report.readiness.matrix) {
+    lines.push(`| ${item.requirement} | ${statusLabel(item.status)} | ${item.evidence.join(", ")} | ${item.next || ""} |`);
+  }
+  lines.push("", "## 原始检查项", "");
+  for (const item of report.checks) {
+    const detail = item.reason || item.next || item.missingRequired?.join(", ") || "";
+    lines.push(`- ${item.name}: ${item.status}${detail ? `；${detail}` : ""}`);
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+async function writeReport(report) {
+  if (!reportPath) return;
+  const outputPath = path.resolve(reportPath);
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  const content = outputPath.toLowerCase().endsWith(".md")
+    ? renderMarkdownReport(report)
+    : `${JSON.stringify(report, null, 2)}\n`;
+  await fs.writeFile(outputPath, content, "utf8");
 }
 
 function skipOrStrict(name, reason) {
@@ -364,9 +416,18 @@ await verifyAsr();
 
 const failed = checks.filter((item) => ["missing", "failed", "external_blocked"].includes(item.status));
 const readiness = buildReadinessReport();
+const report = {
+  ok: failed.length === 0,
+  generatedAt: new Date().toISOString(),
+  baseUrl,
+  strict,
+  checks,
+  readiness
+};
+await writeReport(report);
 if (failed.length) {
-  console.error(JSON.stringify({ ok: false, baseUrl, checks, readiness }, null, 2));
+  console.error(JSON.stringify(report, null, 2));
   process.exit(1);
 }
 
-console.log(JSON.stringify({ ok: true, baseUrl, strict, checks, readiness }, null, 2));
+console.log(JSON.stringify(report, null, 2));
