@@ -21,7 +21,9 @@ const forbiddenRuntimeMarkers = [
   "${adminState.loginUsername}",
   "${adminState.loginPassword}",
   "${adminState.loginError}",
-  "${adminState.adminUser.displayName"
+  "${adminState.adminUser.displayName",
+  "const sampleAnswers",
+  "state.answers.push(value ||"
 ];
 
 function unique(values) {

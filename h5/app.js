@@ -148,13 +148,6 @@ function buildQuestionsFromConfig(stages) {
   return mapped.length ? mapped : defaultQuestions;
 }
 
-const sampleAnswers = [
-  "给自己的产品写，主要面向正在观望的潜在客户。",
-  "希望客户看完后愿意预约一次沟通，先把需求讲清楚。",
-  "产品是销售表达辅导服务，帮助客户把复杂价值讲得更清楚。",
-  "客户担心效果不稳定，也担心投入后没有持续跟进。"
-];
-
 const storedState = window.XiabiStore.getAppState();
 const state = {
   authed: storedState.authed,
@@ -617,10 +610,10 @@ function callIcon(type) {
 
 function buildSummaryItems() {
   return [
-    { label: "帮谁写", value: state.answers[0] || "给自己的产品写。" },
-    { label: "写信目标", value: state.answers[1] || "让潜在客户理解产品价值，并愿意预约一次沟通。" },
-    { label: "产品档案", value: state.answers[2] || "临时产品档案，本次通话中自动整理。" },
-    { label: "客户顾虑", value: state.answers[3] || "担心效果不稳定，也担心投入后没有人持续跟进。" }
+    { label: "帮谁写", value: state.answers[0] || "未补充" },
+    { label: "写信目标", value: state.answers[1] || "未补充" },
+    { label: "产品档案", value: state.answers[2] || "未补充" },
+    { label: "客户顾虑", value: state.answers[3] || "未补充" }
   ];
 }
 
@@ -1305,8 +1298,7 @@ function render() {
 }
 
 function addAnswer(value) {
-  const nextIndex = state.answers.length;
-  state.answers.push(value || sampleAnswers[nextIndex] || sampleAnswers[sampleAnswers.length - 1]);
+  state.answers.push(String(value || "").trim() || "用户未补充。");
   assistantPromptKey = "";
   if (state.speakerOn) {
     stopAssistantVoice();
