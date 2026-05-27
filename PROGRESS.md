@@ -8,6 +8,7 @@
 - 系统开关补强：后台新增后端写信服务、短信绑定服务、语音服务开关；短信和语音接口已读取服务端配置，关闭后会返回明确业务错误。
 - 短信安全补强：验证码发送加入同手机号 60 秒、每小时、每日限制；供应商异常会返回可识别业务错误，不再直接冒泡成不可控 500。
 - 运营反馈补强：后台新增“用户反馈”菜单和 `/api/public/admin/feedback`，集中查看用户端提交的问题、建议和异常描述。
+- 账号安全补强：后台新增“账号安全”页和 `/api/public/admin/password`，当前管理员可修改自己的密码；修改成功后会清理该账号所有后台会话并要求重新登录。
 - 验证通过：`node --check h5/admin.js`、`npm run typecheck`、`npm run build`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:live`、`npm run verify:production` 基础模式。
 - 仍需真实外部验收输入：后台账号密码、DeepSeek 真实生成开关、真实支付创建/付款环境、可接收短信手机号、MiniMax TTS 开关、ASR 音频样本。未设置这些 verifier 环境变量时，`verify:production` 会跳过真实付费/外部调用项。
 

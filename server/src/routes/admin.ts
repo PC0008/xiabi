@@ -20,6 +20,11 @@ type AdminLoginBody = {
   password: string;
 };
 
+type AdminPasswordBody = {
+  currentPassword?: string;
+  newPassword?: string;
+};
+
 type AdminConfigBody = {
   home?: unknown;
   homeConfig?: unknown;
@@ -553,6 +558,29 @@ export const adminRoutes = new Hono()
     const admin = await requireAdmin(c);
     if (!admin) return fail(c, "not_authenticated", "请先登录后台。", 401);
     return ok(c, { admin: publicAdmin(admin) });
+  })
+  .post("/password", async (c) => {
+    const admin = await requireAdmin(c);
+    if (!admin) return fail(c, "not_authenticated", "请先登录后台。", 401);
+    const body = await readJson<AdminPasswordBody>(c);
+    const currentPassword = String(body.currentPassword || "");
+    const newPassword = String(body.newPassword || "");
+    if (!currentPassword || !newPassword) return fail(c, "missing_password", "请输入当前密码和新密码。", 400);
+    if (newPassword.length < 10) return fail(c, "weak_password", "新密码至少需要 10 位。", 400);
+    const pepper = secret.get("ADMIN_PASSWORD_PEPPER");
+    if (!pepper) return fail(c, "admin_pepper_missing", "后台密码安全配置缺失。", 500);
+    if (await hashPassword(currentPassword, pepper) !== admin.passwordHash) {
+      await logAdmin(admin.id, "admin.password_change_failed", "admin_user", { reason: "current_password_not_match" });
+      return fail(c, "password_not_match", "当前密码不正确。", 403);
+    }
+    await db.update(adminUsers).set({
+      passwordHash: await hashPassword(newPassword, pepper),
+      updatedAt: new Date().toISOString()
+    }).where(eq(adminUsers.id, admin.id));
+    await db.delete(adminSessions).where(eq(adminSessions.adminId, admin.id));
+    deleteCookie(c, ADMIN_COOKIE, { path: "/" });
+    await logAdmin(admin.id, "admin.password_changed", "admin_user", { username: admin.username });
+    return ok(c, { changed: true });
   })
   .get("/config", async (c) => {
     const admin = await requireAdmin(c);

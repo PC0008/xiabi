@@ -90,6 +90,11 @@ const adminState = {
     entitlementsStatus: "",
     paymentEventsStatus: ""
   },
+  security: {
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: ""
+  },
   detail: null
 };
 
@@ -173,6 +178,7 @@ const navItems = [
   ["ledger", "权益流水", "ledger"],
   ["feedback", "用户反馈", "doc"],
   ["logs", "日志审计", "log"],
+  ["security", "账号安全", "settings"],
   ["diagnostics", "系统自检", "settings"]
 ];
 
@@ -371,6 +377,7 @@ function pageDescription(route) {
     ledger: "权益只从订单和权益流水计算，前端不直接决定权限。",
     feedback: "查看用户提交的问题、建议和异常反馈。",
     logs: "记录配置修改、支付回调、生成失败和敏感操作。",
+    security: "修改后台密码并让旧会话失效。",
     diagnostics: "检查真实服务配置是否齐全，只显示状态，不显示密钥内容。"
   };
   return desc[route] || "";
@@ -752,6 +759,32 @@ function renderFeedback() {
   return layout(tablePanel("用户反馈", "集中查看用户端提交的问题、建议和异常描述。", ["类型", "内容", "会话", "时间", "操作"], rows));
 }
 
+function renderSecurity() {
+  return layout(`
+    <section class="section split">
+      <div class="panel card">
+        <div class="panel-head"><div><div class="panel-title">修改后台密码</div><div class="panel-desc">修改成功后，当前账号的所有登录会话都会失效，需要用新密码重新登录。</div></div></div>
+        <div class="form-grid">
+          <div class="field full"><label>当前密码</label><input type="password" data-security-field="currentPassword" value="${h(adminState.security.currentPassword)}" autocomplete="current-password" /></div>
+          <div class="field"><label>新密码</label><input type="password" data-security-field="newPassword" value="${h(adminState.security.newPassword)}" autocomplete="new-password" /></div>
+          <div class="field"><label>确认新密码</label><input type="password" data-security-field="confirmPassword" value="${h(adminState.security.confirmPassword)}" autocomplete="new-password" /></div>
+        </div>
+        <div class="detail-actions">
+          <button class="primary" data-action="change-admin-password">保存新密码</button>
+        </div>
+      </div>
+      <div class="panel card">
+        <div class="panel-head"><div><div class="panel-title">当前账号</div><div class="panel-desc">这里不显示任何密钥或密码内容。</div></div></div>
+        ${detailSection("账号信息", [
+          ["账号", adminState.adminUser?.username || "-"],
+          ["显示名", adminState.adminUser?.displayName || "-"],
+          ["角色", adminState.adminUser?.role || "-"]
+        ])}
+      </div>
+    </section>
+  `);
+}
+
 function renderPaymentEvents() {
   const rows = (adminState.lists.paymentEvents?.events || []).map((item) => [
     shortId(item.id),
@@ -1025,6 +1058,7 @@ function render() {
     ledger: renderLedger,
     feedback: renderFeedback,
     logs: renderLogs,
+    security: renderSecurity,
     diagnostics: renderDiagnostics
   };
   const view = routes[adminState.route] || renderDashboard;
@@ -1163,6 +1197,23 @@ document.addEventListener("click", async (event) => {
     } catch (error) {
       showToast(error.message || "回调重处理失败");
     }
+  } else if (action === "change-admin-password") {
+    try {
+      if (adminState.security.newPassword !== adminState.security.confirmPassword) {
+        showToast("两次输入的新密码不一致");
+        return;
+      }
+      await window.XiabiMockStore.adminPost("/password", {
+        currentPassword: adminState.security.currentPassword,
+        newPassword: adminState.security.newPassword
+      });
+      adminState.adminUser = null;
+      adminState.loginPassword = "";
+      adminState.security = { currentPassword: "", newPassword: "", confirmPassword: "" };
+      showToast("密码已修改，请重新登录");
+    } catch (error) {
+      showToast(error.message || "密码修改失败");
+    }
   }
 });
 
@@ -1207,6 +1258,12 @@ document.addEventListener("input", (event) => {
   const templateField = event.target.dataset.templateField;
   if (templateField) {
     updateSelectedTemplate(templateField, event.target.value);
+    return;
+  }
+
+  const securityField = event.target.dataset.securityField;
+  if (securityField && securityField in adminState.security) {
+    adminState.security[securityField] = event.target.value;
     return;
   }
 
