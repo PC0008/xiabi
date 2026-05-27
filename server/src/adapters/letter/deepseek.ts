@@ -14,6 +14,12 @@ export type SalesLetterInput = {
   templates?: unknown;
 };
 
+type AnswerItem = {
+  question?: string;
+  desc?: string;
+  answer?: string;
+};
+
 type DeepSeekMessage = {
   role: "system" | "user";
   content: string;
@@ -62,11 +68,21 @@ function normalizeTemplateRules(templates: unknown) {
 
 function buildUserBrief(input: SalesLetterInput) {
   const labels = ["写给谁", "写信目标", "产品或服务", "客户顾虑", "补充信息"];
-  const answers = input.answers
-    .map((answer, index) => `${labels[index] || `信息${index + 1}`}：${cleanString(answer) || "用户未补充"}`)
-    .join("\n");
+  const answerItems = Array.isArray(input.input?.answerItems)
+    ? (input.input.answerItems as unknown[]).filter((item): item is AnswerItem => !!item && typeof item === "object")
+    : [];
+  const answers = answerItems.length
+    ? answerItems.map((item, index) => {
+      const question = cleanString(item.question) || labels[index] || `信息${index + 1}`;
+      const desc = cleanString(item.desc);
+      const answer = cleanString(item.answer) || "用户未补充";
+      return `${question}${desc ? `（${desc}）` : ""}：${answer}`;
+    }).join("\n")
+    : input.answers
+      .map((answer, index) => `${labels[index] || `信息${index + 1}`}：${cleanString(answer) || "用户未补充"}`)
+      .join("\n");
   const extra = input.input && Object.keys(input.input).length
-    ? `\n补充上下文：${JSON.stringify(input.input)}`
+    ? `\n补充上下文：${JSON.stringify({ ...input.input, answerItems: undefined })}`
     : "";
   return `${answers || "用户暂未提供完整信息，请根据已有内容写一封稳妥的销售信。"}${extra}`;
 }

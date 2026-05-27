@@ -163,6 +163,7 @@ const state = {
   feedbackText: "",
   feedbackSent: false,
   answers: storedState.answers,
+  answerItems: Array.isArray(storedState.answerItems) ? storedState.answerItems : [],
   pendingLetter: storedState.pendingLetter,
   phoneBound: storedState.phoneBound,
   annualActive: storedState.annualActive,
@@ -389,6 +390,22 @@ function canConfirmAnswers() {
     .map((question, index) => ({ question, index }))
     .filter((item) => item.question.required !== false)
     .every((item) => state.answers[item.index]);
+}
+
+function buildAnswerItems() {
+  return state.answers.map((answer, index) => {
+    const question = questions[index] || {};
+    return {
+      index,
+      question: String(question.title || `问题 ${index + 1}`).trim(),
+      desc: String(question.desc || "").trim(),
+      answer: String(answer || "").trim() || "用户未补充。"
+    };
+  });
+}
+
+function currentAnswerItems() {
+  return state.answerItems.length === state.answers.length ? state.answerItems : buildAnswerItems();
 }
 
 function getSpeechRecognition() {
@@ -1298,7 +1315,15 @@ function render() {
 }
 
 function addAnswer(value) {
-  state.answers.push(String(value || "").trim() || "用户未补充。");
+  const answer = String(value || "").trim() || "用户未补充。";
+  const question = currentQuestion() || {};
+  state.answers.push(answer);
+  state.answerItems.push({
+    index: state.answers.length - 1,
+    question: String(question.title || `问题 ${state.answers.length}`).trim(),
+    desc: String(question.desc || "").trim(),
+    answer
+  });
   assistantPromptKey = "";
   if (state.speakerOn) {
     stopAssistantVoice();
@@ -1715,6 +1740,7 @@ document.addEventListener("click", async (event) => {
     await syncConfigBeforeAction();
     if (!generationEnabled()) return;
     state.answers = [];
+    state.answerItems = [];
     state.inputMode = voiceInputAvailable() ? "voice" : "text";
     persist();
     go("call");
@@ -1788,7 +1814,7 @@ document.addEventListener("click", async (event) => {
     persist();
     go("generating");
     startGenerationTicker();
-    window.XiabiStore.createGenerationTask(state.answers)
+    window.XiabiStore.createGenerationTask(state.answers, { answerItems: currentAnswerItems() })
       .then((task) => {
         state.generationTaskId = task?.taskId || task?.id || "";
         persist();
@@ -2024,6 +2050,7 @@ document.addEventListener("click", async (event) => {
     state.authed = false;
     state.guest = false;
     state.answers = [];
+    state.answerItems = [];
     state.pendingLetter = false;
     state.phoneBound = false;
     state.phoneMasked = "";

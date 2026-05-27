@@ -554,12 +554,41 @@ function selectTemplateMeta(templates: unknown) {
   };
 }
 
+type AnswerItem = {
+  index?: number;
+  question?: string;
+  desc?: string;
+  answer?: string;
+};
+
+function cleanTaskString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeAnswerItems(items: unknown, answers: string[]) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item, index) => {
+      if (!item || typeof item !== "object") return null;
+      const data = item as AnswerItem;
+      return {
+        index: Number.isFinite(Number(data.index)) ? Number(data.index) : index,
+        question: cleanTaskString(data.question),
+        desc: cleanTaskString(data.desc),
+        answer: cleanTaskString(data.answer) || answers[index] || "用户未补充。"
+      };
+    })
+    .filter((item) => item && item.question && item.answer);
+}
+
 function parseTaskInput(task: typeof generationTasks.$inferSelect) {
   const payload = parseJson<{ answers?: unknown; input?: unknown }>(task.inputJson, {});
   const answers = Array.isArray(payload.answers) ? payload.answers.map(String).filter(Boolean) : [];
   const input = payload.input && typeof payload.input === "object" && !Array.isArray(payload.input)
     ? payload.input as Record<string, unknown>
     : {};
+  const answerItems = normalizeAnswerItems(input.answerItems, answers);
+  if (answerItems.length) input.answerItems = answerItems;
   return { answers, input };
 }
 

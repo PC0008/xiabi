@@ -4,6 +4,7 @@
     authed: "h5Authed",
     guest: "h5Guest",
     answers: "h5Answers",
+    answerItems: "h5AnswerItems",
     pendingLetter: "h5PendingLetter",
     phoneBound: "h5PhoneBound",
     annualActive: "h5AnnualActive",
@@ -290,6 +291,7 @@
       authed: readFlag(keys.authed),
       guest: readFlag(keys.guest),
       answers: readJson(keys.answers, []),
+      answerItems: readJson(keys.answerItems, []),
       pendingLetter: readFlag(keys.pendingLetter),
       phoneBound: false,
       annualActive: false,
@@ -302,6 +304,7 @@
 
   function persistAppState(state) {
     writeJson(keys.answers, state.answers || []);
+    writeJson(keys.answerItems, state.answerItems || []);
     writeFlag(keys.pendingLetter, !!state.pendingLetter);
     writeJson(keys.productProfiles, Array.isArray(state.productProfiles) ? state.productProfiles : []);
     if (state.paymentIntent) writeJson(keys.paymentIntent, state.paymentIntent);
@@ -351,6 +354,7 @@
       keys.authed,
       keys.guest,
       keys.answers,
+      keys.answerItems,
       keys.pendingLetter,
       keys.phoneBound,
       keys.annualActive,

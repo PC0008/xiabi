@@ -16,6 +16,13 @@ type CreateTaskBody = {
   input?: Record<string, unknown>;
 };
 
+type AnswerItem = {
+  index?: number;
+  question?: string;
+  desc?: string;
+  answer?: string;
+};
+
 function cleanString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -46,12 +53,30 @@ function publicTask(task: typeof generationTasks.$inferSelect) {
   };
 }
 
+function normalizeAnswerItems(items: unknown, answers: string[]) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item, index) => {
+      if (!item || typeof item !== "object") return null;
+      const data = item as AnswerItem;
+      return {
+        index: Number.isFinite(Number(data.index)) ? Number(data.index) : index,
+        question: cleanString(data.question),
+        desc: cleanString(data.desc),
+        answer: cleanString(data.answer) || answers[index] || "用户未补充。"
+      };
+    })
+    .filter((item) => item && item.question && item.answer);
+}
+
 function parseTaskInput(task: typeof generationTasks.$inferSelect) {
   const payload = parseJson<{ answers?: unknown; input?: unknown }>(task.inputJson, {});
   const answers = Array.isArray(payload.answers) ? payload.answers.map(String).filter(Boolean) : [];
   const input = payload.input && typeof payload.input === "object" && !Array.isArray(payload.input)
     ? payload.input as Record<string, unknown>
     : {};
+  const answerItems = normalizeAnswerItems(input.answerItems, answers);
+  if (answerItems.length) input.answerItems = answerItems;
   return { answers, input };
 }
 
@@ -143,7 +168,11 @@ export const taskRoutes = new Hono()
 
     const body = await readJson<CreateTaskBody>(c);
     const answers = Array.isArray(body.answers) ? body.answers.map(String) : [];
-    const input = body.input || {};
+    const rawInput = body.input && typeof body.input === "object" && !Array.isArray(body.input) ? body.input : {};
+    const input = {
+      ...rawInput,
+      answerItems: normalizeAnswerItems(rawInput.answerItems, answers)
+    };
     const [homeConfig, systemConfig] = await Promise.all([
       getConfigScope(db, "home"),
       getConfigScope(db, "system")

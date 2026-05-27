@@ -25,6 +25,18 @@ const forbiddenRuntimeMarkers = [
   "const sampleAnswers",
   "state.answers.push(value ||"
 ];
+const requiredMarkers = [
+  {
+    file: "h5/app.js",
+    marker: "answerItems: currentAnswerItems()",
+    message: "generation task must send structured question/answer context"
+  },
+  {
+    file: "server/src/adapters/letter/deepseek.ts",
+    marker: "input.input?.answerItems",
+    message: "DeepSeek brief must read structured question/answer context"
+  }
+];
 
 function unique(values) {
   return [...new Set(values)].sort();
@@ -58,6 +70,13 @@ for (const marker of forbiddenRuntimeMarkers) {
   for (const file of ["h5/app.js", "h5/admin.js", "h5/store.js", "server/src/adapters/task/index.ts", "server/src/routes/tasks.ts"]) {
     const source = fs.readFileSync(file, "utf8");
     if (source.includes(marker)) failures.push(`${file} still contains runtime placeholder marker: ${marker}`);
+  }
+}
+
+for (const requirement of requiredMarkers) {
+  const source = fs.readFileSync(requirement.file, "utf8");
+  if (!source.includes(requirement.marker)) {
+    failures.push(`${requirement.file} missing required marker: ${requirement.message}`);
   }
 }
 
