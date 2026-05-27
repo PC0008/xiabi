@@ -6,7 +6,7 @@ import { generationTasks, salesLetters } from "@defs";
 import { generateSalesLetterWithDeepSeek, type SalesLetterContent } from "../adapters/letter/deepseek";
 import { getConfigScope } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
-import { fail, ok, readJson } from "../domain/http";
+import { fail, ok, parseJson, readJson } from "../domain/http";
 
 const SESSION_COOKIE = "xiabi_session";
 
@@ -37,6 +37,85 @@ function selectTemplateMeta(templates: unknown) {
   };
 }
 
+function publicTask(task: typeof generationTasks.$inferSelect) {
+  return {
+    ...task,
+    input: parseJson(task.inputJson, {}),
+    progress: parseJson(task.progressJson, null)
+  };
+}
+
+function parseTaskInput(task: typeof generationTasks.$inferSelect) {
+  const payload = parseJson<{ answers?: unknown; input?: unknown }>(task.inputJson, {});
+  const answers = Array.isArray(payload.answers) ? payload.answers.map(String).filter(Boolean) : [];
+  const input = payload.input && typeof payload.input === "object" && !Array.isArray(payload.input)
+    ? payload.input as Record<string, unknown>
+    : {};
+  return { answers, input };
+}
+
+function isStaleRunningTask(task: typeof generationTasks.$inferSelect) {
+  if (task.status !== "running") return false;
+  return Date.now() - new Date(task.updatedAt || task.createdAt).getTime() > 2 * 60 * 1000;
+}
+
+async function processGenerationTask(task: typeof generationTasks.$inferSelect) {
+  if (task.status === "succeeded" || task.status === "failed") return task;
+  if (task.status === "running" && !isStaleRunningTask(task)) return task;
+
+  const { answers, input } = parseTaskInput(task);
+  const templates = (await getConfigScope(db, "templates")).data;
+  const templateMeta = selectTemplateMeta(templates);
+
+  await db.update(generationTasks).set({
+    status: "running",
+    progressJson: JSON.stringify({ percent: 20, stage: task.status === "running" ? "resuming" : "writing", provider: "deepseek" }),
+    attempts: Number(task.attempts || 0) + 1,
+    updatedAt: new Date().toISOString()
+  }).where(eq(generationTasks.id, task.id));
+
+  let content: SalesLetterContent | null = null;
+  try {
+    content = await generateSalesLetterWithDeepSeek({ answers, input, templates });
+    if (!content) throw new Error("DeepSeek provider is not configured.");
+  } catch (error) {
+    await db.update(generationTasks).set({
+      status: "failed",
+      progressJson: JSON.stringify({ percent: 0, stage: "failed", provider: "deepseek" }),
+      errorCode: "deepseek_generation_failed",
+      errorMessage: error instanceof Error ? error.message.slice(0, 500) : "DeepSeek generation failed.",
+      updatedAt: new Date().toISOString()
+    }).where(eq(generationTasks.id, task.id));
+    const [failedTask] = await db.select().from(generationTasks).where(eq(generationTasks.id, task.id)).limit(1);
+    return failedTask;
+  }
+
+  const letterId = crypto.randomUUID();
+  await db.insert(salesLetters).values({
+    id: letterId,
+    tenantId: TENANT_ID,
+    userId: task.userId,
+    sessionId: task.sessionId,
+    title: content.title,
+    scene: content.scene,
+    status: "ready",
+    inputJson: task.inputJson,
+    contentJson: JSON.stringify({ ...content, version: 1 }),
+    templateKey: templateMeta.key,
+    templateVersion: templateMeta.version
+  });
+  await db.update(generationTasks).set({
+    letterId,
+    status: "succeeded",
+    progressJson: JSON.stringify({ percent: 100, stage: "ready", provider: content.provider || "deepseek" }),
+    errorCode: null,
+    errorMessage: null,
+    updatedAt: new Date().toISOString()
+  }).where(eq(generationTasks.id, task.id));
+  const [updatedTask] = await db.select().from(generationTasks).where(eq(generationTasks.id, task.id)).limit(1);
+  return updatedTask;
+}
+
 export const taskRoutes = new Hono()
   .post("/", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
@@ -46,55 +125,18 @@ export const taskRoutes = new Hono()
     const answers = Array.isArray(body.answers) ? body.answers.map(String) : [];
     const input = body.input || {};
     const taskId = crypto.randomUUID();
-    const templates = (await getConfigScope(db, "templates")).data;
-    const templateMeta = selectTemplateMeta(templates);
 
     await db.insert(generationTasks).values({
       id: taskId,
       tenantId: TENANT_ID,
       sessionId,
       type: "sales_letter",
-      status: "running",
+      status: "queued",
       inputJson: JSON.stringify({ answers, input }),
-      progressJson: JSON.stringify({ percent: 20, stage: "writing", provider: "deepseek" }),
-      attempts: 1
+      progressJson: JSON.stringify({ percent: 5, stage: "queued", provider: "deepseek" }),
+      attempts: 0
     });
-
-    let content: SalesLetterContent | null = null;
-    try {
-      content = await generateSalesLetterWithDeepSeek({ answers, input, templates });
-      if (!content) throw new Error("DeepSeek provider is not configured.");
-    } catch (error) {
-      await db.update(generationTasks).set({
-        status: "failed",
-        progressJson: JSON.stringify({ percent: 0, stage: "failed", provider: "deepseek" }),
-        errorCode: "deepseek_generation_failed",
-        errorMessage: error instanceof Error ? error.message.slice(0, 500) : "DeepSeek generation failed.",
-        updatedAt: new Date().toISOString()
-      }).where(eq(generationTasks.id, taskId));
-      return fail(c, "generation_failed", "写信服务暂时没有完成，请稍后再试。", 502);
-    }
-
-    const letterId = crypto.randomUUID();
-    await db.insert(salesLetters).values({
-      id: letterId,
-      tenantId: TENANT_ID,
-      sessionId,
-      title: content.title,
-      scene: content.scene,
-      status: "ready",
-      inputJson: JSON.stringify({ answers, input }),
-      contentJson: JSON.stringify({ ...content, version: 1 }),
-      templateKey: templateMeta.key,
-      templateVersion: templateMeta.version
-    });
-    await db.update(generationTasks).set({
-      letterId,
-      status: "succeeded",
-      progressJson: JSON.stringify({ percent: 100, stage: "ready", provider: content.provider || "deepseek" }),
-      updatedAt: new Date().toISOString()
-    }).where(eq(generationTasks.id, taskId));
-    return ok(c, { taskId, letterId, status: "succeeded" });
+    return ok(c, { taskId, status: "queued" });
   })
   .get("/:id", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
@@ -105,5 +147,6 @@ export const taskRoutes = new Hono()
       .where(and(eq(generationTasks.id, c.req.param("id")), eq(generationTasks.sessionId, sessionId)))
       .limit(1);
     if (!task) return fail(c, "task_not_found", "没有找到生成任务。", 404);
-    return ok(c, task);
+    const updated = await processGenerationTask(task);
+    return ok(c, publicTask(updated));
   });

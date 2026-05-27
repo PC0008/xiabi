@@ -103,8 +103,17 @@ async function verifyDeepSeek() {
       input: { source: "production-verification" }
     })
   }, cookie);
-  if (task.status !== "succeeded" || !task.letterId) throw new Error("DeepSeek generation did not return a completed letter");
-  addCheck("deepseek generation", "ok", { taskId: task.taskId, letterId: task.letterId });
+  const taskId = task.taskId || task.id;
+  if (!taskId) throw new Error("DeepSeek generation did not return a task id");
+  let current = task;
+  for (let index = 0; index < 30; index += 1) {
+    current = await api(`/api/public/tasks/${taskId}`, {}, cookie);
+    if (current.status === "succeeded" && current.letterId) break;
+    if (current.status === "failed") throw new Error(current.errorMessage || "DeepSeek generation failed");
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  if (current.status !== "succeeded" || !current.letterId) throw new Error("DeepSeek generation did not complete before timeout");
+  addCheck("deepseek generation", "ok", { taskId, letterId: current.letterId });
 }
 
 async function verifyPaymentCreate() {

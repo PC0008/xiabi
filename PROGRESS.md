@@ -24,6 +24,7 @@
 
 - 已建立本轮本地 checkpoint：`checkpoint-before-5stage-20260527-201129`。
 - 用户端生成流程接入真实 `/api/public/tasks`，本地验证 DeepSeek 写信任务可成功创建信件；DeepSeek 不可用时不再生成本地兜底信件，而是把任务置为 failed 并返回明确失败。
+- 写信任务已从“创建时同步等待 DeepSeek”改为“创建 queued 任务、前端轮询推进任务”；`POST /api/public/tasks` 会快速返回 `taskId`，`GET /api/public/tasks/:id` 会推进 queued 或超时 running 任务并把 succeeded/failed 结果落库，刷新后仍可查询任务状态。
 - 信件读取、列表、领取已按当前会话做服务端校验，不再允许跨会话读取。
 - 首次免费领取会写入 `entitlement_ledger`，并限制同一会话只能使用一次首次免费，防止反复生成反复免费领取。
 - 订单创建现在只认后台价格配置，前端不能传金额决定权益。
