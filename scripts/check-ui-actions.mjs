@@ -52,6 +52,11 @@ const requiredMarkers = [
     file: "server/src/routes/tasks.ts",
     marker: "answer_too_long",
     message: "public generation task creation must reject oversized answers before queuing"
+  },
+  {
+    file: "server/src/routes/admin.ts",
+    marker: "ADMIN_LOGIN_FAILURE_LIMIT",
+    message: "admin login must rate-limit repeated failed attempts"
   }
 ];
 

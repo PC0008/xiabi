@@ -14,6 +14,8 @@ import { createToken, daysFromNow, hashPassword, hashToken, isFuture } from "../
 const ADMIN_COOKIE = "xiabi_admin_session";
 const DEFAULT_LIST_LIMIT = 100;
 const MAX_LIST_LIMIT = 200;
+const ADMIN_LOGIN_FAILURE_LIMIT = 8;
+const ADMIN_LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 
 type AdminLoginBody = {
   username: string;
@@ -438,6 +440,26 @@ async function logAdminFailure(action: string, detail?: unknown) {
   });
 }
 
+function normalizeLoginName(value: unknown) {
+  return String(value || "").trim().toLowerCase();
+}
+
+async function recentLoginFailureCount(username: string) {
+  const normalized = normalizeLoginName(username);
+  const rows = await db
+    .select({ createdAt: auditLogs.createdAt, detailJson: auditLogs.detailJson })
+    .from(auditLogs)
+    .where(and(eq(auditLogs.tenantId, TENANT_ID), eq(auditLogs.action, "admin.login_failed")))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(100);
+  const cutoff = Date.now() - ADMIN_LOGIN_FAILURE_WINDOW_MS;
+  return rows.filter((row) => {
+    if (new Date(row.createdAt).getTime() < cutoff) return false;
+    const detail = parseJson<Record<string, unknown>>(row.detailJson, {});
+    return normalizeLoginName(detail.username) === normalized;
+  }).length;
+}
+
 async function findAdminSession(c: Parameters<Hono["fetch"]>[0] extends never ? never : any) {
   const token = getCookie(c, ADMIN_COOKIE);
   if (!token) return null;
@@ -626,6 +648,10 @@ export const adminRoutes = new Hono()
     const username = String(body.username || "").trim();
     const password = String(body.password || "");
     if (!username || !password) return fail(c, "missing_credentials", "请输入账号和密码。", 400);
+    if (await recentLoginFailureCount(username) >= ADMIN_LOGIN_FAILURE_LIMIT) {
+      await logAdminFailure("admin.login_rate_limited", { username, windowMinutes: ADMIN_LOGIN_FAILURE_WINDOW_MS / 60000 });
+      return fail(c, "admin_login_rate_limited", "登录尝试过于频繁，请稍后再试。", 429);
+    }
 
     const bootstrapped = await maybeBootstrapAdmin(username, password);
     const [admin] = bootstrapped ? [bootstrapped] : await db

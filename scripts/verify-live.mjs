@@ -188,6 +188,19 @@ checks.push(await assertJson(
   401,
   (payload) => payload?.error?.code === "not_authenticated"
 ));
+const rateLimitUsername = `codex-rate-limit-${Date.now()}`;
+for (let index = 0; index < 9; index += 1) {
+  checks.push(await assertJson(
+    "/api/public/admin/login",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: rateLimitUsername, password: "wrong-password" })
+    },
+    index < 8 ? 401 : 429,
+    (payload) => payload?.error?.code === (index < 8 ? "invalid_credentials" : "admin_login_rate_limited")
+  ));
+}
 checks.push(await assertJson(
   "/api/public/wechat/oauth/start",
   undefined,
