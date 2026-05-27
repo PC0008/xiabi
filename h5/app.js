@@ -963,7 +963,7 @@ function renderExport() {
     </div>
     ${!canExport && state.exportNotice ? `<div class="contact-note">${h(state.exportNotice)}</div>` : ""}
     <div class="export-actions">
-      ${canExport ? `<button class="primary-btn" data-action="export-pdf">${uiIcon("download", "btn-svg")}打开打印版</button>` : `<button class="primary-btn disabled">${uiIcon("download", "btn-svg")}导出暂未开启</button>`}
+      ${canExport ? `<button class="primary-btn" data-action="export-print">${uiIcon("download", "btn-svg")}打开打印版</button>` : `<button class="primary-btn disabled">${uiIcon("download", "btn-svg")}导出暂未开启</button>`}
       <button class="secondary-btn" data-go="records">先保存到我的销售信</button>
     </div>
     ${commerceConfig.pdf_upsell_enabled !== false && commerceConfig.annual_enabled !== false ? `
@@ -2010,7 +2010,7 @@ document.addEventListener("click", async (event) => {
       state.paymentNotice = error.message || "订单创建失败，请稍后再试。";
       render();
     }
-  } else if (action === "export-pdf") {
+  } else if (action === "export-print") {
     if (!exportEnabled()) {
       state.exportNotice = "打印版导出暂未开启，请稍后再试。";
       render();

@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 打印版导出正式化：服务端导出不再为没有正文的信件生成空白文件，返回 `letter_not_ready`；导出结果补充 `contentType` 和安全文件名，用户端内部动作从 `export-pdf` 改为 `export-print`，避免把当前可打印 HTML 误标成服务端直出 PDF。
+
 - MiniMax ASR 口径复核：已重新核对 MiniMax 官方 API Overview，Speech 目录仍只公开列出 T2A、T2A Async、Voice Cloning、Voice Design、Voice Management，未列独立 ASR/语音转文字端点；新增 `docs/minimax-asr-status-2026-05-28.md` 作为交付说明，项目继续保留可配置 ASR 接入槽，不臆造 MiniMax 转写 URL。
 
 - 生产验收补强：`verify:production` 在提供后台账号密码时，会在保存配置后检查最近的 `config.update` 审计日志是否包含 `changedCount`、`truncated` 和 `changes` 字段，防止后台控制链路只验保存、不验可追溯。

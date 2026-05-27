@@ -56,6 +56,15 @@ function buildPrintableLetterHtml(letter: typeof salesLetters.$inferSelect, para
 </html>`;
 }
 
+function safeExportFilename(letter: typeof salesLetters.$inferSelect) {
+  const title = String(letter.title || letter.id)
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "-")
+    .slice(0, 80) || letter.id;
+  return `${title}.html`;
+}
+
 type GuestSession = typeof guestSessions.$inferSelect;
 
 async function getCurrentSession(sessionId: string) {
@@ -120,11 +129,13 @@ export const exportRoutes = new Hono()
     }
     const content = parseJson<{ paragraphs?: string[] }>(letter.contentJson, {});
     const paragraphs = Array.isArray(content.paragraphs) ? content.paragraphs.map(String).filter(Boolean) : [];
+    if (!paragraphs.length) return fail(c, "letter_not_ready", "这封销售信还没有可导出的正文，请先完成生成。", 409);
     const body = buildPrintableLetterHtml(letter, paragraphs);
+    const filename = safeExportFilename(letter);
     const objectKey = `exports/${sessionId}/${letter.id}.html`;
     await storage.from(buckets.xiabiFiles).put(objectKey, new TextEncoder().encode(body), {
       contentType: "text/html; charset=utf-8",
-      contentDisposition: `inline; filename="${letter.id}.html"`
+      contentDisposition: `inline; filename="${filename}"`
     });
     await db.insert(files).values({
       id: crypto.randomUUID(),
@@ -138,5 +149,5 @@ export const exportRoutes = new Hono()
     }).onConflictDoNothing();
     await db.update(salesLetters).set({ exportedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }).where(eq(salesLetters.id, letter.id));
     const { downloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(objectKey, 3600);
-    return ok(c, { downloadUrl, objectKey, fileType: "print_html", expiresInSeconds: 3600 });
+    return ok(c, { downloadUrl, objectKey, fileType: "print_html", contentType: "text/html; charset=utf-8", filename, expiresInSeconds: 3600 });
   });

@@ -30,7 +30,8 @@ const forbiddenRuntimeMarkers = [
   "readAdminMockConfig",
   "XiabiMockStore",
   "const sampleAnswers",
-  "state.answers.push(value ||"
+  "state.answers.push(value ||",
+  "export-pdf"
 ];
 const requiredMarkers = [
   {
@@ -77,6 +78,11 @@ const requiredMarkers = [
     file: "server/src/routes/profiles.ts",
     marker: "MAX_PROFILES_PER_OWNER",
     message: "public product profile writes must have count and length limits"
+  },
+  {
+    file: "server/src/routes/exports.ts",
+    marker: "letter_not_ready",
+    message: "letter exports must reject empty generated content instead of creating blank files"
   }
 ];
 

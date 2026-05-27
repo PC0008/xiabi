@@ -488,7 +488,7 @@ async function verifyDeepSeek() {
     throw new Error("First free entitlement ledger was not created for the generated letter");
   }
   const exported = await api(`/api/public/exports/letters/${claimedLetterId}`, { method: "POST" }, cookie);
-  if (!exported.downloadUrl || exported.fileType !== "print_html") {
+  if (!exported.downloadUrl || exported.fileType !== "print_html" || exported.contentType !== "text/html; charset=utf-8" || !String(exported.filename || "").endsWith(".html")) {
     throw new Error("Printable export did not return a download URL");
   }
   const html = await fetch(exported.downloadUrl);
