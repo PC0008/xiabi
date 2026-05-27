@@ -6,10 +6,14 @@
     "build": "npm --prefix web run build",
     "typecheck": "npm --prefix server run typecheck && npm --prefix web run typecheck",
     "check:ui": "node scripts/check-ui-actions.mjs",
+    "verify:journey": "playwright test scripts/verify-user-journey.spec.mjs --reporter=line",
     "verify:live": "node scripts/verify-live.mjs",
     "verify:production": "node scripts/verify-production.mjs",
     "deploy:dry": "edgespark deploy --dry-run",
     "deploy": "edgespark deploy",
     "logs": "edgespark log tail"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
   }
 }

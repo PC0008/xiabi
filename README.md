@@ -15,6 +15,7 @@ npm run typecheck
 npm run build
 npm run deploy:dry
 npm run deploy
+npm run verify:journey
 npm run verify:live
 npm run verify:production
 ```
@@ -22,6 +23,7 @@ npm run verify:production
 ## 验收分级
 
 - 基础线上验收：`npm run verify:live`，检查页面、公开配置、游客会话、反馈、订单保护、语音兜底、后台未登录保护和截图。
+- 用户端流程验收：`npm run verify:journey`，用移动端视口自动点击授权、首页、通话问题和确认页，不触发付费或外部生成调用。
 - 生产外部验收：`npm run verify:production`，默认只跑健康检查和公开配置；配置 verifier 环境变量后，会真实调用 DeepSeek、微信支付创建、短信、MiniMax TTS 和 ASR。
 - 严格生产验收：设置 `XIABI_PRODUCTION_STRICT=1` 后，任何外部链路 verifier 未配置都会失败，不再跳过。
 
