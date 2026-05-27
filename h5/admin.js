@@ -68,10 +68,12 @@ const adminState = {
     orders: null,
     entitlements: null,
     logs: null,
-    tasks: null
+    tasks: null,
+    paymentEvents: null
   },
   templates: Array.isArray(savedAdminConfig.templates) ? savedAdminConfig.templates : [],
-  selectedTemplateKey: Array.isArray(savedAdminConfig.templates) && savedAdminConfig.templates[0] ? savedAdminConfig.templates[0].key : ""
+  selectedTemplateKey: Array.isArray(savedAdminConfig.templates) && savedAdminConfig.templates[0] ? savedAdminConfig.templates[0].key : "",
+  detail: null
 };
 
 function applyRemoteAdminConfig(config) {
@@ -96,14 +98,15 @@ function readSavedAdminConfig() {
 async function loadAdminLists() {
   if (!adminState.adminUser) return;
   try {
-    const [dashboard, usersData, lettersData, ordersData, entitlementData, logsData, tasksData] = await Promise.all([
+    const [dashboard, usersData, lettersData, ordersData, entitlementData, logsData, tasksData, paymentEventsData] = await Promise.all([
       window.XiabiMockStore.adminFetch("/dashboard"),
       window.XiabiMockStore.adminFetch("/users"),
       window.XiabiMockStore.adminFetch("/letters"),
       window.XiabiMockStore.adminFetch("/orders"),
       window.XiabiMockStore.adminFetch("/entitlements"),
       window.XiabiMockStore.adminFetch("/audit-logs"),
-      window.XiabiMockStore.adminFetch("/tasks")
+      window.XiabiMockStore.adminFetch("/tasks"),
+      window.XiabiMockStore.adminFetch("/payment-events")
     ]);
     adminState.lists = {
       dashboard,
@@ -112,7 +115,8 @@ async function loadAdminLists() {
       orders: ordersData,
       entitlements: entitlementData,
       logs: logsData,
-      tasks: tasksData
+      tasks: tasksData,
+      paymentEvents: paymentEventsData
     };
   } catch (error) {
     showToast(error.message || "后台数据加载失败");
@@ -135,7 +139,9 @@ const navItems = [
   ["pricing", "价格权益", "crown"],
   ["users", "用户管理", "user"],
   ["letters", "销售信管理", "doc"],
+  ["tasks", "生成任务", "refresh"],
   ["orders", "订单支付", "order"],
+  ["paymentEvents", "支付回调", "log"],
   ["ledger", "权益流水", "ledger"],
   ["logs", "日志审计", "log"]
 ];
@@ -251,7 +257,8 @@ function icon(name) {
     doc: '<svg viewBox="0 0 32 32"><path d="M9 4.5h10.4L25 10v17.5H9z"/><path d="M19 4.5V10h6M12.5 15.5h8M12.5 20h8M12.5 24.5h5"/></svg>',
     order: '<svg viewBox="0 0 32 32"><path d="M9 5h14v22H9z"/><path d="M12 11h8M12 16h8M12 21h5"/></svg>',
     ledger: '<svg viewBox="0 0 32 32"><path d="M6 7h20v18H6z"/><path d="M10 13h12M10 18h12M10 23h7"/></svg>',
-    log: '<svg viewBox="0 0 32 32"><path d="M7 6h18v20H7z"/><path d="M11 11h10M11 16h10M11 21h6"/></svg>'
+    log: '<svg viewBox="0 0 32 32"><path d="M7 6h18v20H7z"/><path d="M11 11h10M11 16h10M11 21h6"/></svg>',
+    refresh: '<svg viewBox="0 0 32 32"><path d="M24 10a9 9 0 1 0 1 10"/><path d="M24 5v6h-6"/></svg>'
   };
   return icons[name] || icons.dashboard;
 }
@@ -301,6 +308,7 @@ function layout(content) {
         </section>
         ${content}
       </main>
+      ${renderDetailDrawer()}
       ${adminState.toast ? `<div class="toast">${adminState.toast}</div>` : ""}
     </div>
   `;
@@ -335,11 +343,73 @@ function pageDescription(route) {
     pricing: "配置单封、年卡、支付模式和 PDF 导出承接。",
     users: "查看用户、手机号、权益和使用记录。",
     letters: "排查每一封销售信的状态、模板和任务来源。",
+    tasks: "查看生成任务、失败原因和后台重试结果。",
     orders: "查看订单、支付状态、回调和补偿入口。",
+    paymentEvents: "查看微信支付回调事件、失败原因和原始数据。",
     ledger: "权益只从订单和权益流水计算，前端不直接决定权限。",
     logs: "记录配置修改、支付回调、生成失败和敏感操作。"
   };
   return desc[route] || "";
+}
+
+function h(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function actionCell(html) {
+  return { html };
+}
+
+function shortId(value) {
+  return value ? String(value).slice(0, 8) : "-";
+}
+
+function renderJson(value) {
+  return `<pre class="json-block">${h(JSON.stringify(value ?? {}, null, 2))}</pre>`;
+}
+
+function renderDetailDrawer() {
+  const detail = adminState.detail;
+  if (!detail) return "";
+  return `
+    <aside class="detail-drawer">
+      <div class="detail-head">
+        <div>
+          <div class="detail-title">${h(detail.title || "详情")}</div>
+          <div class="detail-sub">${h(detail.sub || "真实数据详情")}</div>
+        </div>
+        <button class="ghost" data-action="close-detail">关闭</button>
+      </div>
+      <div class="detail-body">${detail.loading ? `<div class="empty">正在加载...</div>` : detail.html || ""}</div>
+    </aside>
+  `;
+}
+
+function detailSection(title, rows) {
+  return `
+    <div class="detail-section">
+      <div class="detail-section-title">${h(title)}</div>
+      ${rows.map(([label, value]) => `<div class="detail-row"><span>${h(label)}</span><strong>${h(value)}</strong></div>`).join("")}
+    </div>
+  `;
+}
+
+function detailMiniTable(title, heads, rows) {
+  return `
+    <div class="detail-section">
+      <div class="detail-section-title">${h(title)}</div>
+      <div class="table-wrap mini-table">
+        <table>
+          <thead><tr>${heads.map((head) => `<th>${h(head)}</th>`).join("")}</tr></thead>
+          <tbody>${rows.length ? rows.map((row) => `<tr>${row.map((cell) => `<td>${h(cell)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${heads.length}">暂无记录</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
 function renderDashboard() {
@@ -534,13 +604,47 @@ function renderPricing() {
 
 function renderUsers() {
   const sessions = adminState.lists.users?.sessions || [];
-  const rows = sessions.map((item) => [item.id.slice(0, 8), item.userId || "游客会话", "-", item.status, "1", "-", formatDate(item.createdAt)]);
-  return layout(tablePanel("用户列表", "查看用户基础信息和权益状态。", ["会话ID", "用户", "手机号", "状态", "会话", "信件", "最近访问"], rows.length ? rows : users));
+  const rows = sessions.map((item) => [
+    shortId(item.id),
+    item.userId ? shortId(item.userId) : "游客会话",
+    "-",
+    item.status,
+    "1",
+    "-",
+    formatDate(item.createdAt),
+    actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="users" data-detail-id="${h(item.userId || item.id)}">详情</button>`)
+  ]);
+  return layout(tablePanel("用户列表", "查看用户基础信息和权益状态。", ["会话ID", "用户", "手机号", "状态", "会话", "信件", "最近访问", "操作"], rows.length ? rows : users));
 }
 
 function renderLetters() {
   const rows = (adminState.lists.letters?.letters || []).map((item) => [item.id.slice(0, 8), item.title, item.status, `${item.templateKey || "-"} ${item.templateVersion || ""}`, item.sessionId?.slice(0, 8) || "-", formatDate(item.createdAt)]);
-  return layout(tablePanel("销售信列表", "排查信件状态、模板版本和关联用户。", ["信件ID", "标题", "状态", "模板", "会话", "创建时间"], rows.length ? rows : letters));
+  const detailRows = rows.length ? (adminState.lists.letters?.letters || []).map((item) => [
+    shortId(item.id),
+    item.title,
+    item.status,
+    `${item.templateKey || "-"} ${item.templateVersion || ""}`,
+    shortId(item.sessionId),
+    formatDate(item.createdAt),
+    actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="letters" data-detail-id="${h(item.id)}">详情</button>`)
+  ]) : letters;
+  return layout(tablePanel("销售信列表", "排查信件状态、模板版本和关联用户。", ["信件ID", "标题", "状态", "模板", "会话", "创建时间", "操作"], detailRows));
+}
+
+function renderTasks() {
+  const rows = (adminState.lists.tasks?.tasks || []).map((item) => [
+    shortId(item.id),
+    item.type,
+    item.status,
+    shortId(item.letterId),
+    item.errorCode || "-",
+    formatDate(item.updatedAt || item.createdAt),
+    actionCell(`
+      <button class="mini-action" data-action="show-detail" data-detail-type="tasks" data-detail-id="${h(item.id)}">详情</button>
+      ${item.status === "failed" ? `<button class="mini-action warn-action" data-action="retry-task" data-task-id="${h(item.id)}">重试</button>` : ""}
+    `)
+  ]);
+  return layout(tablePanel("生成任务", "查看生成任务状态、失败原因，并对失败任务进行重试。", ["任务ID", "类型", "状态", "信件", "错误", "更新时间", "操作"], rows));
 }
 
 function renderOrders() {
@@ -552,19 +656,51 @@ function renderOrders() {
     item.provider,
     item.status,
     item.providerTransactionId || item.providerOrderNo || "-",
-    item.status === "pending" ? `<button class="mini-action" data-action="reconcile-order" data-order-id="${item.id}">查单</button>` : "-"
+    actionCell(`
+      <button class="mini-action" data-action="show-detail" data-detail-type="orders" data-detail-id="${h(item.id)}">详情</button>
+      ${item.status === "pending" ? `<button class="mini-action" data-action="reconcile-order" data-order-id="${h(item.id)}">查单</button>` : ""}
+      ${item.status === "paid" ? `<button class="mini-action" data-action="repair-order-entitlement" data-order-id="${h(item.id)}">补权益</button>` : ""}
+    `)
   ]);
   return layout(tablePanel("订单与支付", "真实支付接入后查看微信交易号、回调和补偿查询。", ["订单号", "会话", "商品", "金额", "模式", "订单状态", "交易号", "补偿"], rows.length ? rows : orders));
 }
 
 function renderLedger() {
-  const rows = (adminState.lists.entitlements?.entitlements || []).map((item) => [item.id.slice(0, 8), item.sessionId?.slice(0, 8) || item.userId?.slice(0, 8) || "-", item.type, item.orderId?.slice(0, 8) || item.letterId?.slice(0, 8) || "-", item.status, formatDate(item.createdAt)]);
-  return layout(tablePanel("权益流水", "所有权限从这里计算，不从前端传参决定。", ["流水ID", "用户/会话", "权益类型", "来源", "状态", "时间"], rows.length ? rows : ledger));
+  const rows = (adminState.lists.entitlements?.entitlements || []).map((item) => [
+    shortId(item.id),
+    shortId(item.sessionId || item.userId),
+    item.type,
+    shortId(item.orderId || item.letterId),
+    item.status,
+    formatDate(item.createdAt),
+    actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="entitlements" data-detail-id="${h(item.id)}">详情</button>`)
+  ]);
+  return layout(tablePanel("权益流水", "所有权限从这里计算，不从前端传参决定。", ["流水ID", "用户/会话", "权益类型", "来源", "状态", "时间", "操作"], rows.length ? rows : ledger));
 }
 
 function renderLogs() {
-  const rows = (adminState.lists.logs?.logs || []).map((item) => [item.action, item.actorType || "-", item.targetType || JSON.stringify(item.detail || {}), formatDate(item.createdAt)]);
-  return layout(tablePanel("日志审计", "记录谁在什么时候改了什么，以及支付和生成关键事件。", ["类型", "操作人", "内容", "时间"], rows.length ? rows : logs));
+  const rows = (adminState.lists.logs?.logs || []).map((item) => [
+    item.action,
+    item.actorType || "-",
+    item.targetType || JSON.stringify(item.detail || {}),
+    formatDate(item.createdAt),
+    actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="audit-logs" data-detail-id="${h(item.id)}">详情</button>`)
+  ]);
+  return layout(tablePanel("日志审计", "记录谁在什么时候改了什么，以及支付和生成关键事件。", ["类型", "操作人", "内容", "时间", "操作"], rows.length ? rows : logs));
+}
+
+function renderPaymentEvents() {
+  const rows = (adminState.lists.paymentEvents?.events || []).map((item) => [
+    shortId(item.id),
+    item.provider,
+    item.eventId,
+    shortId(item.orderId),
+    item.status,
+    item.errorMessage || "-",
+    formatDate(item.createdAt),
+    actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="payment-events" data-detail-id="${h(item.id)}">详情</button>`)
+  ]);
+  return layout(tablePanel("支付回调", "查看微信支付回调事件、失败原因和关联订单。", ["事件ID", "渠道", "回调ID", "订单", "状态", "错误", "时间", "操作"], rows));
 }
 
 function metric(label, value, note) {
@@ -590,15 +726,122 @@ function area(label, name, value) {
 function tablePanel(title, desc, heads, rows) {
   return `
     <section class="section panel card">
-      <div class="panel-head"><div><div class="panel-title">${title}</div><div class="panel-desc">${desc}</div></div><button class="secondary">导出</button></div>
+      <div class="panel-head"><div><div class="panel-title">${h(title)}</div><div class="panel-desc">${h(desc)}</div></div></div>
       <div class="table-wrap">
         <table>
-          <thead><tr>${heads.map((head) => `<th>${head}</th>`).join("")}</tr></thead>
-          <tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody>
+          <thead><tr>${heads.map((head) => `<th>${h(head)}</th>`).join("")}</tr></thead>
+          <tbody>${rows.length ? rows.map((row) => `<tr>${row.map((cell) => `<td>${cell && typeof cell === "object" && "html" in cell ? cell.html : h(cell)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${heads.length}">暂无数据</td></tr>`}</tbody>
         </table>
       </div>
     </section>
   `;
+}
+
+function buildDetailHtml(type, data) {
+  if (type === "users") {
+    const subject = data.user || data.session || {};
+    return [
+      detailSection("基础信息", [
+        ["用户ID", subject.id || "-"],
+        ["手机号", data.user?.phoneMasked || "-"],
+        ["状态", subject.status || "-"],
+        ["创建时间", formatDate(subject.createdAt)]
+      ]),
+      detailMiniTable("会话", ["会话ID", "用户ID", "状态", "创建时间"], (data.sessions || []).map((item) => [shortId(item.id), shortId(item.userId), item.status, formatDate(item.createdAt)])),
+      detailMiniTable("销售信", ["信件ID", "标题", "状态", "创建时间"], (data.letters || []).map((item) => [shortId(item.id), item.title, item.status, formatDate(item.createdAt)])),
+      detailMiniTable("订单", ["订单ID", "商品", "金额", "状态"], (data.orders || []).map((item) => [shortId(item.id), item.title, yuan(item.amountCents), item.status])),
+      detailMiniTable("权益", ["流水ID", "类型", "状态", "来源"], (data.entitlements || []).map((item) => [shortId(item.id), item.type, item.status, shortId(item.orderId || item.letterId)]))
+    ].join("");
+  }
+  if (type === "letters") {
+    const letter = data.letter || {};
+    return [
+      detailSection("信件信息", [
+        ["信件ID", letter.id || "-"],
+        ["标题", letter.title || "-"],
+        ["状态", letter.status || "-"],
+        ["模板", `${letter.templateKey || "-"} ${letter.templateVersion || ""}`],
+        ["会话", shortId(letter.sessionId)],
+        ["领取时间", formatDate(letter.claimedAt)],
+        ["导出时间", formatDate(letter.exportedAt)]
+      ]),
+      detailMiniTable("生成任务", ["任务ID", "状态", "错误", "时间"], (data.tasks || []).map((item) => [shortId(item.id), item.status, item.errorMessage || "-", formatDate(item.updatedAt || item.createdAt)])),
+      detailMiniTable("关联订单", ["订单ID", "商品", "金额", "状态"], (data.orders || []).map((item) => [shortId(item.id), item.title, yuan(item.amountCents), item.status])),
+      detailMiniTable("权益流水", ["流水ID", "类型", "状态", "来源"], (data.entitlements || []).map((item) => [shortId(item.id), item.type, item.status, shortId(item.orderId || item.letterId)])),
+      detailMiniTable("导出文件", ["文件ID", "类型", "状态", "时间"], (data.files || []).map((item) => [shortId(item.id), item.kind, item.status, formatDate(item.createdAt)])),
+      renderJson(letter.content || {})
+    ].join("");
+  }
+  if (type === "tasks") {
+    const task = data.task || {};
+    return [
+      detailSection("任务信息", [
+        ["任务ID", task.id || "-"],
+        ["类型", task.type || "-"],
+        ["状态", task.status || "-"],
+        ["信件", shortId(task.letterId)],
+        ["尝试次数", task.attempts || 0],
+        ["错误码", task.errorCode || "-"],
+        ["错误信息", task.errorMessage || "-"]
+      ]),
+      task.status === "failed" ? `<button class="primary" data-action="retry-task" data-task-id="${h(task.id)}">重试生成</button>` : "",
+      detailSection("关联信件", [["标题", data.letter?.title || "-"], ["状态", data.letter?.status || "-"]]),
+      renderJson({ input: task.input, progress: task.progress })
+    ].join("");
+  }
+  if (type === "orders") {
+    const order = data.order || {};
+    return [
+      detailSection("订单信息", [
+        ["订单ID", order.id || "-"],
+        ["商品", order.title || "-"],
+        ["金额", yuan(order.amountCents)],
+        ["状态", order.status || "-"],
+        ["商户订单号", order.providerOrderNo || "-"],
+        ["微信交易号", order.providerTransactionId || "-"],
+        ["关联信件", shortId(order.letterId)]
+      ]),
+      `<div class="detail-actions">
+        ${order.status === "pending" ? `<button class="primary" data-action="reconcile-order" data-order-id="${h(order.id)}">查单</button>` : ""}
+        ${order.status === "paid" ? `<button class="secondary" data-action="repair-order-entitlement" data-order-id="${h(order.id)}">补发权益</button>` : ""}
+      </div>`,
+      detailMiniTable("权益流水", ["流水ID", "类型", "状态", "时间"], (data.entitlements || []).map((item) => [shortId(item.id), item.type, item.status, formatDate(item.createdAt)])),
+      detailMiniTable("回调事件", ["事件ID", "状态", "错误", "时间"], (data.events || []).map((item) => [shortId(item.id), item.status, item.errorMessage || "-", formatDate(item.createdAt)]))
+    ].join("");
+  }
+  if (type === "entitlements") {
+    return detailSection("权益流水", Object.entries(data.entitlement || {}).map(([key, value]) => [key, value]));
+  }
+  if (type === "payment-events") {
+    const event = data.event || {};
+    return [
+      detailSection("回调事件", [
+        ["事件ID", event.id || "-"],
+        ["渠道", event.provider || "-"],
+        ["回调ID", event.eventId || "-"],
+        ["状态", event.status || "-"],
+        ["订单", shortId(event.orderId)],
+        ["错误", event.errorMessage || "-"]
+      ]),
+      renderJson(event.payload || {})
+    ].join("");
+  }
+  if (type === "audit-logs") {
+    return renderJson(data.log || {});
+  }
+  return renderJson(data);
+}
+
+async function openDetail(type, id) {
+  adminState.detail = { title: "详情", sub: `${type}/${id}`, loading: true, html: "" };
+  render();
+  try {
+    const data = await window.XiabiMockStore.adminFetch(`/${type}/${id}`);
+    adminState.detail = { title: "详情", sub: `${type}/${id}`, loading: false, html: buildDetailHtml(type, data) };
+  } catch (error) {
+    adminState.detail = { title: "详情", sub: `${type}/${id}`, loading: false, html: `<div class="empty">${h(error.message || "详情加载失败")}</div>` };
+  }
+  render();
 }
 
 function showToast(text) {
@@ -639,7 +882,9 @@ function render() {
     pricing: renderPricing,
     users: renderUsers,
     letters: renderLetters,
+    tasks: renderTasks,
     orders: renderOrders,
+    paymentEvents: renderPaymentEvents,
     ledger: renderLedger,
     logs: renderLogs
   };
@@ -689,6 +934,11 @@ document.addEventListener("click", async (event) => {
     }
   } else if (action === "preview-user") {
     window.open("./index.html#home", "_blank");
+  } else if (action === "close-detail") {
+    adminState.detail = null;
+    render();
+  } else if (action === "show-detail") {
+    await openDetail(actionTarget.dataset.detailType, actionTarget.dataset.detailId);
   } else if (action === "toggle") {
     actionTarget.classList.toggle("on");
     setPath(actionTarget.dataset.togglePath, actionTarget.classList.contains("on"));
@@ -716,9 +966,28 @@ document.addEventListener("click", async (event) => {
     try {
       await window.XiabiMockStore.adminPost(`/orders/${actionTarget.dataset.orderId}/reconcile`);
       await loadAdminLists();
+      if (adminState.detail?.sub === `orders/${actionTarget.dataset.orderId}`) await openDetail("orders", actionTarget.dataset.orderId);
       showToast("查单完成，订单状态已刷新");
     } catch (error) {
       showToast(error.message || "查单失败");
+    }
+  } else if (action === "repair-order-entitlement") {
+    try {
+      await window.XiabiMockStore.adminPost(`/orders/${actionTarget.dataset.orderId}/rebuild-entitlement`);
+      await loadAdminLists();
+      if (adminState.detail?.sub === `orders/${actionTarget.dataset.orderId}`) await openDetail("orders", actionTarget.dataset.orderId);
+      showToast("权益已按订单补发");
+    } catch (error) {
+      showToast(error.message || "补发权益失败");
+    }
+  } else if (action === "retry-task") {
+    try {
+      await window.XiabiMockStore.adminPost(`/tasks/${actionTarget.dataset.taskId}/retry`);
+      await loadAdminLists();
+      if (adminState.detail?.sub === `tasks/${actionTarget.dataset.taskId}`) await openDetail("tasks", actionTarget.dataset.taskId);
+      showToast("任务重试完成");
+    } catch (error) {
+      showToast(error.message || "任务重试失败");
     }
   }
 });

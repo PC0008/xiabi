@@ -43,6 +43,9 @@ export const smsRoutes = new Hono()
 
     const code = createCode();
     const result = await sendSmsCode({ phone, code });
+    if (!result.configured) {
+      return fail(c, "sms_not_configured", result.message || "短信服务还没有完成配置。", 503);
+    }
     await db.insert(smsCodes).values({
       id: crypto.randomUUID(),
       tenantId: TENANT_ID,

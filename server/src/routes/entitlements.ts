@@ -18,10 +18,21 @@ export const entitlementRoutes = new Hono()
       .where(and(eq(entitlementLedger.tenantId, TENANT_ID), eq(entitlementLedger.sessionId, sessionId)))
       .orderBy(desc(entitlementLedger.createdAt))
       .limit(100);
+    const now = Date.now();
+    const activeRows = rows.filter((item) => item.status === "active" || item.status === "used");
+    const annualActive = activeRows.some((item) =>
+      item.type === "annual" &&
+      item.status === "active" &&
+      (!item.expiresAt || new Date(item.expiresAt).getTime() > now)
+    );
+    const unlockedLetterIds = Array.from(new Set(activeRows
+      .filter((item) => ["single", "first_free_letter"].includes(item.type) && item.letterId)
+      .map((item) => item.letterId)));
     const summary = {
-      annualActive: rows.some((item) => item.type === "annual" && item.status === "active"),
+      annualActive,
       singleCredits: rows.filter((item) => item.type === "single" && item.status === "active").reduce((sum, item) => sum + item.quantity, 0),
-      firstFreeUsed: rows.some((item) => item.type === "first_free_letter")
+      firstFreeUsed: rows.some((item) => item.type === "first_free_letter"),
+      unlockedLetterIds
     };
     return ok(c, { entitlements: rows, summary });
   });

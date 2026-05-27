@@ -2,7 +2,7 @@ import { db } from "edgespark";
 import { and, desc, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { entitlementLedger, salesLetters } from "@defs";
+import { entitlementLedger, guestSessions, salesLetters } from "@defs";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, parseJson } from "../domain/http";
 
@@ -42,15 +42,31 @@ export const letterRoutes = new Hono()
   .post("/:id/claim", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
     if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const letterId = c.req.param("id");
+    const [session] = await db
+      .select()
+      .from(guestSessions)
+      .where(and(eq(guestSessions.tenantId, TENANT_ID), eq(guestSessions.id, sessionId)))
+      .limit(1);
+    const [existingFree] = await db
+      .select()
+      .from(entitlementLedger)
+      .where(and(eq(entitlementLedger.tenantId, TENANT_ID), eq(entitlementLedger.sessionId, sessionId), eq(entitlementLedger.type, "first_free_letter")))
+      .orderBy(desc(entitlementLedger.createdAt))
+      .limit(1);
+    if (existingFree && existingFree.letterId !== letterId) {
+      return fail(c, "first_free_used", "首次免费权益已经使用过，可以选择单封解锁或开通年卡。", 403);
+    }
     const [letter] = await db
       .update(salesLetters)
-      .set({ status: "claimed", claimedAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
-      .where(and(eq(salesLetters.id, c.req.param("id")), eq(salesLetters.sessionId, sessionId)))
+      .set({ userId: session?.userId || null, status: "claimed", claimedAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+      .where(and(eq(salesLetters.id, letterId), eq(salesLetters.sessionId, sessionId)))
       .returning();
     if (!letter) return fail(c, "letter_not_found", "没有找到这封销售信。", 404);
     await db.insert(entitlementLedger).values({
       id: crypto.randomUUID(),
       tenantId: TENANT_ID,
+      userId: session?.userId || null,
       sessionId,
       letterId: letter.id,
       type: "first_free_letter",

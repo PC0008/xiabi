@@ -40,10 +40,6 @@ function applyAdminConfig(config) {
   questions = buildQuestionsFromConfig(adminMockConfig.guideStages);
 }
 
-function createId(prefix) {
-  return `${prefix}${Date.now()}${Math.floor(Math.random() * 1000)}`;
-}
-
 const defaultQuestions = [
   {
     title: "这封信是给你自己的产品写，还是帮朋友写？",
@@ -152,6 +148,7 @@ const state = {
   generationPending: false,
   generationError: "",
   paymentNotice: "",
+  paymentRefreshing: false,
   phoneInput: "",
   smsCode: "",
   smsNotice: ""
@@ -170,8 +167,21 @@ function hasAnnualEntitlement() {
   return state.entitlementSummary.annualActive;
 }
 
-function hasSingleEntitlement() {
-  return state.entitlementSummary.singleCredits > 0;
+function hasLetterAccess(letterId) {
+  if (!letterId) return false;
+  if (hasAnnualEntitlement()) return true;
+  const unlocked = state.entitlementSummary.unlockedLetterIds || [];
+  if (unlocked.includes(letterId)) return true;
+  return state.entitlements.some((item) =>
+    item.letterId === letterId &&
+    ["single", "first_free_letter"].includes(item.type) &&
+    ["active", "used"].includes(item.status)
+  );
+}
+
+function isLetterComplete(letter) {
+  if (!letter) return false;
+  return !!(letter.claimed || letter.claimedAt || hasLetterAccess(letter.id));
 }
 
 function paymentOpen() {
@@ -368,35 +378,14 @@ function buildSummaryItems() {
   ];
 }
 
-function buildLetter() {
-  const items = buildSummaryItems();
-  const goal = items.find((item) => item.label === "写信目标").value;
-  const concern = items.find((item) => item.label === "客户顾虑").value;
-  return {
-    id: createId("L"),
-    title: "给潜在客户的一封成交销售信",
-    scene: "成交邀约",
-    version: 1,
-    claimed: false,
-    exported: false,
-    unlockPlan: null,
-    paragraphs: [
-      "你好，我认真想了你现在遇到的问题：产品有价值，但客户还没有真正理解为什么现在就该行动。",
-      `这封信的重点不是堆功能，而是围绕“${goal}”把客户当下最关心的结果讲清楚。`,
-      `我也会提前回应客户的顾虑：${concern}。当这些顾虑被看见，客户才更容易继续往下聊。`,
-      "如果你愿意，我们可以先从一次轻量沟通开始。我会根据你的具体情况，帮你判断哪一块最值得先改，避免你继续在低效表达上消耗时间。"
-    ]
-  };
-}
-
 function renderAuth() {
   return shell(`
     ${topbar()}
     <img class="auth-hero" src="${ASSETS.auth}" alt="智多星" />
     <h1 class="auth-title">我是智多星</h1>
-    <p class="auth-desc">授权头像昵称后，智多星就知道怎么称呼你，也能帮你保存写好的销售信。</p>
+    <p class="auth-desc">开始体验后，智多星会通过几句对话帮你整理目标，并保存写好的销售信。</p>
     <div class="agreement"><span class="agree-dot"></span>我已阅读并同意《用户协议》和《隐私政策》</div>
-    <button class="primary-btn" data-action="auth">${uiIcon("user", "btn-svg")}授权头像昵称，开始体验</button>
+    <button class="primary-btn" data-action="auth">${uiIcon("user", "btn-svg")}开始体验</button>
     <div class="look-around" data-action="guest">暂不登录，先看看</div>
   `);
 }
@@ -573,8 +562,18 @@ function renderGenerating() {
 }
 
 function renderLetter(claimedOverride) {
-  const letter = state.letter || buildLetter();
-  const claimed = claimedOverride ?? letter.claimed;
+  const letter = state.letter;
+  if (!letter) {
+    return shell(`
+      ${topbar()}
+      <div class="empty-card card">
+        <div class="empty-title">还没有可查看的销售信</div>
+        <div class="empty-desc">完成一次通话后，智多星整理好的内容会出现在这里。</div>
+        <button class="secondary-btn empty-action" data-go="records">查看我的销售信</button>
+      </div>
+    `, { tab: "records" });
+  }
+  const claimed = claimedOverride ?? isLetterComplete(letter);
   const phoneEnabled = homePage.phone_bind_enabled !== false;
   return shell(`
     ${topbar()}
@@ -637,7 +636,17 @@ function renderPaywall() {
 }
 
 function renderExport() {
-  const letter = state.letter || buildLetter();
+  const letter = state.letter;
+  if (!letter) {
+    return shell(`
+      ${topbar()}
+      <div class="empty-card card">
+        <div class="empty-title">还没有可导出的销售信</div>
+        <div class="empty-desc">先完成一次通话，或从记录里打开已经生成的销售信。</div>
+        <button class="secondary-btn empty-action" data-go="records">查看我的销售信</button>
+      </div>
+    `, { tab: "records" });
+  }
   const annualActive = hasAnnualEntitlement();
   const canPayAnnual = paymentOpen() && commerceConfig.annual_enabled !== false;
   return shell(`
@@ -704,8 +713,8 @@ function offerCard(plan, icon, name, note, price) {
 function getRecords() {
   const source = state.remoteLetters.length ? state.remoteLetters : (state.letter ? [state.letter] : []);
   return source.map((letter) => {
-    const completed = !!(letter.exported || letter.exportedAt || letter.claimed || letter.claimedAt);
-    const unlocked = letter.unlockPlan === "single" || hasSingleEntitlement();
+    const completed = isLetterComplete(letter);
+    const unlocked = hasLetterAccess(letter.id);
     return {
       id: letter.id,
       title: letter.title,
@@ -766,7 +775,7 @@ function renderProfile() {
         <div class="profile-name">${state.phoneMasked ? "已绑定用户" : "访客用户"}</div>
         <div class="profile-member">${accountLabel} · ${annualActive ? "年卡会员" : "免费体验用户"}</div>
       </div>
-      <button class="bind-btn">${state.phoneBound ? "已绑定" : "绑定手机号"}</button>
+      <button class="bind-btn" data-go="generating">${state.phoneBound ? "已绑定" : "绑定手机号"}</button>
     </div>
     <div class="benefit-card">
       <div class="medal">${uiIcon("check")}</div>
@@ -788,6 +797,7 @@ function renderProfile() {
 
 function renderOrders() {
   const remoteOrders = state.remoteOrders.map((order) => ({
+    id: order.id,
     title: order.title,
     amount: moneyFromCents(order.amountCents),
     status: order.status === "paid" ? "已支付" : order.status === "pending" ? "待支付" : order.status,
@@ -804,6 +814,7 @@ function renderOrders() {
     <h1 class="record-title">订单记录</h1>
     <p class="page-desc">这里记录你的开通、解锁和免费领取记录。正式支付后，以微信支付结果为准。</p>
     ${state.paymentNotice ? `<div class="contact-note">${state.paymentNotice}</div>` : ""}
+    <button class="secondary-btn" data-action="refresh-orders">${state.paymentRefreshing ? "正在刷新..." : "刷新支付结果"}</button>
     ${orders.length ? "" : `
       <div class="empty-card card">
         <div class="empty-title">还没有付费订单</div>
@@ -820,6 +831,7 @@ function renderOrders() {
             <div class="order-meta">${order.time} · ${order.status}</div>
           </div>
           <div class="order-amount">${order.amount}</div>
+          ${order.status === "待支付" && order.id ? `<button class="mini-outline" data-action="refresh-order" data-order-id="${order.id}">刷新</button>` : ""}
         </div>
       `).join("")}
     </div>
@@ -1026,29 +1038,43 @@ function stopVoiceInput() {
   }
 }
 
-function generateLetter(claimed, options = {}) {
-  state.letter = state.letter || buildLetter();
-  state.letter.claimed = !!claimed;
-  state.letter.unlockPlan = options.unlockPlan || null;
-  state.pendingLetter = !claimed;
-  persist();
-}
-
 function applyRemoteLetter(remoteLetter) {
   if (!remoteLetter) return;
   const content = remoteLetter.content || {};
+  const complete = !!remoteLetter.claimedAt || hasLetterAccess(remoteLetter.id);
   state.letter = {
     id: remoteLetter.id,
     title: content.title || remoteLetter.title || "给潜在客户的一封成交销售信",
     scene: remoteLetter.scene || content.scene || "成交邀约",
     version: content.version || 1,
-    claimed: !!remoteLetter.claimedAt,
+    claimed: complete,
     exported: !!remoteLetter.exportedAt,
     unlockPlan: null,
-    paragraphs: Array.isArray(content.paragraphs) ? content.paragraphs : buildLetter().paragraphs
+    paragraphs: Array.isArray(content.paragraphs) ? content.paragraphs : []
   };
   state.pendingLetter = !state.letter.claimed;
   persist();
+}
+
+async function refreshOrders(orderId) {
+  state.paymentRefreshing = true;
+  state.paymentNotice = "正在刷新支付结果...";
+  render();
+  try {
+    if (orderId) {
+      await window.XiabiMockStore.getOrderPaymentStatus(orderId);
+    } else {
+      const pending = state.remoteOrders.filter((order) => order.status === "pending");
+      await Promise.all(pending.map((order) => window.XiabiMockStore.getOrderPaymentStatus(order.id).catch(() => null)));
+    }
+    await loadAccountData();
+    state.paymentNotice = "支付结果已刷新。如果刚完成付款，微信回调可能还需要一点时间。";
+  } catch (error) {
+    state.paymentNotice = error.message || "支付结果刷新失败，请稍后再试。";
+  } finally {
+    state.paymentRefreshing = false;
+    if (state.route === "orders") render();
+  }
 }
 
 document.addEventListener("pointerdown", (event) => {
@@ -1112,7 +1138,7 @@ document.addEventListener("click", async (event) => {
         return;
       }
     } else {
-      if (!state.letter) state.letter = buildLetter();
+      if (!state.letter) return;
       state.letter.claimed = openLetter.dataset.openLetter === "true";
       persist();
     }
@@ -1237,6 +1263,10 @@ document.addEventListener("click", async (event) => {
       state.smsNotice = error.message || "验证码发送失败。";
     }
     render();
+  } else if (action === "refresh-orders") {
+    await refreshOrders();
+  } else if (action === "refresh-order") {
+    await refreshOrders(actionTarget.dataset.orderId);
   } else if (action === "skip-phone") {
     if (!state.letter) {
       state.generationError = "还没有可保存的销售信。";

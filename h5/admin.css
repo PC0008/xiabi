@@ -439,6 +439,16 @@ button {
   white-space: nowrap;
 }
 
+.mini-action + .mini-action {
+  margin-left: 6px;
+}
+
+.warn-action {
+  color: var(--warn);
+  border-color: rgba(193, 120, 24, 0.28);
+  background: rgba(193, 120, 24, 0.08);
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -507,6 +517,103 @@ td {
   background: var(--green-deep);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
   font-weight: 900;
+}
+
+.detail-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 18;
+  width: min(560px, 100vw);
+  height: 100vh;
+  padding: 18px;
+  overflow-y: auto;
+  border-left: 1px solid var(--line);
+  background: #fff;
+  box-shadow: -20px 0 50px rgba(17, 24, 21, 0.14);
+}
+
+.detail-head {
+  position: sticky;
+  top: -18px;
+  z-index: 1;
+  margin: -18px -18px 16px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--line);
+}
+
+.detail-title {
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.detail-sub {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.detail-body {
+  display: grid;
+  gap: 14px;
+}
+
+.detail-section {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fbfcfb;
+}
+
+.detail-section-title {
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.detail-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(17, 24, 21, 0.07);
+  font-size: 13px;
+}
+
+.detail-row span {
+  color: var(--muted);
+}
+
+.detail-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.json-block {
+  max-height: 360px;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #101815;
+  color: #e8f4ee;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.mini-table table {
+  min-width: 0;
 }
 
 .admin-login-shell {

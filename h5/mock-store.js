@@ -125,7 +125,6 @@
   }
 
   async function saveAdminConfig(config) {
-    setAdminConfig(config);
     const remote = normalizeRemoteConfig(await apiFetch("/admin/config", {
       method: "PATCH",
       body: JSON.stringify({
@@ -175,6 +174,11 @@
   async function listOrders() {
     await ensureGuestSession();
     return apiFetch("/orders");
+  }
+
+  async function getOrderPaymentStatus(orderId) {
+    await ensureGuestSession();
+    return apiFetch(`/orders/${orderId}/payment-status`);
   }
 
   async function getEntitlements() {
@@ -296,6 +300,7 @@
     claimLetter,
     createOrder,
     listOrders,
+    getOrderPaymentStatus,
     getEntitlements,
     sendSmsCode,
     bindPhone,

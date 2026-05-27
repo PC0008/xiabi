@@ -2,7 +2,7 @@ import { db, storage } from "edgespark";
 import { and, eq } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { buckets, files, salesLetters } from "@defs";
+import { buckets, entitlementLedger, files, salesLetters } from "@defs";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, parseJson } from "../domain/http";
 
@@ -55,6 +55,25 @@ function buildPrintableLetterHtml(letter: typeof salesLetters.$inferSelect, para
 </html>`;
 }
 
+async function hasExportAccess(sessionId: string, letter: typeof salesLetters.$inferSelect) {
+  if (letter.claimedAt) return true;
+  const rows = await db
+    .select()
+    .from(entitlementLedger)
+    .where(and(eq(entitlementLedger.tenantId, TENANT_ID), eq(entitlementLedger.sessionId, sessionId)))
+    .limit(100);
+  const now = Date.now();
+  return rows.some((item) => {
+    if (item.type === "annual" && item.status === "active") {
+      return !item.expiresAt || new Date(item.expiresAt).getTime() > now;
+    }
+    if (["single", "first_free_letter"].includes(item.type) && item.letterId === letter.id) {
+      return item.status === "active" || item.status === "used";
+    }
+    return false;
+  });
+}
+
 export const exportRoutes = new Hono()
   .post("/letters/:id", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
@@ -65,6 +84,9 @@ export const exportRoutes = new Hono()
       .where(and(eq(salesLetters.id, c.req.param("id")), eq(salesLetters.sessionId, sessionId)))
       .limit(1);
     if (!letter) return fail(c, "letter_not_found", "没有找到这封销售信。", 404);
+    if (!(await hasExportAccess(sessionId, letter))) {
+      return fail(c, "letter_locked", "请先领取或解锁这封销售信，再打开打印版。", 403);
+    }
     const content = parseJson<{ paragraphs?: string[] }>(letter.contentJson, {});
     const paragraphs = Array.isArray(content.paragraphs) ? content.paragraphs.map(String).filter(Boolean) : [];
     const body = buildPrintableLetterHtml(letter, paragraphs);
