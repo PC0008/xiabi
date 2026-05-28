@@ -249,6 +249,12 @@ checks.push(await assertJson(
     ? payload?.error?.code === "wechat_oauth_not_configured"
     : payload?.error?.code === "invalid_wechat_oauth_state"
 ));
+checks.push(await assertJson(
+  "/api/webhooks/wechat-pay",
+  { method: "POST", headers: { "content-type": "application/json" }, body: "not-json" },
+  400,
+  (payload) => payload?.error?.code === "invalid_payload"
+));
 
 const logoutGuest = await fetch(`${baseUrl}/api/public/session/guest`, { method: "POST" });
 if (!logoutGuest.ok) throw new Error(`logout guard guest session returned ${logoutGuest.status}`);

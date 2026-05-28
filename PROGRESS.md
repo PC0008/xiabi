@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 线上负向验收补强：`verify:live` 新增微信支付回调畸形 JSON 用例，确认 `/api/webhooks/wechat-pay` 会返回 `invalid_payload`，覆盖回调审计硬化不会被后续改动误删。
+
 - 短信验证码一致性补强：发送验证码前先写入 `sending` 记录，供应商失败或未配置时标记为 `failed`；发送成功后用批量操作把旧 `pending` 码替换为 `replaced` 并把当前码切为 `pending`，降低“用户收到短信但数据库没有可验证验证码”的风险，同时 `sending` 状态会参与 60 秒重发限制。
 
 - 外部供应商调用超时补强：新增统一 `fetchWithTimeout`，DeepSeek、阿里云短信、MiniMax TTS/ASR、微信支付下单/查单/证书拉取/公众号授权均接入超时控制，避免真实运行时供应商接口挂起导致用户端长期等待；UI 回归检查新增超时防护标记。
