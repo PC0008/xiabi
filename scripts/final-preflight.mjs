@@ -17,6 +17,7 @@ const steps = [
   ["check:user-copy-safety", ["run", "check:user-copy-safety"], "用户端文案不暴露内部技术词或旧阶段痕迹"],
   ["check:env-contract", ["run", "check:env-contract"], "服务端环境变量与部署样例契约"],
   ["check:admin-config-control", ["run", "check:admin-config-control"], "后台配置真实控制用户端和服务端"],
+  ["check:public-config-resilience", ["run", "check:public-config-resilience"], "公开配置读取在 D1 瞬时过载时有默认兜底"],
   ["check:sensitive-output-safety", ["run", "check:sensitive-output-safety"], "供应商失败和敏感输出安全边界"],
   ["check:verification-retry-safety", ["run", "check:verification-retry-safety"], "生产验收重试仅限无请求体 GET/HEAD"],
   ["check:final-delivery-safety", ["run", "check:final-delivery-safety"], "最终交付报告拒绝无验收输入覆盖正式证据"],
@@ -27,8 +28,8 @@ const steps = [
   ["check:bind-phone-unique", ["run", "check:bind-phone-unique"], "手机号绑定唯一性与冲突回查"],
   ["check:payment-entitlement-safety", ["run", "check:payment-entitlement-safety"], "微信支付成功判定与权益发放安全门"],
   ["verify:order-payment-switch", ["run", "verify:order-payment-switch"], "支付开关和续付边界"],
-  ["verify:live", ["run", "verify:live"], "线上入口/API 边界/截图巡检"],
   ["edgespark:readiness", ["run", "edgespark:readiness"], "Edgespark 平台变量和 Secret 存在性清单"],
+  ["verify:live", ["run", "verify:live"], "线上入口/API 边界/截图巡检"],
   ["verify:journey", ["run", "verify:journey"], "移动端用户主流程旅程"],
   ["verify:production", ["run", "verify:production"], "生产基础验收，不触发外部付费调用", {
     XIABI_VERIFY_REPORT_PATH: readinessOutput
