@@ -111,22 +111,23 @@ export const letterRoutes = new Hono()
     const letterId = c.req.param("id");
     const session = await getCurrentSession(sessionId);
     if (!session) return fail(c, "missing_session", "请先开始一次会话。", 401);
-    const [existingFree] = await db
-      .select()
-      .from(entitlementLedger)
-      .where(and(eq(entitlementLedger.tenantId, TENANT_ID), entitlementOwnerWhere(session), eq(entitlementLedger.type, "first_free_letter")))
-      .orderBy(desc(entitlementLedger.createdAt))
-      .limit(1);
-    if (existingFree && existingFree.letterId !== letterId) {
-      return fail(c, "first_free_used", "首次免费权益已经使用过，可以选择单封解锁或开通年卡。", 403);
-    }
     const [letter] = await db
       .select()
       .from(salesLetters)
       .where(and(eq(salesLetters.tenantId, TENANT_ID), eq(salesLetters.id, letterId), sessionOwnerWhere(session)))
       .limit(1);
     if (!letter) return fail(c, "letter_not_found", "没有找到这封销售信。", 404);
-    if (!existingFree) {
+    const hasPaidOrExistingAccess = await hasLetterAccess(session, letter);
+    if (!hasPaidOrExistingAccess) {
+      const [existingFree] = await db
+        .select()
+        .from(entitlementLedger)
+        .where(and(eq(entitlementLedger.tenantId, TENANT_ID), entitlementOwnerWhere(session), eq(entitlementLedger.type, "first_free_letter")))
+        .orderBy(desc(entitlementLedger.createdAt))
+        .limit(1);
+      if (existingFree && existingFree.letterId !== letterId) {
+        return fail(c, "first_free_used", "首次免费权益已经使用过，可以选择单封解锁或开通年卡。", 403);
+      }
       const dedupeKey = firstFreeDedupeKey(session);
       try {
         const [inserted] = await db.insert(entitlementLedger).values({

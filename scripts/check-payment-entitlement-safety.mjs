@@ -5,6 +5,7 @@ const ordersSource = fs.readFileSync("server/src/routes/orders.ts", "utf8");
 const webhooksSource = fs.readFileSync("server/src/routes/webhooks.ts", "utf8");
 const adminSource = fs.readFileSync("server/src/routes/admin.ts", "utf8");
 const entitlementSource = fs.readFileSync("server/src/domain/entitlements.ts", "utf8");
+const lettersSource = fs.readFileSync("server/src/routes/letters.ts", "utf8");
 
 function fail(message) {
   throw new Error(`payment entitlement safety verification failed: ${message}`);
@@ -61,8 +62,12 @@ requireBefore(reprocessRoute, "assertWechatPaidTransactionMatchesOrder({ eventTy
 const rebuildRoute = routeSegment(adminSource, ".post(\"/orders/:id/rebuild-entitlement\"", "\n  .get(\"/orders/:id\"", "admin entitlement rebuild route");
 requireBefore(rebuildRoute, "order.status !== \"paid\"", "activateOrderEntitlement(order)", "paid-only entitlement rebuild");
 
+const claimRoute = routeSegment(lettersSource, ".post(\"/:id/claim\"", "\n  });", "letter claim route");
+requireBefore(claimRoute, "const hasPaidOrExistingAccess = await hasLetterAccess(session, letter)", "type: \"first_free_letter\"", "paid-access check before first-free grant");
+requireIncludes(claimRoute, "if (!hasPaidOrExistingAccess)", "first-free grant only when no paid or existing access");
+
 requireIncludes(entitlementSource, "dedupeKey: `order:${order.id}:${order.productType}`", "order entitlement dedupe key");
 requireIncludes(entitlementSource, "onConflictDoNothing()", "entitlement duplicate suppression");
 requireIncludes(entitlementSource, "db.batch([", "paid order and entitlement batch");
 
-console.log("[ok] payment success and entitlement issuance paths require strict WeChat validation and idempotent ledger writes");
+console.log("[ok] payment success, paid access, and entitlement issuance paths are strictly guarded");
