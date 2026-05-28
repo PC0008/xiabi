@@ -247,6 +247,9 @@ function userPaymentErrorMessage(error, fallback) {
   if (error?.code === "wechat_pay_not_configured" || error?.code === "wechat_oauth_not_configured") {
     return "微信支付暂时还没有配置完成，这封信会继续保存在你的记录里。";
   }
+  if (error?.code === "payment_rate_limited") {
+    return "支付拉起太频繁了，请稍后再试。这封信和订单会继续保留。";
+  }
   if (["payment_disabled", "annual_disabled", "single_disabled"].includes(error?.code)) {
     return error.message || "支付入口暂未开放。";
   }

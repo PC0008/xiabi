@@ -12,6 +12,8 @@ import { fail, ok, readJson } from "../domain/http";
 const SESSION_COOKIE = "xiabi_session";
 const WECHAT_OPENID_COOKIE = "xiabi_wechat_openid";
 const WECHAT_PAY_EXTERNAL_BLOCKED_MESSAGE = "微信支付商户号缺少当前支付产品权限，请到微信支付商户平台产品中心开通 H5 支付或 JSAPI 支付后再试。";
+const PAYMENT_ATTEMPT_HOURLY_LIMIT = 20;
+const ONE_HOUR_MS = 60 * 60 * 1000;
 
 type CreateOrderBody = {
   productType?: "single" | "annual";
@@ -74,6 +76,17 @@ async function logOrderPaymentEvent(sessionId: string, action: string, orderId: 
     targetId: orderId,
     detailJson: JSON.stringify(detail)
   });
+}
+
+async function paymentAttemptRateLimited(sessionId: string) {
+  const cutoff = Date.now() - ONE_HOUR_MS;
+  const recent = await db
+    .select({ createdAt: auditLogs.createdAt })
+    .from(auditLogs)
+    .where(and(eq(auditLogs.tenantId, TENANT_ID), eq(auditLogs.actorId, sessionId), eq(auditLogs.action, "order.payment_attempt")))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(PAYMENT_ATTEMPT_HOURLY_LIMIT);
+  return recent.filter((row) => new Date(row.createdAt).getTime() >= cutoff).length >= PAYMENT_ATTEMPT_HOURLY_LIMIT;
 }
 
 async function getCurrentSession(sessionId: string) {
@@ -140,6 +153,9 @@ export const orderRoutes = new Hono()
     const openid = getCookie(c, WECHAT_OPENID_COOKIE);
     const useJsapi = isWeChatBrowser(c);
     if (useJsapi && !openid) return await wechatAuthResponse(c, sessionId, "/index.html#orders");
+    if (await paymentAttemptRateLimited(sessionId)) {
+      return fail(c, "payment_rate_limited", "支付拉起太频繁了，请稍后再试。", 429);
+    }
     const orderId = crypto.randomUUID();
     const providerOrderNo = createProviderOrderNo();
     await db.insert(orders).values({
@@ -272,6 +288,9 @@ export const orderRoutes = new Hono()
     const openid = getCookie(c, WECHAT_OPENID_COOKIE);
     const useJsapi = isWeChatBrowser(c);
     if (useJsapi && !openid) return await wechatAuthResponse(c, sessionId, "/index.html#orders");
+    if (await paymentAttemptRateLimited(sessionId)) {
+      return fail(c, "payment_rate_limited", "支付拉起太频繁了，请稍后再试。", 429);
+    }
     const mode = useJsapi && openid ? "wechat_jsapi" : "wechat_h5";
     await logOrderPaymentEvent(sessionId, "order.payment_attempt", order.id, {
       orderId: order.id,
