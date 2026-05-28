@@ -4,8 +4,8 @@ export function ok<T>(c: Context, data: T) {
   return c.json({ ok: true, data });
 }
 
-export function fail(c: Context, code: string, message: string, status = 400) {
-  return c.json({ ok: false, error: { code, message } }, status as any);
+export function fail(c: Context, code: string, message: string, status = 400, detail: Record<string, unknown> = {}) {
+  return c.json({ ok: false, error: { code, message, ...detail } }, status as any);
 }
 
 export async function readJson<T extends Record<string, unknown>>(c: Context): Promise<Partial<T>> {

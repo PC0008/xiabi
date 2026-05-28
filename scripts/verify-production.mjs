@@ -94,6 +94,12 @@ function buildReadinessReport() {
       next: findCheck("wechat payment create")?.next || "设置 XIABI_VERIFY_PAYMENT_CREATE=1 后复验。"
     },
     {
+      requirement: "微信支付拉起审计链路",
+      status: readinessStatus(["wechat payment audit trail"]),
+      evidence: ["wechat payment audit trail"],
+      next: "同一轮设置 XIABI_VERIFY_PAYMENT_CREATE=1、XIABI_VERIFY_ADMIN_USERNAME 和 XIABI_VERIFY_ADMIN_PASSWORD 后，会复验支付拉起尝试/结果已写入后台审计日志。"
+    },
+    {
       requirement: "微信付款回调与权益到账",
       status: readinessStatus(["wechat paid order closure", "paid entitlement idempotency"]),
       evidence: ["wechat paid order closure", "paid entitlement idempotency"],
@@ -193,6 +199,8 @@ function manualVerificationBatches() {
       title: "4. 微信支付下单权限",
       proves: "真实请求微信支付创建订单；如果商户产品权限未开通，会被标成外部阻塞而不是代码失败。",
       commands: [
+        '$env:XIABI_VERIFY_ADMIN_USERNAME="后台账号"',
+        '$env:XIABI_VERIFY_ADMIN_PASSWORD="后台密码"',
         "$env:XIABI_VERIFY_PAYMENT_CREATE=\"1\"",
         "$env:XIABI_VERIFY_ALLOW_EXTERNAL_BLOCKED=\"1\"",
         "npm run verify:production:report"
@@ -554,6 +562,7 @@ async function verifyAdminDiagnostics() {
     ["/api/public/admin/feedback?status=resolved&limit=2&page=1", (payload) => Array.isArray(payload.feedback) && !!payload.pageInfo],
     ["/api/public/admin/audit-logs?limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
     ["/api/public/admin/audit-logs?action=config.update&targetType=app_config&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
+    ["/api/public/admin/audit-logs?action=order.payment_attempt&targetType=order&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
     ["/api/public/admin/audit-logs?action=sms.send_attempt&targetType=sms&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
     ["/api/public/admin/audit-logs?action=voice.transcribe_attempt&targetType=voice&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo]
   ];
@@ -831,6 +840,7 @@ async function createDeepSeekLetter(cookie, source) {
 async function verifyPaymentCreate() {
   if (process.env.XIABI_VERIFY_PAYMENT_CREATE !== "1") {
     skipOrStrict("wechat payment create", "set XIABI_VERIFY_PAYMENT_CREATE=1 to create a real unpaid WeChat H5 order");
+    skipOrStrict("wechat payment audit trail", "set XIABI_VERIFY_PAYMENT_CREATE=1 and admin verifier credentials to verify payment audit logs");
     return;
   }
   const cookie = await createGuestSession();
@@ -842,7 +852,10 @@ async function verifyPaymentCreate() {
     }, cookie);
   } catch (error) {
     if (error instanceof ApiError && error.code === "wechat_pay_external_blocked") {
+      const orderId = error.payload?.error?.orderId;
+      if (orderId) await verifyPaymentAuditTrail(orderId, ["order.payment_attempt", "order.payment_failed"]);
       addCheck("wechat payment create", "external_blocked", {
+        orderId,
         reason: error.message,
         next: "在微信支付商户平台产品中心开通 H5 支付；微信内支付还需要开通 JSAPI 支付并补齐公众号网页授权配置。"
       });
@@ -850,7 +863,10 @@ async function verifyPaymentCreate() {
     }
     const message = error instanceof Error ? error.message : String(error || "");
     if (message.includes("产品权限未开通")) {
+      const orderId = error instanceof ApiError ? error.payload?.error?.orderId : "";
+      if (orderId) await verifyPaymentAuditTrail(orderId, ["order.payment_attempt", "order.payment_failed"]);
       addCheck("wechat payment create", "external_blocked", {
+        orderId,
         reason: message,
         next: "在微信商户平台产品中心开通 H5 支付，或补齐公众号网页授权后改用微信内 JSAPI 支付。"
       });
@@ -859,7 +875,30 @@ async function verifyPaymentCreate() {
     throw error;
   }
   if (!order.payment?.configured || !order.payment?.h5Url) throw new Error("WeChat payment create did not return h5Url");
+  await verifyPaymentAuditTrail(order.orderId, ["order.payment_attempt", "order.payment"]);
   addCheck("wechat payment create", "ok", { orderId: order.orderId, providerOrderNo: order.providerOrderNo });
+}
+
+async function verifyPaymentAuditTrail(orderId, expectedActions) {
+  const admin = await adminLogin();
+  if (!admin) {
+    skipOrStrict("wechat payment audit trail", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD with XIABI_VERIFY_PAYMENT_CREATE=1 to verify payment audit logs");
+    return;
+  }
+  for (const action of expectedActions) {
+    const payload = await api(`/api/public/admin/audit-logs?action=${encodeURIComponent(action)}&targetType=order&limit=20&page=1`, {}, admin.cookie);
+    const logs = Array.isArray(payload.logs) ? payload.logs : [];
+    const match = logs.find((item) => item.targetId === orderId || item.detail?.orderId === orderId);
+    if (!match) throw new Error(`Payment audit trail did not find ${action} for order ${orderId}`);
+    const detailText = JSON.stringify(match.detail || {});
+    if (detailText.includes("PRIVATE KEY") || detailText.includes("APIv3")) {
+      throw new Error(`Payment audit trail leaked payment credential-shaped data for ${action}`);
+    }
+  }
+  addCheck("wechat payment audit trail", "ok", {
+    orderId,
+    actions: expectedActions
+  });
 }
 
 async function verifyPaidOrderClosure() {

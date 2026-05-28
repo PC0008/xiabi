@@ -175,6 +175,21 @@ const requiredMarkers = [
     message: "WeChat product permission errors must be classified as external blockers"
   },
   {
+    file: "server/src/routes/orders.ts",
+    marker: "order.payment_attempt",
+    message: "public payment attempts must write order audit events"
+  },
+  {
+    file: "server/src/routes/orders.ts",
+    marker: "order.payment_failed",
+    message: "public payment failures must write order audit events"
+  },
+  {
+    file: "h5/admin.js",
+    marker: "order.payment_attempt",
+    message: "admin audit log filters must expose payment attempt events"
+  },
+  {
     file: "h5/app.js",
     marker: "userPaymentErrorMessage",
     message: "payment provider setup errors must be shown as user-facing order recovery copy"
@@ -218,6 +233,11 @@ const requiredMarkers = [
     file: "scripts/verify-production.mjs",
     marker: "sms audit trail",
     message: "production verification must prove SMS sends are visible in audit logs"
+  },
+  {
+    file: "scripts/verify-production.mjs",
+    marker: "wechat payment audit trail",
+    message: "production verification must prove payment attempts are visible in audit logs"
   },
   {
     file: "server/src/routes/admin.ts",

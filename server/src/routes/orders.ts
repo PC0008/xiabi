@@ -2,7 +2,7 @@ import { db, vars } from "edgespark";
 import { and, desc, eq, or } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { guestSessions, orders, salesLetters } from "@defs";
+import { auditLogs, guestSessions, orders, salesLetters } from "@defs";
 import { buildWechatOAuthUrl, createWechatJsapiPayment, createWechatPayment, getWechatOAuthReadiness, getWechatPaymentReadiness, isWechatPaymentExternalBlock, queryWechatPaymentByOutTradeNo, wechatPaidTransactionMatchesOrder } from "../adapters/payment/wechat";
 import { getConfigScope } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
@@ -62,6 +62,19 @@ function createProviderOrderNo() {
 }
 
 type GuestSession = typeof guestSessions.$inferSelect;
+
+async function logOrderPaymentEvent(sessionId: string, action: string, orderId: string, detail: Record<string, unknown>) {
+  await db.insert(auditLogs).values({
+    id: crypto.randomUUID(),
+    tenantId: TENANT_ID,
+    actorId: sessionId,
+    actorType: "guest_session",
+    action,
+    targetType: "order",
+    targetId: orderId,
+    detailJson: JSON.stringify(detail)
+  });
+}
 
 async function getCurrentSession(sessionId: string) {
   const [session] = await db
@@ -142,6 +155,15 @@ export const orderRoutes = new Hono()
       amountCents: Math.round(amount * 100),
       status: "pending"
     });
+    const mode = useJsapi && openid ? "wechat_jsapi" : "wechat_h5";
+    await logOrderPaymentEvent(sessionId, "order.payment_attempt", orderId, {
+      orderId,
+      providerOrderNo,
+      productType,
+      amountCents: Math.round(amount * 100),
+      mode,
+      source: "create"
+    });
     let payment;
     try {
       if (useJsapi && openid) {
@@ -165,15 +187,42 @@ export const orderRoutes = new Hono()
       }
     } catch (error) {
       await db.update(orders).set({ status: "payment_failed", updatedAt: new Date().toISOString() }).where(eq(orders.id, orderId));
+      await logOrderPaymentEvent(sessionId, "order.payment_failed", orderId, {
+        orderId,
+        providerOrderNo,
+        productType,
+        amountCents: Math.round(amount * 100),
+        mode,
+        source: "create",
+        reason: isWechatPaymentExternalBlock(error) ? "external_blocked" : "provider_error"
+      });
       if (isWechatPaymentExternalBlock(error)) {
-        return fail(c, "wechat_pay_external_blocked", WECHAT_PAY_EXTERNAL_BLOCKED_MESSAGE, 424);
+        return fail(c, "wechat_pay_external_blocked", WECHAT_PAY_EXTERNAL_BLOCKED_MESSAGE, 424, { orderId, providerOrderNo });
       }
-      return fail(c, "payment_create_failed", error instanceof Error ? error.message : "微信支付拉起失败。", 502);
+      return fail(c, "payment_create_failed", error instanceof Error ? error.message : "微信支付拉起失败。", 502, { orderId, providerOrderNo });
     }
     if (!payment.configured) {
       await db.update(orders).set({ status: "payment_failed", updatedAt: new Date().toISOString() }).where(eq(orders.id, orderId));
-      return fail(c, "wechat_pay_not_configured", payment.message || "微信支付还没有完成配置。", 503);
+      await logOrderPaymentEvent(sessionId, "order.payment_failed", orderId, {
+        orderId,
+        providerOrderNo,
+        productType,
+        amountCents: Math.round(amount * 100),
+        mode,
+        source: "create",
+        reason: "not_configured"
+      });
+      return fail(c, "wechat_pay_not_configured", payment.message || "微信支付还没有完成配置。", 503, { orderId, providerOrderNo });
     }
+    await logOrderPaymentEvent(sessionId, "order.payment", orderId, {
+      orderId,
+      providerOrderNo,
+      productType,
+      amountCents: Math.round(amount * 100),
+      mode,
+      source: "create",
+      provider: payment.provider
+    });
     return ok(c, {
       orderId,
       providerOrderNo,
@@ -223,6 +272,15 @@ export const orderRoutes = new Hono()
     const openid = getCookie(c, WECHAT_OPENID_COOKIE);
     const useJsapi = isWeChatBrowser(c);
     if (useJsapi && !openid) return await wechatAuthResponse(c, sessionId, "/index.html#orders");
+    const mode = useJsapi && openid ? "wechat_jsapi" : "wechat_h5";
+    await logOrderPaymentEvent(sessionId, "order.payment_attempt", order.id, {
+      orderId: order.id,
+      providerOrderNo: order.providerOrderNo,
+      productType: order.productType,
+      amountCents: order.amountCents,
+      mode,
+      source: "retry"
+    });
     let payment;
     try {
       if (useJsapi && openid) {
@@ -246,13 +304,43 @@ export const orderRoutes = new Hono()
       }
     } catch (error) {
       await db.update(orders).set({ status: "payment_failed", updatedAt: new Date().toISOString() }).where(eq(orders.id, order.id));
+      await logOrderPaymentEvent(sessionId, "order.payment_failed", order.id, {
+        orderId: order.id,
+        providerOrderNo: order.providerOrderNo,
+        productType: order.productType,
+        amountCents: order.amountCents,
+        mode,
+        source: "retry",
+        reason: isWechatPaymentExternalBlock(error) ? "external_blocked" : "provider_error"
+      });
       if (isWechatPaymentExternalBlock(error)) {
-        return fail(c, "wechat_pay_external_blocked", WECHAT_PAY_EXTERNAL_BLOCKED_MESSAGE, 424);
+        return fail(c, "wechat_pay_external_blocked", WECHAT_PAY_EXTERNAL_BLOCKED_MESSAGE, 424, { orderId: order.id, providerOrderNo: order.providerOrderNo });
       }
-      return fail(c, "payment_create_failed", error instanceof Error ? error.message : "微信支付拉起失败。", 502);
+      return fail(c, "payment_create_failed", error instanceof Error ? error.message : "微信支付拉起失败。", 502, { orderId: order.id, providerOrderNo: order.providerOrderNo });
     }
-    if (!payment.configured) return fail(c, "wechat_pay_not_configured", payment.message || "微信支付还没有完成配置。", 503);
+    if (!payment.configured) {
+      await db.update(orders).set({ status: "payment_failed", updatedAt: new Date().toISOString() }).where(eq(orders.id, order.id));
+      await logOrderPaymentEvent(sessionId, "order.payment_failed", order.id, {
+        orderId: order.id,
+        providerOrderNo: order.providerOrderNo,
+        productType: order.productType,
+        amountCents: order.amountCents,
+        mode,
+        source: "retry",
+        reason: "not_configured"
+      });
+      return fail(c, "wechat_pay_not_configured", payment.message || "微信支付还没有完成配置。", 503, { orderId: order.id, providerOrderNo: order.providerOrderNo });
+    }
     await db.update(orders).set({ status: "pending", updatedAt: new Date().toISOString() }).where(eq(orders.id, order.id));
+    await logOrderPaymentEvent(sessionId, "order.payment", order.id, {
+      orderId: order.id,
+      providerOrderNo: order.providerOrderNo,
+      productType: order.productType,
+      amountCents: order.amountCents,
+      mode,
+      source: "retry",
+      provider: payment.provider
+    });
     return ok(c, { orderId: order.id, providerOrderNo: order.providerOrderNo, status: "pending", amount: order.amountCents / 100, payment });
   })
   .get("/:id", async (c) => {
