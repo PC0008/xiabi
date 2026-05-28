@@ -2,6 +2,7 @@ import { db, storage } from "edgespark";
 import { and, eq, or } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
+import JSZip from "jszip";
 import { buckets, entitlementLedger, files, guestSessions, salesLetters } from "@defs";
 import { getAdminConfig } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
@@ -11,10 +12,15 @@ const SESSION_COOKIE = "xiabi_session";
 
 function escapeHtml(value: unknown) {
   return String(value ?? "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function xmlText(value: unknown) {
+  return escapeHtml(value);
 }
 
 function buildPrintableLetterHtml(letter: typeof salesLetters.$inferSelect, paragraphs: string[]) {
@@ -63,6 +69,58 @@ function buildPlainTextLetter(letter: typeof salesLetters.$inferSelect, paragrap
     "",
     ...paragraphs
   ].join("\n\n");
+}
+
+async function buildDocxLetter(letter: typeof salesLetters.$inferSelect, paragraphs: string[]) {
+  const zip = new JSZip();
+  const now = new Date().toISOString();
+  const body = [
+    `<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>${xmlText(letter.title)}</w:t></w:r></w:p>`,
+    `<w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:t>${xmlText(`智多星整理 · ${letter.scene}场景`)}</w:t></w:r></w:p>`,
+    ...paragraphs.map((paragraph) => `<w:p><w:pPr><w:spacing w:after="180" w:line="420" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:sz w:val="24"/></w:rPr><w:t xml:space="preserve">${xmlText(paragraph)}</w:t></w:r></w:p>`)
+  ].join("");
+  zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+</Types>`);
+  zip.folder("_rels")?.file(".rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+</Relationships>`);
+  zip.folder("docProps")?.file("core.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <dc:title>${xmlText(letter.title)}</dc:title>
+  <dc:creator>智多星</dc:creator>
+  <cp:lastModifiedBy>智多星</cp:lastModifiedBy>
+  <dcterms:created xsi:type="dcterms:W3CDTF">${now}</dcterms:created>
+  <dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified>
+</cp:coreProperties>`);
+  zip.folder("docProps")?.file("app.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <Application>下笔有元</Application>
+</Properties>`);
+  zip.folder("word")?.file("styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:rPr><w:b/><w:sz w:val="40"/></w:rPr><w:pPr><w:spacing w:after="180"/></w:pPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/><w:rPr><w:color w:val="668075"/><w:sz w:val="22"/></w:rPr><w:pPr><w:spacing w:after="360"/></w:pPr></w:style>
+</w:styles>`);
+  zip.folder("word")?.folder("_rels")?.file("document.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>`);
+  zip.folder("word")?.file("document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    ${body}
+    <w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>
+  </w:body>
+</w:document>`);
+  return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
 }
 
 function safeExportFilename(letter: typeof salesLetters.$inferSelect, extension = "html") {
@@ -143,8 +201,11 @@ export const exportRoutes = new Hono()
     const textBody = buildPlainTextLetter(letter, paragraphs);
     const filename = safeExportFilename(letter, "html");
     const textFilename = safeExportFilename(letter, "txt");
+    const docxFilename = safeExportFilename(letter, "docx");
     const objectKey = `exports/${sessionId}/${letter.id}.html`;
     const textObjectKey = `exports/${sessionId}/${letter.id}.txt`;
+    const docxObjectKey = `exports/${sessionId}/${letter.id}.docx`;
+    const docxBody = await buildDocxLetter(letter, paragraphs);
     await storage.from(buckets.xiabiFiles).put(objectKey, new TextEncoder().encode(htmlBody), {
       contentType: "text/html; charset=utf-8",
       contentDisposition: `inline; filename="${filename}"`
@@ -152,6 +213,10 @@ export const exportRoutes = new Hono()
     await storage.from(buckets.xiabiFiles).put(textObjectKey, new TextEncoder().encode(textBody), {
       contentType: "text/plain; charset=utf-8",
       contentDisposition: `attachment; filename="${textFilename}"`
+    });
+    await storage.from(buckets.xiabiFiles).put(docxObjectKey, docxBody, {
+      contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      contentDisposition: `attachment; filename="${docxFilename}"`
     });
     await db.insert(files).values({
       id: crypto.randomUUID(),
@@ -189,9 +254,28 @@ export const exportRoutes = new Hono()
         status: "ready"
       }
     });
+    await db.insert(files).values({
+      id: crypto.randomUUID(),
+      tenantId: TENANT_ID,
+      userId: session.userId || null,
+      letterId: letter.id,
+      bucket: buckets.xiabiFiles.bucket_name,
+      objectKey: docxObjectKey,
+      kind: "letter_docx",
+      status: "ready"
+    }).onConflictDoUpdate({
+      target: [files.bucket, files.objectKey],
+      set: {
+        userId: session.userId || null,
+        letterId: letter.id,
+        kind: "letter_docx",
+        status: "ready"
+      }
+    });
     await db.update(salesLetters).set({ exportedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }).where(eq(salesLetters.id, letter.id));
     const { downloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(objectKey, 3600);
     const { downloadUrl: textDownloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(textObjectKey, 3600);
+    const { downloadUrl: docxDownloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(docxObjectKey, 3600);
     return ok(c, {
       downloadUrl,
       objectKey,
@@ -203,6 +287,11 @@ export const exportRoutes = new Hono()
       textFileType: "plain_text",
       textContentType: "text/plain; charset=utf-8",
       textFilename,
+      docxDownloadUrl,
+      docxObjectKey,
+      docxFileType: "docx",
+      docxContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      docxFilename,
       expiresInSeconds: 3600
     });
   });

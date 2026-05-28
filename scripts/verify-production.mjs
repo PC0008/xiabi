@@ -10,6 +10,11 @@ const reportPath = reportArgIndex >= 0 ? process.argv[reportArgIndex + 1] : proc
 let deepSeekVerification = null;
 const historicalEvidence = [
   {
+    capability: "DOCX 文档版导出",
+    status: "当前配置已跑通，最终交付前可按需复验",
+    evidence: "2026-05-28 生产验收：任务 3428283b-cb57-4e71-a197-e5b8698b0d79 / 信件 366369c4-60d3-4afd-ac6a-2047de0a9639 / DOCX exports/a4ea33f1-bb26-4602-8b4c-e63083bbddda/366369c4-60d3-4afd-ac6a-2047de0a9639.docx"
+  },
+  {
     capability: "DeepSeek 写信",
     status: "历史已跑通，最终交付前需按当前配置复验",
     evidence: "任务 9b8d26e3-7693-4fea-9bff-519a73294201 / 信件 60ca6afd-e328-4a0b-b88f-e293a8c52848；任务 98055e89-2479-4168-8dbe-330bc3996f3d / 信件 7eb8602f-ee74-4942-b86a-1ad18f4ebb78"
@@ -715,6 +720,9 @@ async function verifyDeepSeek() {
   if (!exported.textDownloadUrl || exported.textFileType !== "plain_text" || exported.textContentType !== "text/plain; charset=utf-8" || !String(exported.textFilename || "").endsWith(".txt")) {
     throw new Error("Plain text export did not return a text download URL");
   }
+  if (!exported.docxDownloadUrl || exported.docxFileType !== "docx" || exported.docxContentType !== "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || !String(exported.docxFilename || "").endsWith(".docx")) {
+    throw new Error("DOCX export did not return a document download URL");
+  }
   const html = await fetch(exported.downloadUrl);
   if (!html.ok) throw new Error(`Printable export URL returned ${html.status}`);
   const text = await html.text();
@@ -727,18 +735,26 @@ async function verifyDeepSeek() {
   if (!plainText.includes("智多星整理") || plainText.length < 80) {
     throw new Error("Plain text export did not contain the expected letter text");
   }
+  const docxFile = await fetch(exported.docxDownloadUrl);
+  if (!docxFile.ok) throw new Error(`DOCX export URL returned ${docxFile.status}`);
+  const docxBytes = new Uint8Array(await docxFile.arrayBuffer());
+  if (docxBytes.length < 1000 || docxBytes[0] !== 0x50 || docxBytes[1] !== 0x4b) {
+    throw new Error("DOCX export did not return a valid zip-based document");
+  }
   addCheck("first free entitlement and export", "ok", {
     letterId: claimedLetterId,
     entitlementId: firstFree.id,
     objectKey: exported.objectKey,
-    textObjectKey: exported.textObjectKey
+    textObjectKey: exported.textObjectKey,
+    docxObjectKey: exported.docxObjectKey
   });
   deepSeekVerification = {
     cookie,
     letterId: claimedLetterId,
     entitlementId: firstFree.id,
     exportObjectKey: exported.objectKey,
-    textExportObjectKey: exported.textObjectKey
+    textExportObjectKey: exported.textObjectKey,
+    docxExportObjectKey: exported.docxObjectKey
   };
   if (process.env.XIABI_VERIFY_REPEAT_FREE === "1") {
     addCheck("first free repeat guard", "ok", {
@@ -920,6 +936,11 @@ async function verifySmsSend() {
           const textFile = (detail.files || []).find((item) => item.objectKey === deepSeekVerification.textExportObjectKey);
           if (!textFile) throw new Error("SMS bind did not leave the text export visible in admin letter detail");
           if (textFile.userId !== bind.userId) throw new Error("SMS bind did not propagate text export ownership to the bound user");
+        }
+        if (deepSeekVerification.docxExportObjectKey) {
+          const docxFile = (detail.files || []).find((item) => item.objectKey === deepSeekVerification.docxExportObjectKey);
+          if (!docxFile) throw new Error("SMS bind did not leave the DOCX export visible in admin letter detail");
+          if (docxFile.userId !== bind.userId) throw new Error("SMS bind did not propagate DOCX export ownership to the bound user");
         }
         exportFileOwnershipChecked = true;
       }

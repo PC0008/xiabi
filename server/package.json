@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "drizzle-orm": "^0.45.1",
-    "hono": "^4.10.5"
+    "hono": "^4.10.5",
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "@edgespark/devkit": ">=0.0.1 <1.0.0",

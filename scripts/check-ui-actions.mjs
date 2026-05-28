@@ -115,9 +115,19 @@ const requiredMarkers = [
     message: "letter exports must include a plain text file for direct saving and sharing"
   },
   {
+    file: "server/src/routes/exports.ts",
+    marker: "letter_docx",
+    message: "letter exports must include a DOCX file for editable customer documents"
+  },
+  {
     file: "h5/app.js",
     marker: "export-text",
     message: "user export page must expose the plain text download action"
+  },
+  {
+    file: "h5/app.js",
+    marker: "export-docx",
+    message: "user export page must expose the editable document download action"
   },
   {
     file: "h5/app.js",
