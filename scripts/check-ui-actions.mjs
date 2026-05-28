@@ -148,6 +148,11 @@ const requiredMarkers = [
     file: "server/src/domain/session.ts",
     marker: "eq(guestSessions.status, \"active\")",
     message: "shared session guard must verify active session status"
+  },
+  {
+    file: "server/src/domain/entitlements.ts",
+    marker: "db.batch([",
+    message: "payment closure must update paid order and grant entitlement in one batched operation"
   }
 ];
 
