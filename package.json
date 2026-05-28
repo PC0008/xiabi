@@ -10,6 +10,7 @@
     "check:admin-config-control": "node scripts/check-admin-config-control.mjs",
     "check:sensitive-output-safety": "node scripts/check-sensitive-output-safety.mjs",
     "check:sms-code-safety": "node scripts/check-sms-code-safety.mjs",
+    "check:generation-task-safety": "node scripts/check-generation-task-safety.mjs",
     "check:admin-permissions": "node scripts/check-admin-permissions.mjs",
     "check:public-session-safety": "node scripts/check-public-session-safety.mjs",
     "check:bind-phone-unique": "node scripts/check-bind-phone-unique.mjs",

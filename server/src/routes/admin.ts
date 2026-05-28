@@ -1184,6 +1184,12 @@ export const adminRoutes = new Hono()
       return fail(c, "generation_failed", "写信服务暂时没有完成，请稍后再试。", 502);
     }
 
+    const [currentTask] = await db.select().from(generationTasks).where(eq(generationTasks.id, id)).limit(1);
+    if (!currentTask || currentTask.status !== "running" || currentTask.updatedAt !== lockedTask.updatedAt || currentTask.letterId) {
+      await logAdmin(admin!.id, "task.retry_conflict", "generation_task", { taskId: id });
+      return fail(c, "task_retry_conflict", "任务状态已经变化，请刷新后再试。", 409);
+    }
+
     const letterId = crypto.randomUUID();
     await db.insert(salesLetters).values({
       id: letterId,

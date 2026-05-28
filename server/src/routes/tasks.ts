@@ -149,6 +149,11 @@ async function processGenerationTask(task: typeof generationTasks.$inferSelect) 
     return failedTask;
   }
 
+  const [currentTask] = await db.select().from(generationTasks).where(eq(generationTasks.id, task.id)).limit(1);
+  if (!currentTask || currentTask.status !== "running" || currentTask.updatedAt !== lockedTask.updatedAt || currentTask.letterId) {
+    return currentTask || task;
+  }
+
   const letterId = crypto.randomUUID();
   await db.insert(salesLetters).values({
     id: letterId,
