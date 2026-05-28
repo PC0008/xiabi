@@ -106,6 +106,12 @@ function buildReadinessReport() {
       next: "设置 XIABI_VERIFY_SMS_PHONE 发送验证码；收到后设置 XIABI_VERIFY_SMS_CODE 复验绑定。"
     },
     {
+      requirement: "短信发送审计链路",
+      status: readinessStatus(["sms audit trail"]),
+      evidence: ["sms audit trail"],
+      next: "同一轮设置 XIABI_VERIFY_SMS_PHONE、XIABI_VERIFY_ADMIN_USERNAME 和 XIABI_VERIFY_ADMIN_PASSWORD 后，会复验短信发送尝试/结果已写入后台审计日志。"
+    },
+    {
       requirement: "手机号绑定后资产归属",
       status: readinessStatus(["sms ownership propagation"]),
       evidence: ["sms ownership propagation"],
@@ -173,6 +179,8 @@ function manualVerificationBatches() {
       title: "3. 阿里云短信与手机号绑定",
       proves: "真实短信发送、验证码绑定、同一轮写信资产归属迁移到绑定手机号用户。",
       commands: [
+        '$env:XIABI_VERIFY_ADMIN_USERNAME="后台账号"',
+        '$env:XIABI_VERIFY_ADMIN_PASSWORD="后台密码"',
         '$env:XIABI_VERIFY_DEEPSEEK="1"',
         '$env:XIABI_VERIFY_SMS_PHONE="可接收验证码的手机号"',
         "npm run verify:production:report",
@@ -318,6 +326,10 @@ function skipOrStrict(name, reason) {
 function getCookie(headers) {
   const value = headers.get("set-cookie") || "";
   return value.split(";")[0];
+}
+
+function maskPhone(phone) {
+  return String(phone || "").replace(/\D/g, "").replace(/^(\d{3})\d+(\d{4})$/, "$1****$2");
 }
 
 class ApiError extends Error {
@@ -900,6 +912,7 @@ async function verifySmsSend() {
   const phone = process.env.XIABI_VERIFY_SMS_PHONE;
   if (!phone) {
     skipOrStrict("sms send", "set XIABI_VERIFY_SMS_PHONE to send a real SMS code");
+    skipOrStrict("sms audit trail", "set XIABI_VERIFY_SMS_PHONE and admin verifier credentials to verify SMS audit logs");
     if (!findCheck("sms ownership propagation")) {
       skipOrStrict("sms ownership propagation", "set XIABI_VERIFY_SMS_PHONE, XIABI_VERIFY_SMS_CODE, and XIABI_VERIFY_DEEPSEEK=1 to verify ownership propagation");
     }
@@ -914,6 +927,7 @@ async function verifySmsSend() {
     }, cookie);
     if (!bind.bound || !bind.phoneMasked) throw new Error("SMS bind did not report bound=true");
     addCheck("sms bind", "ok", { phoneMasked: bind.phoneMasked });
+    await verifySmsAuditTrail(phone, ["sms.send_attempt"]);
     if (deepSeekVerification) {
       const [session, letter, entitlements] = await Promise.all([
         api("/api/public/session/me", {}, cookie),
@@ -968,6 +982,7 @@ async function verifySmsSend() {
     }, cookie);
   } catch (error) {
     if (error instanceof ApiError && ["sms_send_failed", "sms_not_configured"].includes(error.code)) {
+      await verifySmsAuditTrail(phone, ["sms.send_attempt", "sms.send_failed"]);
       addCheck("sms send", "external_blocked", {
         reason: error.message,
         next: "检查阿里云短信 AccessKey、签名、模板、产品开通状态和模板审核状态后复验。"
@@ -977,10 +992,38 @@ async function verifySmsSend() {
     throw error;
   }
   if (!result.sent || result.configured === false) throw new Error("SMS send did not report sent=true");
+  await verifySmsAuditTrail(phone, ["sms.send_attempt", "sms.send"]);
   addCheck("sms send", "ok", {
     phoneMasked: result.phoneMasked || result.phone,
     provider: result.provider,
     next: "set XIABI_VERIFY_SMS_CODE to the received code and rerun to verify binding"
+  });
+}
+
+async function verifySmsAuditTrail(phone, expectedActions) {
+  const admin = await adminLogin();
+  if (!admin) {
+    skipOrStrict("sms audit trail", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD with XIABI_VERIFY_SMS_PHONE to verify SMS audit logs");
+    return;
+  }
+  const expectedPhoneMasked = maskPhone(phone);
+  for (const action of expectedActions) {
+    const payload = await api(`/api/public/admin/audit-logs?action=${encodeURIComponent(action)}&targetType=sms&limit=20&page=1`, {}, admin.cookie);
+    const logs = Array.isArray(payload.logs) ? payload.logs : [];
+    const match = logs.find((item) => item.detail?.phoneMasked === expectedPhoneMasked);
+    if (!match) {
+      throw new Error(`SMS audit trail did not find ${action} for ${expectedPhoneMasked}`);
+    }
+    if (JSON.stringify(match.detail || {}).includes(String(phone).replace(/\D/g, ""))) {
+      throw new Error(`SMS audit trail leaked full phone number for ${action}`);
+    }
+    if ("code" in (match.detail || {}) || "verificationCode" in (match.detail || {})) {
+      throw new Error(`SMS audit trail leaked a verification code field for ${action}`);
+    }
+  }
+  addCheck("sms audit trail", "ok", {
+    phoneMasked: expectedPhoneMasked,
+    actions: expectedActions
   });
 }
 

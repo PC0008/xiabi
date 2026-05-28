@@ -215,6 +215,11 @@ const requiredMarkers = [
     message: "admin audit log filters must expose SMS events"
   },
   {
+    file: "scripts/verify-production.mjs",
+    marker: "sms audit trail",
+    message: "production verification must prove SMS sends are visible in audit logs"
+  },
+  {
     file: "server/src/routes/admin.ts",
     marker: "requireOwnerOrFail",
     message: "high-risk admin mutations must require owner role"
