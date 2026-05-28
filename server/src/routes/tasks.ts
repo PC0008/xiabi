@@ -180,7 +180,7 @@ async function processGenerationTask(task: typeof generationTasks.$inferSelect) 
   return updatedTask;
 }
 
-async function runGenerationTaskInBackground(taskId: string) {
+export async function runGenerationTaskInBackground(taskId: string) {
   try {
     const [task] = await db.select().from(generationTasks).where(eq(generationTasks.id, taskId)).limit(1);
     if (task) await processGenerationTask(task);

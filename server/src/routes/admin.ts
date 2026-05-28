@@ -1,10 +1,10 @@
-import { db, secret, storage, vars } from "edgespark";
+import { ctx, db, secret, storage, vars } from "edgespark";
 import { and, desc, eq } from "drizzle-orm";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { adminSessions, adminUsers, auditLogs, buckets, entitlementLedger, files, generationTasks, guestSessions, orders, paymentWebhookEvents, productProfiles, salesLetters, users } from "@defs";
 import type { SecretKey, VarKey } from "@defs";
-import { generateSalesLetterWithDeepSeek, SalesLetterContent } from "../adapters/letter/deepseek";
+import { enqueueTask } from "../adapters/task";
 import { assertWechatPaidTransactionMatchesOrder, checkWechatPaymentProviderConfig, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { checkSmsProviderConfig, SmsProviderError } from "../adapters/sms";
 import { getAdminConfig, upsertConfigScope } from "../domain/config";
@@ -13,6 +13,7 @@ import { activateOrderEntitlement, markOrderPaidAndGrantEntitlement } from "../d
 import { fail, ok, parseJson, readJson } from "../domain/http";
 import { optionalSecret, optionalVar } from "../domain/runtime";
 import { createToken, daysFromNow, hashPassword, hashToken, isFuture } from "../domain/security";
+import { runGenerationTaskInBackground } from "./tasks";
 
 const ADMIN_COOKIE = "xiabi_admin_session";
 const DEFAULT_LIST_LIMIT = 100;
@@ -21,7 +22,6 @@ const ADMIN_LOGIN_FAILURE_LIMIT = 8;
 const ADMIN_LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 const ADMIN_USERNAME_MAX_LENGTH = 64;
 const ADMIN_PASSWORD_MAX_LENGTH = 256;
-const PUBLIC_GENERATION_FAILED_MESSAGE = "写信服务暂时没有完成，请稍后再试。";
 const MAX_CONFIG_AUDIT_CHANGES = 80;
 
 type AdminLoginBody = {
@@ -634,20 +634,6 @@ function buildFeedbackRows(rows: Array<typeof auditLogs.$inferSelect>) {
     });
 }
 
-function selectTemplateMeta(templates: unknown) {
-  if (!Array.isArray(templates)) return { key: "default", version: "v1" };
-  const enabled = templates.find((item) => {
-    if (!item || typeof item !== "object") return false;
-    return (item as Record<string, unknown>).status === "enabled" || (item as Record<string, unknown>).status === "启用";
-  }) || templates[0];
-  if (!enabled || typeof enabled !== "object") return { key: "default", version: "v1" };
-  const data = enabled as Record<string, unknown>;
-  return {
-    key: String(data.key || data.name || "default"),
-    version: String(data.version || "v1")
-  };
-}
-
 type AnswerItem = {
   index?: number;
   question?: string;
@@ -1144,7 +1130,7 @@ export const adminRoutes = new Hono()
     const [task] = await db.select().from(generationTasks).where(and(eq(generationTasks.tenantId, TENANT_ID), eq(generationTasks.id, id))).limit(1);
     if (!task) return fail(c, "task_not_found", "没有找到任务。", 404);
     if (task.status !== "failed") return fail(c, "task_not_failed", "只有失败任务可以重试。", 409);
-    const { answers, input } = parseTaskInput(task);
+    const { answers } = parseTaskInput(task);
     if (!answers.length) return fail(c, "missing_task_input", "任务缺少可重试的信息。", 400);
 
     const config = await getAdminConfig(db);
@@ -1153,67 +1139,21 @@ export const adminRoutes = new Hono()
     if (home.generation_entry_enabled === false || system.generation_enabled === false) {
       return fail(c, "generation_disabled", "写信入口暂未开放。", 403);
     }
-    const templates = config.templates;
-    const templateMeta = selectTemplateMeta(templates);
     const [lockedTask] = await db.update(generationTasks).set({
-      status: "running",
-      progressJson: JSON.stringify({ percent: 20, stage: "retrying", provider: "deepseek" }),
+      status: "queued",
+      progressJson: JSON.stringify({ percent: 5, stage: "retry_queued", provider: "deepseek" }),
       errorCode: null,
       errorMessage: null,
-      attempts: Number(task.attempts || 0) + 1,
       updatedAt: new Date().toISOString()
     }).where(and(eq(generationTasks.tenantId, TENANT_ID), eq(generationTasks.id, id), eq(generationTasks.status, "failed"))).returning();
     if (!lockedTask) {
       return fail(c, "task_retry_conflict", "任务状态已经变化，请刷新后再试。", 409);
     }
 
-    let content: SalesLetterContent | null = null;
-    try {
-      content = await generateSalesLetterWithDeepSeek({ answers, input, templates });
-      if (!content) throw new Error("DeepSeek provider is not configured.");
-    } catch (error) {
-      console.error("admin_task_retry_generation_failed", error);
-      await db.update(generationTasks).set({
-        status: "failed",
-        progressJson: JSON.stringify({ percent: 0, stage: "failed", provider: "deepseek" }),
-        errorCode: "deepseek_generation_failed",
-        errorMessage: PUBLIC_GENERATION_FAILED_MESSAGE,
-        updatedAt: new Date().toISOString()
-      }).where(eq(generationTasks.id, id));
-      await logAdmin(admin!.id, "task.retry_failed", "generation_task", { taskId: id });
-      return fail(c, "generation_failed", "写信服务暂时没有完成，请稍后再试。", 502);
-    }
-
-    const [currentTask] = await db.select().from(generationTasks).where(eq(generationTasks.id, id)).limit(1);
-    if (!currentTask || currentTask.status !== "running" || currentTask.updatedAt !== lockedTask.updatedAt || currentTask.letterId) {
-      await logAdmin(admin!.id, "task.retry_conflict", "generation_task", { taskId: id });
-      return fail(c, "task_retry_conflict", "任务状态已经变化，请刷新后再试。", 409);
-    }
-
-    const letterId = crypto.randomUUID();
-    await db.insert(salesLetters).values({
-      id: letterId,
-      tenantId: TENANT_ID,
-      userId: task.userId,
-      sessionId: task.sessionId,
-      title: content.title,
-      scene: content.scene,
-      status: "ready",
-      inputJson: task.inputJson,
-      contentJson: JSON.stringify(content),
-      templateKey: templateMeta.key,
-      templateVersion: templateMeta.version
-    });
-    await db.update(generationTasks).set({
-      letterId,
-      status: "succeeded",
-      progressJson: JSON.stringify({ percent: 100, stage: "ready", provider: content.provider || "deepseek" }),
-      updatedAt: new Date().toISOString()
-    }).where(eq(generationTasks.id, id));
-    await logAdmin(admin!.id, "task.retry_succeeded", "generation_task", { taskId: id, letterId });
-    const [updated] = await db.select().from(generationTasks).where(eq(generationTasks.id, id)).limit(1);
-    const [letter] = await db.select().from(salesLetters).where(eq(salesLetters.id, letterId)).limit(1);
-    return ok(c, { task: publicTask(updated), letter: publicLetter(letter) });
+    const queue = await enqueueTask({ taskId: id, type: task.type });
+    ctx.runInBackground(runGenerationTaskInBackground(id));
+    await logAdmin(admin!.id, "task.retry_queued", "generation_task", { taskId: id });
+    return ok(c, { task: publicTask(lockedTask), queue });
   })
   .get("/orders", async (c) => {
     const admin = await requireAdmin(c);

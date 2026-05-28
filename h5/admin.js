@@ -928,6 +928,7 @@ function renderLogs() {
             ["admin.create", "账号创建"],
             ["admin.update", "账号修改"],
             ["task.retry_failed", "任务重试失败"],
+            ["task.retry_queued", "任务重新排队"],
             ["task.retry_succeeded", "任务重试成功"],
             ["order.payment_attempt", "支付拉起尝试"],
             ["order.payment", "支付拉起成功"],
@@ -1644,7 +1645,7 @@ document.addEventListener("click", async (event) => {
       await window.XiabiStore.adminPost(`/tasks/${actionTarget.dataset.taskId}/retry`);
       await loadAdminLists();
       if (adminState.detail?.sub === `tasks/${actionTarget.dataset.taskId}`) await openDetail("tasks", actionTarget.dataset.taskId);
-      showToast("任务重试完成");
+      showToast("任务已重新排队，稍后刷新查看结果");
     } catch (error) {
       showToast(error.message || "任务重试失败");
     }

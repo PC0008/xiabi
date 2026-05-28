@@ -34,7 +34,7 @@ const publicPolling = segment(publicTasks, ".get(\"/:id\"", "\n  });", "public t
 requireNotIncludes(publicPolling, "processGenerationTask(", "task polling generation trigger");
 requireNotIncludes(publicPolling, "generateSalesLetterWithDeepSeek", "task polling DeepSeek call");
 
-const processor = segment(publicTasks, "async function processGenerationTask", "\nasync function runGenerationTaskInBackground", "generation task processor");
+const processor = segment(publicTasks, "async function processGenerationTask", "\nexport async function runGenerationTaskInBackground", "generation task processor");
 requireIncludes(processor, "if (task.status === \"succeeded\" || task.status === \"failed\") return task;", "terminal task no-op");
 requireIncludes(processor, "status: \"failed\"", "stale running tasks fail closed");
 requireIncludes(processor, "eq(generationTasks.status, \"queued\")", "queued-only worker lock");
@@ -46,9 +46,12 @@ requireIncludes(processor, "currentTask.letterId", "public duplicate letter guar
 const adminRetry = segment(adminRoutes, ".post(\"/tasks/:id/retry\"", "\n  .get(\"/orders\"", "admin task retry route");
 requireIncludes(adminRetry, "if (task.status !== \"failed\")", "failed-only admin retry");
 requireIncludes(adminRetry, "eq(generationTasks.status, \"failed\")", "admin failed-only lock");
-requireBefore(adminRetry, "const [currentTask] = await db.select().from(generationTasks)", "await db.insert(salesLetters).values", "post-provider state recheck before admin retry letter insert");
-requireIncludes(adminRetry, "currentTask.status !== \"running\"", "admin retry state guard");
-requireIncludes(adminRetry, "currentTask.updatedAt !== lockedTask.updatedAt", "admin retry lease guard");
-requireIncludes(adminRetry, "task.retry_conflict", "admin retry conflict audit");
+requireIncludes(adminRetry, "status: \"queued\"", "admin retry requeues instead of running inline");
+requireIncludes(adminRetry, "retry_queued", "admin retry queued progress stage");
+requireIncludes(adminRetry, "enqueueTask({ taskId: id, type: task.type })", "admin retry queue handoff");
+requireIncludes(adminRetry, "ctx.runInBackground(runGenerationTaskInBackground(id))", "admin retry background worker");
+requireIncludes(adminRetry, "task.retry_queued", "admin retry queued audit");
+requireNotIncludes(adminRetry, "generateSalesLetterWithDeepSeek", "admin retry synchronous DeepSeek call");
+requireNotIncludes(adminRetry, "await db.insert(salesLetters).values", "admin retry synchronous letter insert");
 
-console.log("[ok] generation task polling is read-only and DeepSeek retries cannot insert stale duplicate letters");
+console.log("[ok] generation task polling is read-only and DeepSeek retries are queued for background execution");
