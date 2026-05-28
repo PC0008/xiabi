@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 后台控制链路回归门补强：新增 `npm run check:admin-config-control`，静态验证后台配置从默认 scope、后台保存/清洗/审计、公开配置下发、H5 用户端读取，到服务端写信模板、生成开关、价格权益、短信/语音/导出开关的业务消费链路全部存在；该检查已纳入 `npm run verify:preflight`，防止后台配置退化成前端摆设。
+
 - 微信支付权限复验刷新：2026-05-28 组合运行 `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1`、`XIABI_VERIFY_PAYMENT_CREATE=1`、`XIABI_VERIFY_ALLOW_EXTERNAL_BLOCKED=1` 的 `npm run verify:production:report`，DeepSeek/权益/导出/TTS 继续通过，微信未支付订单真实请求返回 `wechat_pay_external_blocked`，订单 `737c439c-66fd-4560-acf1-0dd618f0fdb1`；正式报告当前为 5 项已验证、7 项待输入、1 项外部阻塞，阻塞点明确在微信商户平台开通 H5 支付或 JSAPI 支付产品权限。
 
 - 当前线上真实复验刷新：2026-05-28 运行 `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1` 的 `npm run verify:production:report` 通过，当前 Edgespark 线上配置已复验 DeepSeek 写信、首次免费权益、HTML/TXT/DOCX 导出、并发重复免费领取拦截和 MiniMax TTS；正式生产验收报告刷新为 5 项已验证、8 项待输入，交付状态清单已同步刷新。

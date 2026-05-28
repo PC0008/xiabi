@@ -29,7 +29,7 @@ npm run delivery:status
 - 生产外部验收：`npm run verify:production`，默认只跑健康检查和公开配置；配置 verifier 环境变量后，会真实调用 DeepSeek、微信支付创建、真实已支付订单闭环、短信、MiniMax TTS 和 ASR。
 - 严格生产验收：设置 `XIABI_PRODUCTION_STRICT=1` 后，任何外部链路 verifier 未配置都会失败，不再跳过。
 - 生产状态报告：`npm run verify:production:report` 会刷新 `docs/production-readiness-latest.md`，并输出最后人工验证批次；其中 `ok=true` 只表示本次已执行项目没有失败，`complete=true` 才表示所有生产链路已经完整验收。
-- 最终无外部费用预检：`npm run verify:preflight` 会串行运行类型检查、构建、静态回归、环境变量契约、公开接口会话边界、支付权益安全门、线上巡检、移动端旅程、生产基础验收和交付状态生成，并写入 `docs/final-preflight-latest.md`、`docs/production-readiness-preflight-latest.md` 和 `docs/delivery-status-preflight-latest.md`；它不会主动触发 DeepSeek、短信、微信支付、MiniMax TTS 或 ASR 的真实调用。
+- 最终无外部费用预检：`npm run verify:preflight` 会串行运行类型检查、构建、静态回归、环境变量契约、后台配置控制链路、公开接口会话边界、支付权益安全门、线上巡检、移动端旅程、生产基础验收和交付状态生成，并写入 `docs/final-preflight-latest.md`、`docs/production-readiness-preflight-latest.md` 和 `docs/delivery-status-preflight-latest.md`；它不会主动触发 DeepSeek、短信、微信支付、MiniMax TTS 或 ASR 的真实调用。
 - 最终交付状态：先用 `npm run verify:production:report` 刷新生产状态报告，再执行 `npm run delivery:status` 生成 `docs/delivery-status-latest.md`；后者不触发外部付费调用，只汇总人工验收顺序、责任方和剩余阻塞。
 
 ## 当前真实状态

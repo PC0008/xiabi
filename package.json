@@ -7,6 +7,7 @@
     "typecheck": "npm --prefix server run typecheck && npm --prefix web run typecheck",
     "check:ui": "node scripts/check-ui-actions.mjs",
     "check:env-contract": "node scripts/check-env-contract.mjs",
+    "check:admin-config-control": "node scripts/check-admin-config-control.mjs",
     "check:admin-permissions": "node scripts/check-admin-permissions.mjs",
     "check:public-session-safety": "node scripts/check-public-session-safety.mjs",
     "check:bind-phone-unique": "node scripts/check-bind-phone-unique.mjs",
