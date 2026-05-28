@@ -13,6 +13,7 @@
 ```powershell
 npm run typecheck
 npm run build
+npm run check:sensitive-output-safety
 npm run deploy:dry
 npm run deploy
 npm run verify:journey
