@@ -201,8 +201,8 @@ function renderPowerShell(lines) {
 function manualVerificationBatches() {
   return [
     {
-      title: "1. 后台账号与后台控制前台",
-      proves: "管理员登录、系统自检、运营列表、后台配置传播到用户端、配置审计差异。",
+      title: "1. 后台账号、后台控制前台与供应商前置自检",
+      proves: "管理员登录、系统自检、运营列表、后台配置传播到用户端、配置审计差异、阿里云短信签名/模板自检、微信支付商户签名/平台证书自检。",
       commands: [
         '$env:XIABI_VERIFY_ADMIN_USERNAME="后台账号"',
         '$env:XIABI_VERIFY_ADMIN_PASSWORD="后台密码"',

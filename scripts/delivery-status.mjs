@@ -18,9 +18,9 @@ const statusOrder = {
 
 const manualBatches = [
   {
-    title: "后台账号与后台控制前台",
+    title: "后台账号、后台控制前台与供应商前置自检",
     owner: "项目管理员",
-    needs: "后台账号、后台密码",
+    needs: "后台账号、后台密码；该批次不发送短信、不创建订单，会自检短信签名/模板和微信支付证书",
     command: [
       '$env:XIABI_VERIFY_ADMIN_USERNAME="后台账号"',
       '$env:XIABI_VERIFY_ADMIN_PASSWORD="后台密码"',
