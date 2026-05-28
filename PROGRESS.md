@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 部署运行时契约补强：`server/src/defs/runtime.ts` 已补齐 `VOICE_ASR_*`、微信平台证书、公众号授权 secret 等正式接入变量；`npm run check:env-contract` 现在同时验证 `.env.example` 和运行时类型声明，避免后续 Edgespark 配置项“文档有、类型契约漏掉”。
 - 敏感输出安全门补强：新增 `npm run check:sensitive-output-safety`，静态验证公开支付、短信、写信和语音接口不会把供应商原始错误、验证码、密钥形态字段或后台密码泄露到用户端响应/审计详情；同时确认后台系统自检只返回“是否配置”的布尔结果，并把该检查纳入 `npm run verify:preflight`。
 - 后台控制链路回归门补强：新增 `npm run check:admin-config-control`，静态验证后台配置从默认 scope、后台保存/清洗/审计、公开配置下发、H5 用户端读取，到服务端写信模板、生成开关、价格权益、短信/语音/导出开关的业务消费链路全部存在；该检查已纳入 `npm run verify:preflight`，防止后台配置退化成前端摆设。
 

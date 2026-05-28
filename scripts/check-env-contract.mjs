@@ -14,11 +14,13 @@ const envKeys = new Set(
 );
 
 const envReads = new Map();
+const varReads = new Map();
+const secretReads = new Map();
 const patterns = [
-  /\bvars\.get\(\s*["']([A-Z0-9_]+)["']\s*\)/g,
-  /\bsecret\.get\(\s*["']([A-Z0-9_]+)["']\s*\)/g,
-  /\boptionalVar\(\s*["']([A-Z0-9_]+)["']\s*\)/g,
-  /\boptionalSecret\(\s*["']([A-Z0-9_]+)["']\s*\)/g
+  [/\bvars\.get\(\s*["']([A-Z0-9_]+)["']\s*\)/g, varReads],
+  [/\bsecret\.get\(\s*["']([A-Z0-9_]+)["']\s*\)/g, secretReads],
+  [/\boptionalVar\(\s*["']([A-Z0-9_]+)["']\s*\)/g, varReads],
+  [/\boptionalSecret\(\s*["']([A-Z0-9_]+)["']\s*\)/g, secretReads]
 ];
 
 function walk(dir) {
@@ -32,14 +34,18 @@ function walk(dir) {
     }
     if (!entry.isFile() || !/\.(ts|tsx|js|mjs)$/.test(entry.name)) continue;
     const source = fs.readFileSync(fullPath, "utf8");
-    for (const pattern of patterns) {
+    for (const [pattern, typedReads] of patterns) {
       pattern.lastIndex = 0;
       let match;
       while ((match = pattern.exec(source))) {
         const key = match[1];
+        const relativePath = path.relative(root, fullPath).replace(/\\/g, "/");
         const refs = envReads.get(key) || [];
-        refs.push(path.relative(root, fullPath).replace(/\\/g, "/"));
+        refs.push(relativePath);
         envReads.set(key, refs);
+        const typedRefs = typedReads.get(key) || [];
+        typedRefs.push(relativePath);
+        typedReads.set(key, typedRefs);
       }
     }
   }
@@ -47,16 +53,44 @@ function walk(dir) {
 
 walk(sourceRoot);
 
+const runtimeTypes = fs.readFileSync(path.join(root, "server", "src", "defs", "runtime.ts"), "utf8");
+
+function parseRuntimeUnion(typeName) {
+  const match = runtimeTypes.match(new RegExp(`export type ${typeName} =([\\s\\S]*?);`));
+  if (!match) throw new Error(`missing ${typeName} in server/src/defs/runtime.ts`);
+  return new Set([...match[1].matchAll(/"([A-Z0-9_]+)"/g)].map((item) => item[1]));
+}
+
+const varTypes = parseRuntimeUnion("VarKey");
+const secretTypes = parseRuntimeUnion("SecretKey");
+
+function reportMissingTypedKeys(reads, declared, label) {
+  const missingTypedKeys = [...reads.keys()]
+    .filter((key) => !declared.has(key))
+    .sort();
+  for (const key of missingTypedKeys) {
+    const refs = [...new Set(reads.get(key) || [])].join(", ");
+    console.error(`${key} is read as ${label} but missing from server/src/defs/runtime.ts (${refs})`);
+  }
+  return missingTypedKeys.length;
+}
+
 const missing = [...envReads.keys()]
   .filter((key) => !envKeys.has(key))
   .sort();
 
+let failureCount = 0;
 if (missing.length) {
   for (const key of missing) {
     const refs = [...new Set(envReads.get(key) || [])].join(", ");
     console.error(`${key} is read by code but missing from .env.example (${refs})`);
   }
-  process.exit(1);
+  failureCount += missing.length;
 }
 
-console.log(`[ok] .env.example covers ${envReads.size} runtime variables read by server code`);
+failureCount += reportMissingTypedKeys(varReads, varTypes, "VarKey");
+failureCount += reportMissingTypedKeys(secretReads, secretTypes, "SecretKey");
+
+if (failureCount) process.exit(1);
+
+console.log(`[ok] .env.example and runtime types cover ${envReads.size} runtime variables read by server code`);
