@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { adminSessions, adminUsers, auditLogs, buckets, entitlementLedger, files, generationTasks, guestSessions, orders, paymentWebhookEvents, productProfiles, salesLetters, users } from "@defs";
 import type { SecretKey, VarKey } from "@defs";
 import { generateSalesLetterWithDeepSeek, SalesLetterContent } from "../adapters/letter/deepseek";
-import { assertWechatPaidTransactionMatchesOrder, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
+import { assertWechatPaidTransactionMatchesOrder, checkWechatPaymentProviderConfig, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { checkSmsProviderConfig, SmsProviderError } from "../adapters/sms";
 import { getAdminConfig, upsertConfigScope } from "../domain/config";
 import { ConfigScope, configScopes, TENANT_ID } from "../domain/defaults";
@@ -934,6 +934,28 @@ export const adminRoutes = new Hono()
         reason: "provider_error"
       });
       return fail(c, "sms_provider_check_failed", "短信供应商自检失败，请检查 AccessKey、签名、模板和短信服务开通状态。", 502);
+    }
+  })
+  .post("/diagnostics/wechat-pay", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    try {
+      const result = await checkWechatPaymentProviderConfig();
+      await logAdmin(admin!.id, "diagnostics.wechat_pay_check", "payment", {
+        configured: result.configured,
+        ready: result.ready,
+        certificateMode: result.certificate.mode,
+        certificateReady: result.certificate.ready,
+        oauthConfigured: result.oauth.configured
+      });
+      return ok(c, { wechatPay: result });
+    } catch (error) {
+      await logAdmin(admin!.id, "diagnostics.wechat_pay_check_failed", "payment", {
+        reason: "provider_error",
+        errorType: error instanceof Error ? error.name : typeof error
+      });
+      return fail(c, "wechat_pay_provider_check_failed", "微信支付自检失败，请检查商户私钥、证书序列号、APIv3 Key、平台证书和产品权限。", 502);
     }
   })
   .patch("/config", async (c) => {

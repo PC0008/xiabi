@@ -512,8 +512,7 @@ async function decryptWechatAesGcm(input: { associatedData?: string; nonce: stri
   return new TextDecoder().decode(plain);
 }
 
-async function fetchWechatPlatformCertificate(serial: string) {
-  if (platformCertificateCache.has(serial)) return platformCertificateCache.get(serial) || "";
+async function fetchWechatPlatformCertificates() {
   const authConfig = getMerchantAuthConfig();
   const apiV3Key = secret.get("WECHAT_PAY_API_V3_KEY");
   if (!authConfig || !apiV3Key) throw new Error("wechat_pay_certificate_fetch_config_missing");
@@ -532,8 +531,9 @@ async function fetchWechatPlatformCertificate(serial: string) {
   });
   const payload = await response.json().catch(() => ({})) as WechatCertificateResponse;
   if (!response.ok || !Array.isArray(payload.data)) {
-    throw new Error(payload.message || payload.code || `WeChat Pay certificate request failed: ${response.status}`);
+    throw new WechatPayApiError(payload.message || payload.code || `WeChat Pay certificate request failed: ${response.status}`, payload.code, response.status);
   }
+  const serials: string[] = [];
   for (const item of payload.data) {
     const certificate = item.encrypt_certificate;
     if (!item.serial_no || !certificate?.nonce || !certificate.ciphertext) continue;
@@ -544,8 +544,52 @@ async function fetchWechatPlatformCertificate(serial: string) {
       ciphertext: certificate.ciphertext
     }, apiV3Key);
     platformCertificateCache.set(item.serial_no, pem);
+    serials.push(item.serial_no);
   }
+  return serials;
+}
+
+async function fetchWechatPlatformCertificate(serial: string) {
+  if (platformCertificateCache.has(serial)) return platformCertificateCache.get(serial) || "";
+  await fetchWechatPlatformCertificates();
   return platformCertificateCache.get(serial) || "";
+}
+
+export async function checkWechatPaymentProviderConfig() {
+  const payment = getWechatPaymentReadiness();
+  const oauth = getWechatOAuthReadiness();
+  const certificate = {
+    configured: payment.items.platformPublicKey || payment.items.platformCertificateAutoFetch,
+    ready: false,
+    mode: payment.items.platformPublicKey ? "manual_public_key" : "auto_fetch",
+    count: 0
+  };
+  if (!payment.configured) {
+    return {
+      provider: "wechat",
+      configured: false,
+      ready: false,
+      payment,
+      oauth,
+      certificate,
+      message: payment.message
+    };
+  }
+  if (payment.items.platformPublicKey) {
+    certificate.ready = true;
+  } else if (payment.items.platformCertificateAutoFetch) {
+    const serials = await fetchWechatPlatformCertificates();
+    certificate.count = serials.length;
+    certificate.ready = serials.length > 0;
+  }
+  return {
+    provider: "wechat",
+    configured: payment.configured,
+    ready: payment.configured && certificate.ready,
+    payment,
+    oauth,
+    certificate
+  };
 }
 
 export async function verifyWechatWebhook(headers: Headers, body: string) {

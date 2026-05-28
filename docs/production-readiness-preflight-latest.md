@@ -1,6 +1,6 @@
 # 生产验收状态报告
 
-生成时间：2026-05-28T06:19:28.286Z
+生成时间：2026-05-28T06:26:52.312Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 整体结果：基础通过：仍有真实外部链路等待输入或付费验收。
 完整可用：否
@@ -21,7 +21,7 @@
 | DeepSeek 写信闭环 | 待输入 | deepseek generation | 设置 XIABI_VERIFY_DEEPSEEK=1 会真实消耗一次生成额度。 |
 | 首次免费权益与导出 | 待输入 | first free entitlement and export | 设置 XIABI_VERIFY_DEEPSEEK=1 后会在同一会话内验证领取、权益流水和打印版导出。 |
 | 首次免费重复领取限制 | 待输入 | first free repeat guard | 设置 XIABI_VERIFY_DEEPSEEK=1 和 XIABI_VERIFY_REPEAT_FREE=1 后，会生成第二封信并验证重复免费领取被拒绝。 |
-| 微信支付下单 | 待输入 | wechat payment create | 设置 XIABI_VERIFY_PAYMENT_CREATE=1 后复验。 |
+| 微信支付下单 | 待输入 | wechat provider config, wechat payment create | 设置 XIABI_VERIFY_PAYMENT_CREATE=1 后复验。 |
 | 微信支付拉起审计链路 | 待输入 | wechat payment audit trail | 同一轮设置 XIABI_VERIFY_PAYMENT_CREATE=1、XIABI_VERIFY_ADMIN_USERNAME 和 XIABI_VERIFY_ADMIN_PASSWORD 后，会复验支付拉起尝试/结果已写入后台审计日志。 |
 | 微信付款回调与权益到账 | 待输入 | wechat paid order closure, paid entitlement idempotency | 完成真实付款后设置 XIABI_VERIFY_PAID_ORDER_ID，并可设置 XIABI_VERIFY_REQUIRE_WEBHOOK=1；脚本会复验重复补发不重复加权益。 |
 | 短信发送与手机号绑定 | 待输入 | sms provider config, sms send, sms bind | 先提供后台账号运行短信供应商自检；再设置 XIABI_VERIFY_SMS_PHONE 发送验证码，收到后设置 XIABI_VERIFY_SMS_CODE 复验绑定。 |
@@ -132,6 +132,7 @@ npm run verify:production:report
 - first free entitlement and export: skipped；set XIABI_VERIFY_DEEPSEEK=1 to verify first free entitlement and export
 - first free repeat guard: skipped；set XIABI_VERIFY_DEEPSEEK=1 and XIABI_VERIFY_REPEAT_FREE=1 to verify repeat guard
 - sms ownership propagation: skipped；set XIABI_VERIFY_DEEPSEEK=1 with SMS bind verification to check ownership propagation
+- wechat provider config: skipped；set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to run the no-order WeChat merchant certificate check
 - wechat payment create: skipped；set XIABI_VERIFY_PAYMENT_CREATE=1 to create a real unpaid WeChat H5 order
 - wechat payment audit trail: skipped；set XIABI_VERIFY_PAYMENT_CREATE=1 and admin verifier credentials to verify payment audit logs
 - wechat paid order closure: skipped；set XIABI_VERIFY_PAID_ORDER_ID after completing a real payment

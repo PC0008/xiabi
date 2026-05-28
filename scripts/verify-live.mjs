@@ -223,6 +223,12 @@ checks.push(await assertJson(
   (payload) => payload?.error?.code === "not_authenticated"
 ));
 checks.push(await assertJson(
+  "/api/public/admin/diagnostics/wechat-pay",
+  { method: "POST", headers: { "content-type": "application/json" } },
+  401,
+  (payload) => payload?.error?.code === "not_authenticated"
+));
+checks.push(await assertJson(
   "/api/public/admin/password",
   { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ currentPassword: "x", newPassword: "1234567890" }) },
   401,
@@ -352,6 +358,14 @@ if (process.env.XIABI_VERIFY_ADMIN_USERNAME && process.env.XIABI_VERIFY_ADMIN_PA
     (payload, response) => response.status === 502
       ? payload?.error?.code === "sms_provider_check_failed"
       : payload?.data?.smsProvider?.provider === "aliyun" && !JSON.stringify(payload).includes(process.env.XIABI_VERIFY_ADMIN_PASSWORD)
+  ));
+  checks.push(await assertJson(
+    "/api/public/admin/diagnostics/wechat-pay",
+    { method: "POST", headers: { "content-type": "application/json", cookie: adminCookie } },
+    [200, 502],
+    (payload, response) => response.status === 502
+      ? payload?.error?.code === "wechat_pay_provider_check_failed"
+      : payload?.data?.wechatPay?.provider === "wechat" && !JSON.stringify(payload).includes(process.env.XIABI_VERIFY_ADMIN_PASSWORD)
   ));
   checks.push(await assertJson(
     "/api/public/admin/orders?status=pending",

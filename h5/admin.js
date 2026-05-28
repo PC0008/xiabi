@@ -1050,9 +1050,11 @@ function statusClass(status) {
 function renderDiagnostics() {
   const diagnostics = adminState.lists.diagnostics || {};
   const smsProvider = diagnostics.smsProviderCheck || null;
+  const wechatPay = diagnostics.wechatPayCheck || null;
   const summary = diagnostics.summary || {};
   const groups = diagnostics.groups || [];
   const smsProviderClass = smsProvider ? statusClass(smsProvider.ready ? "ok" : "missing") : "";
+  const wechatPayClass = wechatPay ? statusClass(wechatPay.ready ? "ok" : "missing") : "";
   return layout(`
     <section class="section grid cols-3">
       ${metric("已就绪", summary.ok ?? 0, "可直接运行")}
@@ -1066,10 +1068,27 @@ function renderDiagnostics() {
           <div class="panel-desc">最后检查：${h(formatDate(diagnostics.generatedAt))}</div>
         </div>
         <div class="inline-actions">
+          <button class="secondary" data-action="check-wechat-pay">微信支付自检</button>
           <button class="secondary" data-action="check-sms-provider">短信供应商自检</button>
           <button class="secondary" data-action="refresh-diagnostics">刷新自检</button>
         </div>
       </div>
+      ${wechatPay ? `
+        <article class="diagnostic-card ${wechatPayClass} sms-provider-result">
+          <div class="diagnostic-head">
+            <div>
+              <div class="diagnostic-title">微信支付实时结果</div>
+              <div class="diagnostic-note">只检查商户证书、APIv3 Key、平台证书和授权配置，不创建订单。</div>
+            </div>
+            <span class="tag ${wechatPayClass}">${wechatPay.ready ? "可验签" : "需处理"}</span>
+          </div>
+          <div class="diagnostic-items">
+            <div class="diagnostic-item"><span>商户配置</span><strong class="${wechatPay.payment?.configured ? "ready" : "missing"}">${wechatPay.payment?.configured ? "已配置" : "缺失"}</strong></div>
+            <div class="diagnostic-item"><span>平台证书</span><strong class="${wechatPay.certificate?.ready ? "ready" : "missing"}">${wechatPay.certificate?.ready ? "可用" : "未确认"}</strong></div>
+            <div class="diagnostic-item"><span>公众号授权</span><strong class="${wechatPay.oauth?.configured ? "ready" : "optional"}">${wechatPay.oauth?.configured ? "已配置" : "未填"}</strong></div>
+          </div>
+        </article>
+      ` : ""}
       ${smsProvider ? `
         <article class="diagnostic-card ${smsProviderClass} sms-provider-result">
           <div class="diagnostic-head">
@@ -1458,6 +1477,17 @@ document.addEventListener("click", async (event) => {
       showToast("短信供应商自检已完成");
     } catch (error) {
       showToast(error.message || "短信供应商自检失败");
+    }
+  } else if (action === "check-wechat-pay") {
+    try {
+      const result = await window.XiabiStore.adminPost("/diagnostics/wechat-pay");
+      const diagnostics = adminState.lists.diagnostics || {};
+      adminState.lists.diagnostics = Object.assign({}, diagnostics, {
+        wechatPayCheck: result.wechatPay || result
+      });
+      showToast("微信支付自检已完成");
+    } catch (error) {
+      showToast(error.message || "微信支付自检失败");
     }
   } else if (action === "create-admin") {
     if (!canAdminWrite()) {

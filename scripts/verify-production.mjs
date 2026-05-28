@@ -128,8 +128,8 @@ function buildReadinessReport() {
     },
     {
       requirement: "微信支付下单",
-      status: readinessStatus(["wechat payment create"]),
-      evidence: ["wechat payment create"],
+      status: readinessStatus(["wechat provider config", "wechat payment create"]),
+      evidence: ["wechat provider config", "wechat payment create"],
       next: findCheck("wechat payment create")?.next || "设置 XIABI_VERIFY_PAYMENT_CREATE=1 后复验。"
     },
     {
@@ -966,6 +966,48 @@ async function verifyPaymentCreate() {
   addCheck("wechat payment create", "ok", { orderId: order.orderId, providerOrderNo: order.providerOrderNo });
 }
 
+async function verifyWechatProviderConfig() {
+  const admin = await adminLogin();
+  if (!admin) {
+    skipOrStrict("wechat provider config", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to run the no-order WeChat merchant certificate check");
+    return;
+  }
+  try {
+    const payload = await api("/api/public/admin/diagnostics/wechat-pay", { method: "POST" }, admin.cookie);
+    const wechatPay = payload.wechatPay || {};
+    if (!wechatPay.configured) {
+      addCheck("wechat provider config", "missing", {
+        provider: wechatPay.provider || "wechat",
+        reason: wechatPay.message || "WeChat Pay is not fully configured"
+      });
+      return;
+    }
+    if (!wechatPay.ready) {
+      addCheck("wechat provider config", "external_blocked", {
+        provider: wechatPay.provider || "wechat",
+        certificateMode: wechatPay.certificate?.mode || "",
+        certificateReady: wechatPay.certificate?.ready === true,
+        next: "check WeChat merchant private key, certificate serial number, APIv3 key, and platform certificate access"
+      });
+      return;
+    }
+    addCheck("wechat provider config", "ok", {
+      provider: wechatPay.provider || "wechat",
+      certificateMode: wechatPay.certificate?.mode || "",
+      oauthConfigured: wechatPay.oauth?.configured === true
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.code === "wechat_pay_provider_check_failed") {
+      addCheck("wechat provider config", "external_blocked", {
+        reason: error.message,
+        next: "check WeChat merchant private key, certificate serial number, APIv3 key, platform certificate, and product access"
+      });
+      return;
+    }
+    throw error;
+  }
+}
+
 async function verifyPaymentAuditTrail(orderId, expectedActions) {
   const admin = await adminLogin();
   if (!admin) {
@@ -1245,6 +1287,7 @@ await verifyProductProfileCrud();
 await verifyAdminDiagnostics();
 await verifySmsProviderConfig();
 await verifyDeepSeek();
+await verifyWechatProviderConfig();
 await verifyPaymentCreate();
 await verifyPaidOrderClosure();
 await verifySmsSend();

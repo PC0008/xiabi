@@ -1,6 +1,6 @@
 # 最终无外部费用预检报告
 
-生成时间：2026-05-28T06:19:28.758Z
+生成时间：2026-05-28T06:26:52.757Z
 整体结果：通过
 
 ## 检查项
@@ -19,9 +19,9 @@
 | check:bind-phone-unique | 通过 | 0.4s | 手机号绑定唯一性与冲突回查 |
 | check:payment-entitlement-safety | 通过 | 0.4s | 微信支付成功判定与权益发放安全门 |
 | verify:order-payment-switch | 通过 | 0.4s | 支付开关和续付边界 |
-| verify:live | 通过 | 29.4s | 线上入口/API 边界/截图巡检 |
-| verify:journey | 通过 | 37.1s | 移动端用户主流程旅程 |
-| verify:production | 通过 | 4.9s | 生产基础验收，不触发外部付费调用 |
+| verify:live | 通过 | 33.6s | 线上入口/API 边界/截图巡检 |
+| verify:journey | 通过 | 35.8s | 移动端用户主流程旅程 |
+| verify:production | 通过 | 4.8s | 生产基础验收，不触发外部付费调用 |
 | delivery:status | 通过 | 0.4s | 最终交付状态清单生成 |
 
 ## 输出文件

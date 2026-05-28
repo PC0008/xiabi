@@ -325,6 +325,21 @@ const requiredMarkers = [
     message: "production verification must run the no-send SMS provider sign/template check"
   },
   {
+    file: "server/src/routes/admin.ts",
+    marker: "diagnostics.wechat_pay_check",
+    message: "admin diagnostics must audit WeChat Pay provider checks"
+  },
+  {
+    file: "h5/admin.js",
+    marker: "check-wechat-pay",
+    message: "admin diagnostics UI must expose WeChat Pay provider checks"
+  },
+  {
+    file: "scripts/verify-production.mjs",
+    marker: "wechat provider config",
+    message: "production verification must run the no-order WeChat Pay provider check"
+  },
+  {
     file: "scripts/verify-production.mjs",
     marker: "wechat payment audit trail",
     message: "production verification must prove payment attempts are visible in audit logs"
