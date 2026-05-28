@@ -7,6 +7,7 @@ const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const outputPath = path.join(root, "docs", "final-preflight-latest.md");
 const readinessOutput = path.join(root, "docs", "production-readiness-preflight-latest.md");
 const deliveryOutput = path.join(root, "docs", "delivery-status-preflight-latest.md");
+const acceptanceInputsOutput = path.join(root, "docs", "final-acceptance-inputs-latest.md");
 
 const steps = [
   ["typecheck", ["run", "typecheck"], "服务端与静态前端类型/源码检查"],
@@ -26,6 +27,9 @@ const steps = [
   ["verify:journey", ["run", "verify:journey"], "移动端用户主流程旅程"],
   ["verify:production", ["run", "verify:production"], "生产基础验收，不触发外部付费调用", {
     XIABI_VERIFY_REPORT_PATH: readinessOutput
+  }],
+  ["acceptance:inputs", ["run", "acceptance:inputs"], "最终人工验收输入准备度清单，不触发外部付费调用", {
+    XIABI_ACCEPTANCE_PREFLIGHT_IN_PROGRESS: "1"
   }],
   ["delivery:status", ["run", "delivery:status"], "最终交付状态清单生成", {
     XIABI_DELIVERY_READINESS_PATH: readinessOutput,
@@ -80,6 +84,7 @@ function renderReport(results) {
     "",
     `- 预检报告：${path.relative(root, outputPath).replace(/\\/g, "/")}`,
     `- 生产基础验收报告：${path.relative(root, readinessOutput).replace(/\\/g, "/")}`,
+    `- 最终验收输入清单：${path.relative(root, acceptanceInputsOutput).replace(/\\/g, "/")}`,
     `- 预检交付状态清单：${path.relative(root, deliveryOutput).replace(/\\/g, "/")}`,
     "",
     "## 口径",

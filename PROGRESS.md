@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 最终预检链路继续收紧：`npm run verify:preflight` 现在会在生产基础验收后自动执行 `npm run acceptance:inputs`，并在 `docs/final-preflight-latest.md` 输出文件区列出 `docs/final-acceptance-inputs-latest.md`；这样最终无费用预检会同时刷新代码/部署/旅程状态、交付状态和人工验收输入准备度，避免最后交付前忘记检查后台账号、真实手机号、支付订单或 ASR 音频样本。
 - 最终验收输入检查补强：新增 `npm run acceptance:inputs`，只检查本机 verifier 输入准备度并生成 `docs/final-acceptance-inputs-latest.md`，覆盖后台账号、DeepSeek/MiniMax TTS、短信手机号/验证码、微信支付创建、真实已支付订单、ASR 音频样本和微信内 H5 语音人工验收前置项；脚本不打印真实账号、密码、手机号、订单号、密钥或音频路径，也不调用任何外部服务，方便最终交付时把人工验证清单一次性跑完。
 - 后台自检验收契约补强：`verify:production` 在提供后台账号后，会强制确认后台诊断响应包含 DeepSeek、微信支付、短信、MiniMax 说话、服务端 ASR、微信内语音、管理员安全、运行地址和业务闭环 9 个诊断组；避免最终验收只验证“能打开后台”，却漏掉新接入能力在后台不可诊断的问题。
 - 交付状态可追溯性再补强：`docs/delivery-status-latest.md` 现在会在正式真实联调结论下方附加“当前代码预检快照”，指向 `docs/final-preflight-latest.md`、`docs/production-readiness-preflight-latest.md` 和 `docs/delivery-status-preflight-latest.md`，明确区分“真实外部联调证据”和“当前代码无费用预检通过”，避免最后交付时把旧真实联调报告或基础预检报告互相误读。

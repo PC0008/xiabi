@@ -6,6 +6,7 @@ const outputPath = path.join(root, "docs", "final-acceptance-inputs-latest.md");
 const readinessPath = path.join(root, "docs", "production-readiness-latest.md");
 const deliveryPath = path.join(root, "docs", "delivery-status-latest.md");
 const preflightPath = path.join(root, "docs", "final-preflight-latest.md");
+const preflightInProgress = process.env.XIABI_ACCEPTANCE_PREFLIGHT_IN_PROGRESS === "1";
 
 const batches = [
   {
@@ -180,8 +181,8 @@ async function main() {
     `- 生产结论：${readiness.overall || "未读取到"}`,
     `- 完整可用：${readiness.complete || "未读取到"}`,
     `- 正式矩阵：已验证 ${readiness.verified || "0"} / 待输入 ${readiness.pendingInput || "0"} / 外部阻塞 ${readiness.externalBlocked || "0"} / 失败 ${readiness.failed || "0"}`,
-    `- 交付状态清单：${delivery.exists ? "已找到" : "缺少"}${delivery.generatedAt ? `，生成时间 ${delivery.generatedAt}` : ""}`,
-    `- 无外部费用预检：${preflight.exists ? "已找到" : "缺少"}${preflight.generatedAt ? `，生成时间 ${preflight.generatedAt}` : ""}`,
+    `- 交付状态清单：${preflightInProgress ? "本轮预检稍后刷新；当前文件" : delivery.exists ? "已找到" : "缺少"}${delivery.generatedAt ? `，生成时间 ${delivery.generatedAt}` : ""}`,
+    `- 无外部费用预检：${preflightInProgress ? "本轮预检执行中，最终报告将在本清单之后写入；当前文件" : preflight.exists ? "已找到" : "缺少"}${preflight.generatedAt ? `，生成时间 ${preflight.generatedAt}` : ""}`,
     "",
     "## 本机输入准备度",
     "",
