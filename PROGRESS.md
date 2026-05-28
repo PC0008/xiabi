@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 导出体验补强：同一次信件导出现在会同时生成可打印 HTML 和 UTF-8 文本版 `.txt`，用户端导出页新增“下载文本版”，后台文件流水也会记录 `letter_plain_text`；生产验收会校验文本版下载地址、内容和手机号绑定后的文件归属迁移。
 - MiniMax ASR 官方口径复核：2026-05-28 再次读取 MiniMax 官方文档索引 `https://platform.minimax.io/docs/llms.txt`，Speech API 仍只列 T2A HTTP/WebSocket/Async、Voice Cloning、Voice Design、Voice Management，未列 ASR/STT/Transcription；交付文档已补充来源说明，项目继续保留服务端 ASR 接入槽，不硬编码未公开 MiniMax 转写 URL。
 - 生产验收报告证据留存补强：`verify:production:report` 现在会输出“历史联调证据”区，保留此前 DeepSeek、首次免费/导出、MiniMax TTS、微信支付权限阻塞等真实联调痕迹；基础巡检不会再把这些证据从交付报告里冲掉，同时报告仍明确这些历史记录不能替代最终当前配置复验。
 - 生产验收脚本补强：`verify:production` 在提供 owner 后台账号时，会真实创建临时只读运营账号，验证登录、重置密码、旧会话失效、旧密码失效、停用账号、新会话失效和停用后不能登录，并把 `admin account controls` 纳入管理后台验收矩阵。

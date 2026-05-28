@@ -630,22 +630,33 @@ async function verifyDeepSeek() {
   if (!exported.downloadUrl || exported.fileType !== "print_html" || exported.contentType !== "text/html; charset=utf-8" || !String(exported.filename || "").endsWith(".html")) {
     throw new Error("Printable export did not return a download URL");
   }
+  if (!exported.textDownloadUrl || exported.textFileType !== "plain_text" || exported.textContentType !== "text/plain; charset=utf-8" || !String(exported.textFilename || "").endsWith(".txt")) {
+    throw new Error("Plain text export did not return a text download URL");
+  }
   const html = await fetch(exported.downloadUrl);
   if (!html.ok) throw new Error(`Printable export URL returned ${html.status}`);
   const text = await html.text();
   if (!text.includes("<article") || !text.includes("智多星整理")) {
     throw new Error("Printable export did not contain the expected letter HTML");
   }
+  const textFile = await fetch(exported.textDownloadUrl);
+  if (!textFile.ok) throw new Error(`Plain text export URL returned ${textFile.status}`);
+  const plainText = await textFile.text();
+  if (!plainText.includes("智多星整理") || plainText.length < 80) {
+    throw new Error("Plain text export did not contain the expected letter text");
+  }
   addCheck("first free entitlement and export", "ok", {
     letterId: claimedLetterId,
     entitlementId: firstFree.id,
-    objectKey: exported.objectKey
+    objectKey: exported.objectKey,
+    textObjectKey: exported.textObjectKey
   });
   deepSeekVerification = {
     cookie,
     letterId: claimedLetterId,
     entitlementId: firstFree.id,
-    exportObjectKey: exported.objectKey
+    exportObjectKey: exported.objectKey,
+    textExportObjectKey: exported.textObjectKey
   };
   if (process.env.XIABI_VERIFY_REPEAT_FREE === "1") {
     addCheck("first free repeat guard", "ok", {
@@ -823,6 +834,11 @@ async function verifySmsSend() {
         const file = (detail.files || []).find((item) => item.objectKey === deepSeekVerification.exportObjectKey);
         if (!file) throw new Error("SMS bind did not leave the exported file visible in admin letter detail");
         if (file.userId !== bind.userId) throw new Error("SMS bind did not propagate exported file ownership to the bound user");
+        if (deepSeekVerification.textExportObjectKey) {
+          const textFile = (detail.files || []).find((item) => item.objectKey === deepSeekVerification.textExportObjectKey);
+          if (!textFile) throw new Error("SMS bind did not leave the text export visible in admin letter detail");
+          if (textFile.userId !== bind.userId) throw new Error("SMS bind did not propagate text export ownership to the bound user");
+        }
         exportFileOwnershipChecked = true;
       }
       addCheck("sms ownership propagation", "ok", {

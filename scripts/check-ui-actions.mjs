@@ -100,6 +100,16 @@ const requiredMarkers = [
     message: "letter export file records must refresh ownership/status on repeated exports"
   },
   {
+    file: "server/src/routes/exports.ts",
+    marker: "letter_plain_text",
+    message: "letter exports must include a plain text file for direct saving and sharing"
+  },
+  {
+    file: "h5/app.js",
+    marker: "export-text",
+    message: "user export page must expose the plain text download action"
+  },
+  {
     file: "server/src/routes/orders.ts",
     marker: "wechat_pay_external_blocked",
     message: "WeChat product permission errors must be classified as external blockers"

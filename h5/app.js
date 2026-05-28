@@ -1022,6 +1022,7 @@ function renderExport() {
     ${!canExport && state.exportNotice ? `<div class="contact-note">${h(state.exportNotice)}</div>` : ""}
     <div class="export-actions">
       ${canExport ? `<button class="primary-btn" data-action="export-print">${uiIcon("download", "btn-svg")}打开打印版</button>` : `<button class="primary-btn disabled">${uiIcon("download", "btn-svg")}导出暂未开启</button>`}
+      ${canExport ? `<button class="secondary-btn" data-action="export-text">${uiIcon("doc", "btn-svg")}下载文本版</button>` : ""}
       <button class="secondary-btn" data-go="records">先保存到我的销售信</button>
     </div>
     ${commerceConfig.pdf_upsell_enabled !== false && commerceConfig.annual_enabled !== false ? `
@@ -2076,7 +2077,7 @@ document.addEventListener("click", async (event) => {
         render();
       }
     }
-  } else if (action === "export-print") {
+  } else if (action === "export-print" || action === "export-text") {
     if (!exportEnabled()) {
       state.exportNotice = "打印版导出暂未开启，请稍后再试。";
       render();
@@ -2093,7 +2094,8 @@ document.addEventListener("click", async (event) => {
       state.letter.exported = true;
       state.pendingLetter = false;
       persist();
-      if (result.downloadUrl) window.open(result.downloadUrl, "_blank");
+      const targetUrl = action === "export-text" ? (result.textDownloadUrl || result.downloadUrl) : result.downloadUrl;
+      if (targetUrl) window.open(targetUrl, "_blank");
       await loadAccountData();
       go("records");
     } catch (error) {

@@ -56,13 +56,22 @@ function buildPrintableLetterHtml(letter: typeof salesLetters.$inferSelect, para
 </html>`;
 }
 
-function safeExportFilename(letter: typeof salesLetters.$inferSelect) {
+function buildPlainTextLetter(letter: typeof salesLetters.$inferSelect, paragraphs: string[]) {
+  return [
+    letter.title,
+    `智多星整理 · ${letter.scene}场景`,
+    "",
+    ...paragraphs
+  ].join("\n\n");
+}
+
+function safeExportFilename(letter: typeof salesLetters.$inferSelect, extension = "html") {
   const title = String(letter.title || letter.id)
     .trim()
     .replace(/[\\/:*?"<>|]+/g, "-")
     .replace(/\s+/g, "-")
     .slice(0, 80) || letter.id;
-  return `${title}.html`;
+  return `${title}.${extension}`;
 }
 
 type GuestSession = typeof guestSessions.$inferSelect;
@@ -130,12 +139,19 @@ export const exportRoutes = new Hono()
     const content = parseJson<{ paragraphs?: string[] }>(letter.contentJson, {});
     const paragraphs = Array.isArray(content.paragraphs) ? content.paragraphs.map(String).filter(Boolean) : [];
     if (!paragraphs.length) return fail(c, "letter_not_ready", "这封销售信还没有可导出的正文，请先完成生成。", 409);
-    const body = buildPrintableLetterHtml(letter, paragraphs);
-    const filename = safeExportFilename(letter);
+    const htmlBody = buildPrintableLetterHtml(letter, paragraphs);
+    const textBody = buildPlainTextLetter(letter, paragraphs);
+    const filename = safeExportFilename(letter, "html");
+    const textFilename = safeExportFilename(letter, "txt");
     const objectKey = `exports/${sessionId}/${letter.id}.html`;
-    await storage.from(buckets.xiabiFiles).put(objectKey, new TextEncoder().encode(body), {
+    const textObjectKey = `exports/${sessionId}/${letter.id}.txt`;
+    await storage.from(buckets.xiabiFiles).put(objectKey, new TextEncoder().encode(htmlBody), {
       contentType: "text/html; charset=utf-8",
       contentDisposition: `inline; filename="${filename}"`
+    });
+    await storage.from(buckets.xiabiFiles).put(textObjectKey, new TextEncoder().encode(textBody), {
+      contentType: "text/plain; charset=utf-8",
+      contentDisposition: `attachment; filename="${textFilename}"`
     });
     await db.insert(files).values({
       id: crypto.randomUUID(),
@@ -155,7 +171,38 @@ export const exportRoutes = new Hono()
         status: "ready"
       }
     });
+    await db.insert(files).values({
+      id: crypto.randomUUID(),
+      tenantId: TENANT_ID,
+      userId: session.userId || null,
+      letterId: letter.id,
+      bucket: buckets.xiabiFiles.bucket_name,
+      objectKey: textObjectKey,
+      kind: "letter_plain_text",
+      status: "ready"
+    }).onConflictDoUpdate({
+      target: [files.bucket, files.objectKey],
+      set: {
+        userId: session.userId || null,
+        letterId: letter.id,
+        kind: "letter_plain_text",
+        status: "ready"
+      }
+    });
     await db.update(salesLetters).set({ exportedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }).where(eq(salesLetters.id, letter.id));
     const { downloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(objectKey, 3600);
-    return ok(c, { downloadUrl, objectKey, fileType: "print_html", contentType: "text/html; charset=utf-8", filename, expiresInSeconds: 3600 });
+    const { downloadUrl: textDownloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(textObjectKey, 3600);
+    return ok(c, {
+      downloadUrl,
+      objectKey,
+      fileType: "print_html",
+      contentType: "text/html; charset=utf-8",
+      filename,
+      textDownloadUrl,
+      textObjectKey,
+      textFileType: "plain_text",
+      textContentType: "text/plain; charset=utf-8",
+      textFilename,
+      expiresInSeconds: 3600
+    });
   });
