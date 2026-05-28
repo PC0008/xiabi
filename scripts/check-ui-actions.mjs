@@ -90,6 +90,11 @@ const requiredMarkers = [
     message: "admin audit log list must expose operator-friendly filters"
   },
   {
+    file: "h5/admin.js",
+    marker: "voice.transcribe_attempt",
+    message: "admin audit log filters must expose voice events"
+  },
+  {
     file: "server/src/routes/admin.ts",
     marker: "audit_filter_too_long",
     message: "admin audit log filters must be validated server-side"

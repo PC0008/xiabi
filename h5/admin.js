@@ -932,6 +932,10 @@ function renderLogs() {
             ["order.reconcile", "订单查单"],
             ["order.entitlement_rebuild", "权益补发"],
             ["payment_event.reprocess", "回调重处理"],
+            ["voice.speak_attempt", "语音播放尝试"],
+            ["voice.speak", "语音播放"],
+            ["voice.transcribe_attempt", "语音输入尝试"],
+            ["voice.transcribe", "语音输入"],
             ["feedback.submit", "反馈提交"],
             ["feedback.resolve", "反馈处理"],
             ["feedback.reopen", "反馈重开"]
@@ -948,6 +952,7 @@ function renderLogs() {
             ["generation_task", "生成任务"],
             ["order", "订单"],
             ["payment_webhook_event", "支付回调"],
+            ["voice", "语音服务"],
             ["feedback", "用户反馈"]
           ].map(([value, label]) => `<option value="${h(value)}" ${adminState.filters.logsTargetType === value ? "selected" : ""}>${h(label)}</option>`).join("")}
         </select>

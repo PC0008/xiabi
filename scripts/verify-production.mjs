@@ -541,7 +541,8 @@ async function verifyAdminDiagnostics() {
     ["/api/public/admin/feedback?status=open&limit=2&page=1", (payload) => Array.isArray(payload.feedback) && !!payload.pageInfo],
     ["/api/public/admin/feedback?status=resolved&limit=2&page=1", (payload) => Array.isArray(payload.feedback) && !!payload.pageInfo],
     ["/api/public/admin/audit-logs?limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
-    ["/api/public/admin/audit-logs?action=config.update&targetType=app_config&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo]
+    ["/api/public/admin/audit-logs?action=config.update&targetType=app_config&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
+    ["/api/public/admin/audit-logs?action=voice.transcribe_attempt&targetType=voice&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo]
   ];
   for (const [pathname, validate] of listChecks) {
     const payload = await api(pathname, {}, admin.cookie);
