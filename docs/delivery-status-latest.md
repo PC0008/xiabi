@@ -1,25 +1,25 @@
 # 最终交付状态清单
 
-生成时间：2026-05-28T04:58:37.979Z
+生成时间：2026-05-28T05:01:32.424Z
 来源报告：docs/production-readiness-latest.md
-来源报告生成时间：2026-05-28T04:58:24.985Z
+来源报告生成时间：2026-05-28T05:01:24.563Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 
 ## 当前结论
 
 - 完整可用：否
-- 整体结果：基础通过：仍有真实外部链路等待输入或付费验收。
+- 整体结果：未完成：存在外部阻塞项，需要商户、短信或语音供应商侧配合。
 - 已验证：5
-- 待输入：8
-- 外部阻塞：0
+- 待输入：7
+- 外部阻塞：1
 - 失败：0
 
 ## 剩余验收项
 
 | 能力 | 当前状态 | 下一步 |
 | --- | --- | --- |
+| 微信支付下单 | 外部阻塞 | 在微信支付商户平台产品中心开通 H5 支付；微信内支付还需要开通 JSAPI 支付并补齐公众号网页授权配置。 |
 | 管理后台登录与运营接口 | 待输入 | 设置 XIABI_VERIFY_ADMIN_USERNAME / XIABI_VERIFY_ADMIN_PASSWORD 后复验。 |
-| 微信支付下单 | 待输入 | 设置 XIABI_VERIFY_PAYMENT_CREATE=1 后复验。 |
 | 微信支付拉起审计链路 | 待输入 | 同一轮设置 XIABI_VERIFY_PAYMENT_CREATE=1、XIABI_VERIFY_ADMIN_USERNAME 和 XIABI_VERIFY_ADMIN_PASSWORD 后，会复验支付拉起尝试/结果已写入后台审计日志。 |
 | 微信付款回调与权益到账 | 待输入 | 完成真实付款后设置 XIABI_VERIFY_PAID_ORDER_ID，并可设置 XIABI_VERIFY_REQUIRE_WEBHOOK=1；脚本会复验重复补发不重复加权益。 |
 | 短信发送与手机号绑定 | 待输入 | 设置 XIABI_VERIFY_SMS_PHONE 发送验证码；收到后设置 XIABI_VERIFY_SMS_CODE 复验绑定。 |

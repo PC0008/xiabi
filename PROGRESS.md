@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 微信支付权限复验刷新：2026-05-28 组合运行 `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1`、`XIABI_VERIFY_PAYMENT_CREATE=1`、`XIABI_VERIFY_ALLOW_EXTERNAL_BLOCKED=1` 的 `npm run verify:production:report`，DeepSeek/权益/导出/TTS 继续通过，微信未支付订单真实请求返回 `wechat_pay_external_blocked`，订单 `737c439c-66fd-4560-acf1-0dd618f0fdb1`；正式报告当前为 5 项已验证、7 项待输入、1 项外部阻塞，阻塞点明确在微信商户平台开通 H5 支付或 JSAPI 支付产品权限。
+
 - 当前线上真实复验刷新：2026-05-28 运行 `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1` 的 `npm run verify:production:report` 通过，当前 Edgespark 线上配置已复验 DeepSeek 写信、首次免费权益、HTML/TXT/DOCX 导出、并发重复免费领取拦截和 MiniMax TTS；正式生产验收报告刷新为 5 项已验证、8 项待输入，交付状态清单已同步刷新。
 
 - 公开接口会话边界补强：新增 `npm run check:public-session-safety`，静态验证写信任务、短信、语音、订单支付/查单、导出、首次免费领取、手机号绑定、产品档案、反馈和微信授权等公开写入或外部调用接口都必须确认当前会话仍为 active，避免用户退出后旧 cookie 继续触发写数据、发短信、拉支付或调用语音/写信服务；该检查已纳入 `npm run verify:preflight`。
@@ -256,7 +258,7 @@
 - `npm run verify:production` 基础模式通过，已验证线上健康接口、公开配置、session logout 和产品档案 CRUD；真实短信、真实支付、真实 TTS/ASR、真实 DeepSeek 调用需显式设置对应环境变量后再执行。
 - 导出文件流水幂等补强已完成部署：`npm run build`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:production` 基础模式和部署后 `npm run verify:live` 均通过。
 - `XIABI_PRODUCTION_STRICT=1` 临时报告路径复验通过：命令按预期退出 1，并完整列出后台、DeepSeek、支付、短信、MiniMax TTS、ASR 等缺失验收输入，没有在第一个缺项提前中断。
-- `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1`、`XIABI_VERIFY_PAYMENT_CREATE=1`、`XIABI_VERIFY_ALLOW_EXTERNAL_BLOCKED=1` 的生产报告已刷新：DeepSeek、首次免费权益/导出、重复领取限制、MiniMax TTS、产品档案 CRUD 均通过；微信支付下单仍被商户产品权限外部阻塞。最新报告汇总为已验证 5 项、待输入 5 项、外部阻塞 1 项、失败 0 项。
+- `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1`、`XIABI_VERIFY_PAYMENT_CREATE=1`、`XIABI_VERIFY_ALLOW_EXTERNAL_BLOCKED=1` 的生产报告已刷新：DeepSeek、首次免费权益/导出、重复领取限制、MiniMax TTS、产品档案 CRUD 均通过；微信支付下单仍被商户产品权限外部阻塞。最新报告汇总为已验证 5 项、待输入 7 项、外部阻塞 1 项、失败 0 项。
 - 本地 Edgespark：`http://localhost:7775` 已启动并通过健康检查。
 - `node --check h5/app.js`、`node --check h5/admin.js` 通过。
 - 本地 API 验证：
