@@ -130,6 +130,16 @@ const requiredMarkers = [
     message: "letter exports must write audit events for operations traceability"
   },
   {
+    file: "server/src/routes/voice.ts",
+    marker: "voice_speak_rate_limited",
+    message: "voice TTS calls must be rate-limited before external provider calls"
+  },
+  {
+    file: "server/src/routes/voice.ts",
+    marker: "voice.transcribe",
+    message: "voice transcription calls must be audited for operations traceability"
+  },
+  {
     file: "h5/app.js",
     marker: "export-text",
     message: "user export page must expose the plain text download action"

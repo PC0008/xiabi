@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 语音接口风控补强：`/voice/speak` 和 `/voice/transcribe` 现在按会话做小时级频率限制，避免真实 MiniMax TTS/ASR 接入后被重复点击或异常调用放大成本；成功调用会写入 `voice.speak` / `voice.transcribe` 审计事件，记录配置状态、供应商、输入模式和音频大小摘要。
+
 - 导出风控补强：服务端导出接口新增同一会话每小时 20 次限制，命中后返回 `export_rate_limited`；每次成功导出会写入 `letter.export` 审计事件，记录 HTML/TXT/DOCX 三种文件对象，方便后台追踪导出行为并防止重复点击持续写存储。
 
 - 导出文件正式化补强：销售信导出现在除可打印 HTML 和 TXT 文本版外，会同步生成 `.docx` 文档版并写入文件流水 `letter_docx`；用户端导出页新增“下载文档版”，生产验收会校验 DOCX 下载地址、内容类型和 zip 文件头，手机号绑定后的文件归属验证也覆盖文档版。
