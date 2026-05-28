@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- MiniMax ASR 最新官方口径复核：2026-05-28 再次在线打开 MiniMax API Overview 与 `llms.txt`，Speech 导航和索引仍只列 T2A/T2A Async/Voice Cloning/Voice Design/Voice Management，未列独立 ASR/STT/Transcription；`docs/minimax-asr-status-2026-05-28.md` 已更新，项目继续保留可配置 ASR 接入位，不臆造 MiniMax 转写 URL。
 - 当前真实外部链路验收刷新：2026-05-28 线上显式验收通过 DeepSeek 写信、首次免费领取、HTML/TXT/DOCX 导出、重复免费领取拦截和 MiniMax TTS；本轮任务 `ecd8bebc-7885-4c5e-97f9-0d26892a73de`、信件 `a5793c9e-b27c-4d61-918f-2233163cdeb4`、权益 `3c00f693-a12a-4551-a9d8-d8f9239570a9`、TTS trace `0666f159d285e018a371a34c1a25a1d4`。微信下单真实请求仍返回商户产品权限外部阻塞，订单 `5971ed84-abeb-4cee-a701-8352101d129c`。
 - 公开外部错误提示收口：微信支付拉起失败和 DeepSeek 写信失败不再把供应商原始错误文本透给用户端；支付会返回保留订单/信件的恢复提示，写信任务失败统一显示稍后重试，原始错误只进入服务端日志，避免真实上线时暴露第三方接口细节。
 - 支付结果刷新风控补强：用户端刷新待支付订单结果前，会按会话检查 `order.payment_status_check` 审计事件，同一会话每小时最多 60 次微信查单刷新，超限返回 `payment_status_rate_limited`；刷新查单和刷新确认已支付都会进入后台审计，避免回调延迟时反复点击刷新放大微信查单成本。

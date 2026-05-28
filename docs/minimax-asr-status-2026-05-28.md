@@ -61,6 +61,16 @@ edgespark var set VOICE_ASR_VERIFIED=1 VOICE_INPUT_MODE=server VOICE_ASR_PROVIDE
 
 索引中没有出现 speech-to-text、ASR、transcription、audio transcription 等独立转写接口。因此当前交付口径保持不变：MiniMax TTS 已接；MiniMax ASR 不臆造 URL，继续等待 MiniMax 账号后台或官方支持给出真实转写 endpoint。
 
+## 2026-05-28 最新在线复核
+
+本轮再次在线打开 MiniMax 官方 API Overview 和官方 `llms.txt`：
+
+- API Overview 的 Speech 导航仍只列 `T2A`、`T2A Async`、`Voice Cloning`、`Voice Design`、`Voice Management`。
+- `llms.txt` 的 Speech 相关条目仍只包含 `speech-t2a-async-create`、`speech-t2a-async-query`、`speech-t2a-http`、`speech-t2a-websocket`、voice cloning、voice design、voice management。
+- 官方索引未列出独立 `ASR`、`STT`、`speech-to-text`、`transcription` 或 `audio transcription` 页面。
+
+因此当前代码和交付口径继续保持：MiniMax TTS 已真实接入；语音输入只保留可配置 ASR 接入位，拿到 MiniMax 账号实际转写 endpoint 并用音频样本跑通后，才允许设置 `VOICE_ASR_VERIFIED=1`。
+
 ## 官方来源
 
 - MiniMax API Overview: https://platform.minimax.io/docs/api-reference/api-overview
