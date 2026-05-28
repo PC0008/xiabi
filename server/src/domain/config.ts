@@ -3,7 +3,7 @@ import type { DrizzleD1Database } from "drizzle-orm/d1";
 import type { drizzleSchema } from "@defs";
 import { appConfig, tenants } from "@defs";
 import { ConfigScope, configScopes, defaultConfigByScope, TENANT_ID } from "./defaults";
-import { withTransientDbRetry } from "./db_retry";
+import { isTransientDbError, withTransientDbRetry } from "./db_retry";
 import { parseJson } from "./http";
 
 type Database = DrizzleD1Database<typeof drizzleSchema>;
@@ -56,7 +56,20 @@ async function getConfigScopes(db: Database, scopes: ConfigScope[]) {
 }
 
 export async function getPublicConfig(db: Database) {
-  const scopes = await getConfigScopes(db, ["home", "pricing", "guideStages", "system"]);
+  let scopes: Record<ConfigScope, { data: unknown; version: number; updatedAt: string | null }>;
+  try {
+    scopes = await getConfigScopes(db, ["home", "pricing", "guideStages", "system"]);
+  } catch (error) {
+    if (!isTransientDbError(error)) throw error;
+    console.warn("public_config_default_fallback", { reason: "transient_db_error" });
+    scopes = {
+      home: { data: defaultConfigByScope.home, version: 0, updatedAt: null },
+      pricing: { data: defaultConfigByScope.pricing, version: 0, updatedAt: null },
+      guideStages: { data: defaultConfigByScope.guideStages, version: 0, updatedAt: null },
+      system: { data: defaultConfigByScope.system, version: 0, updatedAt: null },
+      templates: { data: defaultConfigByScope.templates, version: 0, updatedAt: null }
+    };
+  }
   const home = scopes.home;
   const pricing = scopes.pricing;
   const guideStages = scopes.guideStages;
