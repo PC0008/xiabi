@@ -1,6 +1,6 @@
 # 生产验收状态报告
 
-生成时间：2026-05-28T01:05:49.753Z
+生成时间：2026-05-28T01:09:07.957Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 整体结果：基础通过：仍有真实外部链路等待输入或付费验收。
 完整可用：否
@@ -27,6 +27,17 @@
 | 手机号绑定后资产归属 | 待输入 | sms ownership propagation | 同一轮设置 XIABI_VERIFY_DEEPSEEK=1、XIABI_VERIFY_SMS_PHONE 和 XIABI_VERIFY_SMS_CODE，可复验绑定后信件和权益归属到手机号用户。 |
 | MiniMax 说话播放 | 待输入 | minimax tts | 设置 XIABI_VERIFY_TTS=1 会真实调用一次 MiniMax TTS。 |
 | 语音输入转写 | 待输入 | voice asr | MiniMax 官方 API 总览当前未列独立 ASR 端点；拿到可用 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验，兼容 JSON base64 和 OpenAI-compatible multipart。 |
+
+## 历史联调证据
+
+这些记录来自此前已执行的生产验收，用于防止基础巡检报告覆盖真实联调痕迹；它们不替代最终交付前的当前配置复验。
+
+| 能力 | 状态 | 证据 |
+| --- | --- | --- |
+| DeepSeek 写信 | 历史已跑通，最终交付前需按当前配置复验 | 任务 9b8d26e3-7693-4fea-9bff-519a73294201 / 信件 60ca6afd-e328-4a0b-b88f-e293a8c52848；任务 98055e89-2479-4168-8dbe-330bc3996f3d / 信件 7eb8602f-ee74-4942-b86a-1ad18f4ebb78 |
+| 首次免费权益、重复领取限制、打印版导出 | 历史已跑通，最终交付前需按当前配置复验 | 已通过 XIABI_VERIFY_DEEPSEEK=1、XIABI_VERIFY_REPEAT_FREE=1 的生产验收路径 |
+| MiniMax TTS 说话播放 | 历史已跑通，最终交付前需按当前配置复验 | speech-2.8-hd + hex 输出返回 audio/mp3，traceId 06665fa1c520e487c74987a4296b424a |
+| 微信支付下单 | 历史已确认代码可请求微信，当前阻塞在商户产品权限 | 微信返回商户产品权限未开通；需开通 H5 支付或 JSAPI 支付后复验真实小额付款 |
 
 ## 原始检查项
 

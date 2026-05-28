@@ -8,6 +8,28 @@ const checks = [];
 const reportArgIndex = process.argv.indexOf("--report");
 const reportPath = reportArgIndex >= 0 ? process.argv[reportArgIndex + 1] : process.env.XIABI_VERIFY_REPORT_PATH;
 let deepSeekVerification = null;
+const historicalEvidence = [
+  {
+    capability: "DeepSeek 写信",
+    status: "历史已跑通，最终交付前需按当前配置复验",
+    evidence: "任务 9b8d26e3-7693-4fea-9bff-519a73294201 / 信件 60ca6afd-e328-4a0b-b88f-e293a8c52848；任务 98055e89-2479-4168-8dbe-330bc3996f3d / 信件 7eb8602f-ee74-4942-b86a-1ad18f4ebb78"
+  },
+  {
+    capability: "首次免费权益、重复领取限制、打印版导出",
+    status: "历史已跑通，最终交付前需按当前配置复验",
+    evidence: "已通过 XIABI_VERIFY_DEEPSEEK=1、XIABI_VERIFY_REPEAT_FREE=1 的生产验收路径"
+  },
+  {
+    capability: "MiniMax TTS 说话播放",
+    status: "历史已跑通，最终交付前需按当前配置复验",
+    evidence: "speech-2.8-hd + hex 输出返回 audio/mp3，traceId 06665fa1c520e487c74987a4296b424a"
+  },
+  {
+    capability: "微信支付下单",
+    status: "历史已确认代码可请求微信，当前阻塞在商户产品权限",
+    evidence: "微信返回商户产品权限未开通；需开通 H5 支付或 JSAPI 支付后复验真实小额付款"
+  }
+];
 
 function addCheck(name, status, detail = {}) {
   checks.push({ name, status, ...detail });
@@ -170,6 +192,20 @@ function renderMarkdownReport(report) {
   ];
   for (const item of report.readiness.matrix) {
     lines.push(`| ${item.requirement} | ${statusLabel(item.status)} | ${item.evidence.join(", ")} | ${item.next || ""} |`);
+  }
+  if (Array.isArray(report.historicalEvidence) && report.historicalEvidence.length) {
+    lines.push(
+      "",
+      "## 历史联调证据",
+      "",
+      "这些记录来自此前已执行的生产验收，用于防止基础巡检报告覆盖真实联调痕迹；它们不替代最终交付前的当前配置复验。",
+      "",
+      "| 能力 | 状态 | 证据 |",
+      "| --- | --- | --- |"
+    );
+    for (const item of report.historicalEvidence) {
+      lines.push(`| ${item.capability} | ${item.status} | ${item.evidence} |`);
+    }
   }
   lines.push("", "## 原始检查项", "");
   for (const item of report.checks) {
@@ -929,7 +965,8 @@ const report = {
   strict,
   allowExternalBlocked,
   checks,
-  readiness
+  readiness,
+  historicalEvidence
 };
 await writeReport(report);
 if (failed.length) {
