@@ -726,7 +726,12 @@ function renderAuth() {
     <h1 class="auth-title">我是智多星</h1>
     <p class="auth-desc">开始体验后，智多星会通过几句对话帮你整理目标，并保存写好的销售信。</p>
     ${state.sessionNotice ? `<div class="contact-note">${h(state.sessionNotice)}</div>` : ""}
-    <div class="agreement"><span class="agree-dot"></span>我已阅读并同意《用户协议》和《隐私政策》</div>
+    <div class="agreement">
+      <span class="agree-dot"></span>我已阅读并同意
+      <button class="inline-link" data-go="agreement">《用户协议》</button>
+      和
+      <button class="inline-link" data-go="privacy">《隐私政策》</button>
+    </div>
     <button class="primary-btn" data-action="auth">${uiIcon("user", "btn-svg")}开始体验</button>
     ${homePage.allow_guest_preview === false ? "" : `<div class="look-around" data-action="guest">暂不登录，先看看</div>`}
   `);
@@ -1305,10 +1310,45 @@ function renderSettings() {
     </div>
     <div class="settings-card card">
       <button class="settings-action" data-go="feedback">${uiIcon("help")}帮助与反馈<span>${uiIcon("arrow", "tiny-arrow")}</span></button>
+      <button class="settings-action" data-go="agreement">${uiIcon("doc")}用户协议<span>${uiIcon("arrow", "tiny-arrow")}</span></button>
+      <button class="settings-action" data-go="privacy">${uiIcon("settings")}隐私政策<span>${uiIcon("arrow", "tiny-arrow")}</span></button>
       <button class="settings-action" data-action="clear-local-cache">${uiIcon("refresh")}清除本机缓存<span>${uiIcon("arrow", "tiny-arrow")}</span></button>
       <button class="settings-action danger" data-action="logout">${uiIcon("user")}退出当前登录<span>${uiIcon("arrow", "tiny-arrow")}</span></button>
     </div>
   `, { tab: "profile" });
+}
+
+function renderLegal(type) {
+  const isPrivacy = type === "privacy";
+  const title = isPrivacy ? "隐私政策" : "用户协议";
+  const updatedAt = "2026-05-28";
+  const sections = isPrivacy ? [
+    ["我们会收集什么", "为了保存销售信、订单和权益，我们会记录你的手机号绑定状态、对话回答、产品档案、生成结果、订单状态、反馈内容和必要的会话标识。"],
+    ["这些信息怎么使用", "这些信息只用于帮智多星整理销售信、保存你的内容、完成付款和权益发放、发送验证码、处理反馈与排查异常。"],
+    ["第三方服务", "短信发送、微信支付、语音播放或转写、写信生成可能由经过配置的第三方服务完成。密钥只保存在服务端，用户端不会读取这些密钥。"],
+    ["你的选择", "你可以不绑定手机号继续体验可用流程；绑定后，已保存的信件、订单和权益会归属到该手机号对应账号。你也可以在设置里清除本机缓存。"],
+    ["数据安全", "后台账号、支付回调、权益发放和导出下载都由服务端校验。我们不会把你的内容主动出售给无关第三方。"]
+  ] : [
+    ["服务内容", "下笔有元通过智多星帮助你整理目标、生成销售信、保存历史记录，并在你选择付费时提供单封解锁或年卡权益。"],
+    ["使用规则", "你需要保证提交的产品、客户和沟通内容真实、合法，不使用本服务生成侵犯他人权益、违法或误导性的内容。"],
+    ["生成内容", "生成结果用于销售表达参考。正式发送前，请你结合真实业务、价格、承诺和合规要求自行确认。"],
+    ["订单与权益", "付费权益以服务端订单流水和权益流水为准。支付成功后，如遇回调延迟，可在订单页刷新支付结果或联系后台处理。"],
+    ["服务变更", "后台可能根据运营需要调整首页文案、通话引导、价格权益、短信、语音、导出和支付入口；调整会通过服务端配置生效。"]
+  ];
+  return shell(`
+    ${topbar()}
+    <div class="legal-page">
+      <button class="mini-outline" data-go="${state.authed || state.guest ? "settings" : "auth"}">返回</button>
+      <h1 class="record-title">${title}</h1>
+      <p class="page-desc">生效日期：${updatedAt}</p>
+      ${sections.map(([heading, body]) => `
+        <section class="legal-section">
+          <h2>${heading}</h2>
+          <p>${body}</p>
+        </section>
+      `).join("")}
+    </div>
+  `, { tab: state.authed || state.guest ? "profile" : "" });
 }
 
 function renderMemory() {
@@ -1396,9 +1436,11 @@ function render() {
   else if (route === "orders") html = renderOrders();
   else if (route === "feedback") html = renderFeedback();
   else if (route === "settings") html = renderSettings();
+  else if (route === "agreement") html = renderLegal("agreement");
+  else if (route === "privacy") html = renderLegal("privacy");
   else if (route === "memory") html = renderMemory();
   else html = renderHome();
-  if (!state.authed && homePage.allow_guest_preview === false && route !== "auth") html = renderAuth();
+  if (!state.authed && homePage.allow_guest_preview === false && !["auth", "agreement", "privacy"].includes(route)) html = renderAuth();
   document.getElementById("app").innerHTML = html;
 }
 

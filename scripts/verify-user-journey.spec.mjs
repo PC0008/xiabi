@@ -45,6 +45,28 @@ test("user H5 call flow reaches confirmation without paid/external calls", async
   await expect(page.locator(".summary-card")).toBeVisible();
 });
 
+test("agreement and privacy pages are reachable from user entry points", async ({ page }) => {
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+
+  await page.locator('[data-go="agreement"]').click();
+  await expect(page.locator("h1", { hasText: "用户协议" })).toBeVisible();
+  await expect(page.locator(".legal-section", { hasText: "订单与权益" })).toBeVisible();
+  await page.locator('[data-go="auth"]').click();
+  await expect(page.locator('[data-action="auth"]')).toBeVisible();
+
+  await page.locator('[data-action="auth"]').click();
+  await page.goto(`${baseUrl}/index.html#settings`, { waitUntil: "domcontentloaded" });
+  await expect(page.locator("h1", { hasText: "设置" })).toBeVisible();
+  await page.locator('[data-go="privacy"]').click();
+  await expect(page.locator("h1", { hasText: "隐私政策" })).toBeVisible();
+  await expect(page.locator(".legal-section", { hasText: "第三方服务" })).toBeVisible();
+});
+
 test("product archive can be created, edited, and deleted", async ({ page }) => {
   await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
   await page.evaluate(() => {
