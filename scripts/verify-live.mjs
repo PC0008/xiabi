@@ -244,6 +244,34 @@ checks.push(await assertJson(
     : payload?.error?.code === "invalid_wechat_oauth_state"
 ));
 
+const logoutGuest = await fetch(`${baseUrl}/api/public/session/guest`, { method: "POST" });
+if (!logoutGuest.ok) throw new Error(`logout guard guest session returned ${logoutGuest.status}`);
+const loggedOutCookie = getCookie(logoutGuest.headers);
+if (!loggedOutCookie) throw new Error("logout guard guest session did not set a cookie");
+const logoutResponse = await fetch(`${baseUrl}/api/public/session/logout`, {
+  method: "POST",
+  headers: { cookie: loggedOutCookie }
+});
+if (!logoutResponse.ok) throw new Error(`logout guard session logout returned ${logoutResponse.status}`);
+const loggedOutHeaders = { "content-type": "application/json", cookie: loggedOutCookie };
+for (const [pathname, init] of [
+  ["/api/public/tasks", { method: "POST", headers: loggedOutHeaders, body: JSON.stringify({ answers: ["x".repeat(1201)] }) }],
+  ["/api/public/sms/send-code", { method: "POST", headers: loggedOutHeaders, body: JSON.stringify({ phone: "13800138000" }) }],
+  ["/api/public/users/bind-phone", { method: "POST", headers: loggedOutHeaders, body: JSON.stringify({ phone: "13800138000", code: "123456" }) }],
+  ["/api/public/voice/speak", { method: "POST", headers: loggedOutHeaders, body: JSON.stringify({ text: "测试" }) }],
+  ["/api/public/voice/transcribe", { method: "POST", headers: loggedOutHeaders, body: JSON.stringify({ text: "测试" }) }],
+  ["/api/public/orders", { method: "POST", headers: loggedOutHeaders, body: JSON.stringify({ productType: "annual" }) }],
+  ["/api/public/feedback", { method: "POST", headers: loggedOutHeaders, body: JSON.stringify({ category: "logout-guard", content: "测试" }) }],
+  ["/api/public/wechat/oauth/start?returnUrl=%2Findex.html%23orders", { headers: { cookie: loggedOutCookie } }]
+]) {
+  checks.push(await assertJson(
+    pathname,
+    init,
+    401,
+    (payload) => payload?.error?.code === "missing_session"
+  ));
+}
+
 if (process.env.XIABI_VERIFY_ADMIN_USERNAME && process.env.XIABI_VERIFY_ADMIN_PASSWORD) {
   const login = await fetch(`${baseUrl}/api/public/admin/login`, {
     method: "POST",
