@@ -15,6 +15,7 @@ npm run typecheck
 npm run build
 npm run check:env-contract
 npm run check:sensitive-output-safety
+npm run check:sms-code-safety
 npm run deploy:dry
 npm run deploy
 npm run verify:journey

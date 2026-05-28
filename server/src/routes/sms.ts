@@ -6,8 +6,9 @@ import { sendSmsCode, SmsProviderError } from "../adapters/sms";
 import { getAdminConfig } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, readJson } from "../domain/http";
+import { optionalSecret } from "../domain/runtime";
 import { getActiveSession } from "../domain/session";
-import { sha256 } from "../domain/security";
+import { hashSmsCode, sha256 } from "../domain/security";
 
 const RESEND_INTERVAL_MS = 60_000;
 const HOURLY_LIMIT = 5;
@@ -38,6 +39,10 @@ function createCode() {
   const value = new Uint32Array(1);
   crypto.getRandomValues(value);
   return String(100000 + (value[0] % 900000));
+}
+
+function smsCodePepper() {
+  return optionalSecret("SMS_CODE_PEPPER") || optionalSecret("ADMIN_PASSWORD_PEPPER");
 }
 
 function toTime(value: string) {
@@ -112,7 +117,7 @@ export const smsRoutes = new Hono()
       id: codeId,
       tenantId: TENANT_ID,
       phoneHash,
-      codeHash: await sha256(`sms:${phone}:${code}`),
+      codeHash: await hashSmsCode(phone, code, smsCodePepper()),
       status: "sending",
       expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString()
     });

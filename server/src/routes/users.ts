@@ -5,8 +5,9 @@ import { entitlementLedger, files, generationTasks, guestSessions, orders, produ
 import { getAdminConfig } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, readJson } from "../domain/http";
+import { optionalSecret } from "../domain/runtime";
 import { getActiveSession } from "../domain/session";
-import { sha256 } from "../domain/security";
+import { hashSmsCode, legacyHashSmsCode, sha256 } from "../domain/security";
 
 type BindPhoneBody = {
   phone?: string;
@@ -19,6 +20,10 @@ function normalizePhone(phone: string) {
 
 function maskPhone(phone: string) {
   return phone.replace(/^(\d{3})\d+(\d{4})$/, "$1****$2");
+}
+
+function smsCodePepper() {
+  return optionalSecret("SMS_CODE_PEPPER") || optionalSecret("ADMIN_PASSWORD_PEPPER");
 }
 
 async function findUserByPhoneHash(phoneHash: string) {
@@ -47,7 +52,8 @@ export const userRoutes = new Hono()
     }
 
     const phoneHash = await sha256(`phone:${phone}`);
-    const codeHash = await sha256(`sms:${phone}:${code}`);
+    const codeHash = await hashSmsCode(phone, code, smsCodePepper());
+    const legacyCodeHash = await legacyHashSmsCode(phone, code);
     const [row] = await db
       .select()
       .from(smsCodes)
@@ -65,7 +71,7 @@ export const userRoutes = new Hono()
       await db.update(smsCodes).set({ status: "expired" }).where(eq(smsCodes.id, row.id));
       return fail(c, "code_not_match", "验证码不正确或已过期。", 400);
     }
-    if (row.codeHash !== codeHash) {
+    if (row.codeHash !== codeHash && row.codeHash !== legacyCodeHash) {
       const nextAttempts = Number(row.attempts || 0) + 1;
       await db.update(smsCodes).set({
         attempts: sql`${smsCodes.attempts} + 1`,

@@ -14,6 +14,14 @@ export async function hashPassword(password: string, pepper = "") {
   return sha256(`xiabi-password:${password}:${pepper}`);
 }
 
+export async function hashSmsCode(phone: string, code: string, pepper = "") {
+  return sha256(`xiabi-sms-code:${phone}:${code}:${pepper}`);
+}
+
+export async function legacyHashSmsCode(phone: string, code: string) {
+  return sha256(`sms:${phone}:${code}`);
+}
+
 export async function hashToken(token: string) {
   return sha256(`xiabi-session:${token}`);
 }

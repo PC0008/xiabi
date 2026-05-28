@@ -38,6 +38,7 @@ export type SecretKey =
   | "WECHAT_MP_APP_SECRET"
   | "SMS_API_KEY"
   | "SMS_API_SECRET"
+  | "SMS_CODE_PEPPER"
   | "VOICE_API_KEY"
   | "VOICE_ASR_API_KEY"
   | "DEEPSEEK_API_KEY";

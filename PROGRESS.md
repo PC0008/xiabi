@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 短信验证码安全补强：新增 `SMS_CODE_PEPPER` 可选服务端密钥，新发送验证码改为带服务端 pepper 的哈希存储，并兼容短期旧验证码哈希校验；新增 `npm run check:sms-code-safety` 并纳入 `verify:preflight`，防止 6 位验证码哈希在数据库泄露后被离线枚举。
 - DOCX 导出验收补强：`verify:production` 在真实 DeepSeek/领取/导出链路中不再只检查 DOCX 是 zip 文件，还会解析包结构并验证 `[Content_Types].xml`、关系文件、`word/document.xml`、样式和 core metadata，降低最终交付时“下载到了文件但 Word 打不开”的风险；`check:ui` 已加入该验收标记。
 - 部署运行时契约补强：`server/src/defs/runtime.ts` 已补齐 `VOICE_ASR_*`、微信平台证书、公众号授权 secret 等正式接入变量；`npm run check:env-contract` 现在同时验证 `.env.example` 和运行时类型声明，避免后续 Edgespark 配置项“文档有、类型契约漏掉”。
 - 敏感输出安全门补强：新增 `npm run check:sensitive-output-safety`，静态验证公开支付、短信、写信和语音接口不会把供应商原始错误、验证码、密钥形态字段或后台密码泄露到用户端响应/审计详情；同时确认后台系统自检只返回“是否配置”的布尔结果，并把该检查纳入 `npm run verify:preflight`。
