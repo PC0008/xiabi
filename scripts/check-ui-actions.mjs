@@ -51,6 +51,11 @@ const requiredMarkers = [
   },
   {
     file: "server/src/routes/tasks.ts",
+    marker: "return ok(c, publicTask(task));",
+    message: "public task polling must not re-trigger generation work"
+  },
+  {
+    file: "server/src/routes/tasks.ts",
     marker: "answer_too_long",
     message: "public generation task creation must reject oversized answers before queuing"
   },
@@ -100,6 +105,11 @@ const requiredMarkers = [
     message: "SMS provider errors must be mapped to user-facing copy"
   },
   {
+    file: "server/src/routes/sms.ts",
+    marker: "status: \"replaced\"",
+    message: "sending a new SMS code must invalidate older pending codes for the same phone"
+  },
+  {
     file: "server/src/routes/admin.ts",
     marker: "requireOwnerOrFail",
     message: "high-risk admin mutations must require owner role"
@@ -123,6 +133,11 @@ const requiredMarkers = [
     file: "h5/app.js",
     marker: "maybeAutoSpeakCurrentPrompt",
     message: "call flow must auto-play configured assistant voice prompts"
+  },
+  {
+    file: "server/src/routes/voice.ts",
+    marker: "console.error(\"voice_transcribe_failed\"",
+    message: "public voice API must log provider details server-side instead of exposing raw errors"
   }
 ];
 

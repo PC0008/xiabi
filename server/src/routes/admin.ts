@@ -4,7 +4,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { adminSessions, adminUsers, auditLogs, buckets, entitlementLedger, files, generationTasks, guestSessions, orders, paymentWebhookEvents, productProfiles, salesLetters, users } from "@defs";
 import { generateSalesLetterWithDeepSeek, SalesLetterContent } from "../adapters/letter/deepseek";
-import { queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
+import { isExpectedWechatAppId, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { getAdminConfig, upsertConfigScope } from "../domain/config";
 import { ConfigScope, configScopes, TENANT_ID } from "../domain/defaults";
 import { activateOrderEntitlement, markOrderPaidAndGrantEntitlement } from "../domain/entitlements";
@@ -145,9 +145,8 @@ function validateStoredWechatTransaction(notification: StoredWechatNotification,
   if (transaction.trade_state !== "SUCCESS") throw new Error("unexpected_trade_state");
   if (transaction.out_trade_no !== order.providerOrderNo) throw new Error("out_trade_no_mismatch");
   if (!transaction.transaction_id) throw new Error("transaction_id_missing");
-  const expectedAppId = vars.get("WECHAT_PAY_APP_ID");
   const expectedMchId = vars.get("WECHAT_PAY_MCH_ID");
-  if (!expectedAppId || transaction.appid !== expectedAppId) throw new Error("appid_mismatch");
+  if (!isExpectedWechatAppId(transaction.appid)) throw new Error("appid_mismatch");
   if (!expectedMchId || transaction.mchid !== expectedMchId) throw new Error("mchid_mismatch");
   if (Number(transaction.amount?.total) !== Number(order.amountCents)) throw new Error("amount_mismatch");
   if (transaction.amount?.currency !== order.currency) throw new Error("currency_mismatch");
@@ -195,10 +194,11 @@ async function buildDiagnostics() {
           hasSecret("WECHAT_PAY_CERT_SERIAL_NO"),
           hasSecret("WECHAT_PAY_API_V3_KEY"),
           wechatPlatformVerifierConfigured
-        ], [hasVar("PAYMENT_PROVIDER"), !!publicBaseUrl, !!notifyUrl, hasSecret("WECHAT_MP_APP_SECRET")]),
+        ], [hasVar("PAYMENT_PROVIDER"), hasVar("WECHAT_MP_APP_ID" as any), !!publicBaseUrl, !!notifyUrl, hasSecret("WECHAT_MP_APP_SECRET")]),
         items: [
           diagnosticItem("PAYMENT_PROVIDER", hasVar("PAYMENT_PROVIDER"), false),
           diagnosticItem("WECHAT_PAY_APP_ID", hasVar("WECHAT_PAY_APP_ID")),
+          diagnosticItem("WECHAT_MP_APP_ID", hasVar("WECHAT_MP_APP_ID" as any), false),
         diagnosticItem("WECHAT_PAY_MCH_ID", hasVar("WECHAT_PAY_MCH_ID")),
         diagnosticItem("WECHAT_PAY_PRIVATE_KEY", hasSecret("WECHAT_PAY_PRIVATE_KEY")),
         diagnosticItem("WECHAT_PAY_CERT_SERIAL_NO", hasSecret("WECHAT_PAY_CERT_SERIAL_NO")),

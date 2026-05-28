@@ -188,7 +188,7 @@ function getMerchantAuthConfig() {
 }
 
 function getWechatOAuthConfig() {
-  const appId = vars.get("WECHAT_PAY_APP_ID");
+  const appId = getWechatMpAppId();
   const appSecret = secret.get("WECHAT_MP_APP_SECRET" as any);
   const baseUrl = (vars.get("PUBLIC_BASE_URL") || "").replace(/\/+$/, "");
   if (!appId || !appSecret || !baseUrl) return null;
@@ -225,9 +225,24 @@ export function getWechatPaymentReadiness() {
   };
 }
 
+export function getWechatPayAppId() {
+  return vars.get("WECHAT_PAY_APP_ID");
+}
+
+export function getWechatMpAppId() {
+  return String(vars.get("WECHAT_MP_APP_ID" as any) || vars.get("WECHAT_PAY_APP_ID") || "").trim();
+}
+
+export function isExpectedWechatAppId(appId?: string) {
+  const candidates = [getWechatPayAppId(), getWechatMpAppId()].filter(Boolean);
+  return !!appId && candidates.includes(appId);
+}
+
 export function getWechatOAuthReadiness() {
+  const mpAppId = getWechatMpAppId();
   const items = {
-    appId: !!vars.get("WECHAT_PAY_APP_ID"),
+    appId: !!mpAppId,
+    dedicatedMpAppId: !!vars.get("WECHAT_MP_APP_ID" as any),
     appSecret: !!secret.get("WECHAT_MP_APP_SECRET" as any),
     publicBaseUrl: !!vars.get("PUBLIC_BASE_URL")
   };
@@ -267,7 +282,7 @@ export async function verifyWechatOAuthState(value: string, sessionId = "") {
 }
 
 export async function exchangeWechatOAuthCode(code: string) {
-  const appId = vars.get("WECHAT_PAY_APP_ID");
+  const appId = getWechatMpAppId();
   const appSecret = secret.get("WECHAT_MP_APP_SECRET" as any);
   if (!appId || !appSecret) return { configured: false, message: "微信公众号授权配置还不完整。" };
   const url = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${encodeURIComponent(appId)}&secret=${encodeURIComponent(appSecret)}&code=${encodeURIComponent(code)}&grant_type=authorization_code`;
@@ -291,7 +306,7 @@ export async function createWechatPayment(input: CreateWechatPaymentInput) {
       message: readiness.message
     };
   }
-  const appId = vars.get("WECHAT_PAY_APP_ID");
+  const appId = getWechatPayAppId();
   const authConfig = getMerchantAuthConfig();
   if (!appId || !authConfig) {
     return {
@@ -350,7 +365,7 @@ export async function createWechatJsapiPayment(input: CreateWechatPaymentInput &
       message: readiness.message
     };
   }
-  const appId = vars.get("WECHAT_PAY_APP_ID");
+  const appId = getWechatMpAppId();
   const authConfig = getMerchantAuthConfig();
   if (!appId || !authConfig) {
     return {

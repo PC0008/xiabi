@@ -43,7 +43,8 @@ export const voiceRoutes = new Hono()
     try {
       return ok(c, await speakWithMiniMax(text));
     } catch (error) {
-      return fail(c, "voice_speak_failed", error instanceof Error ? error.message : "语音播放失败，请稍后再试。", 502);
+      console.error("voice_speak_failed", error);
+      return fail(c, "voice_speak_failed", "语音播放暂时不可用，请继续按住说话或切换打字模式。", 502);
     }
   })
   .post("/transcribe", async (c) => {
@@ -69,6 +70,7 @@ export const voiceRoutes = new Hono()
         mimeType: mimeType || rawMimeType || undefined
       }));
     } catch (error) {
-      return fail(c, "voice_transcribe_failed", error instanceof Error ? error.message : "语音识别失败，请稍后再试。", 502);
+      console.error("voice_transcribe_failed", error);
+      return fail(c, "voice_transcribe_failed", "这次没有听清楚，请再说一遍或切换打字模式。", 502);
     }
   });

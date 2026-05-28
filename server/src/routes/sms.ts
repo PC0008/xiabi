@@ -95,6 +95,11 @@ export const smsRoutes = new Hono()
     if (!result.configured) {
       return fail(c, "sms_not_configured", result.message || "短信服务还没有完成配置。", 503);
     }
+    await db.update(smsCodes).set({ status: "replaced" }).where(and(
+      eq(smsCodes.tenantId, TENANT_ID),
+      eq(smsCodes.phoneHash, phoneHash),
+      eq(smsCodes.status, "pending")
+    ));
     await db.insert(smsCodes).values({
       id: crypto.randomUUID(),
       tenantId: TENANT_ID,

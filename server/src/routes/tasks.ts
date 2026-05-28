@@ -104,7 +104,18 @@ function isStaleRunningTask(task: typeof generationTasks.$inferSelect) {
 
 async function processGenerationTask(task: typeof generationTasks.$inferSelect) {
   if (task.status === "succeeded" || task.status === "failed") return task;
-  if (task.status === "running" && !isStaleRunningTask(task)) return task;
+  if (task.status === "running") {
+    if (!isStaleRunningTask(task)) return task;
+    const [failedTask] = await db.update(generationTasks).set({
+      status: "failed",
+      progressJson: JSON.stringify({ percent: 0, stage: "failed", provider: "deepseek" }),
+      errorCode: "generation_worker_timeout",
+      errorMessage: "写信任务执行超时，请在后台确认后重试。",
+      updatedAt: new Date().toISOString()
+    }).where(and(eq(generationTasks.id, task.id), eq(generationTasks.status, "running"), eq(generationTasks.updatedAt, task.updatedAt))).returning();
+    return failedTask || task;
+  }
+  if (task.status !== "queued") return task;
 
   const { answers, input } = parseTaskInput(task);
   const templates = (await getConfigScope(db, "templates")).data;
@@ -112,10 +123,10 @@ async function processGenerationTask(task: typeof generationTasks.$inferSelect) 
 
   const [lockedTask] = await db.update(generationTasks).set({
     status: "running",
-    progressJson: JSON.stringify({ percent: 20, stage: task.status === "running" ? "resuming" : "writing", provider: "deepseek" }),
+    progressJson: JSON.stringify({ percent: 20, stage: "writing", provider: "deepseek" }),
     attempts: Number(task.attempts || 0) + 1,
     updatedAt: new Date().toISOString()
-  }).where(and(eq(generationTasks.id, task.id), eq(generationTasks.status, task.status), eq(generationTasks.updatedAt, task.updatedAt))).returning();
+  }).where(and(eq(generationTasks.id, task.id), eq(generationTasks.status, "queued"), eq(generationTasks.updatedAt, task.updatedAt))).returning();
   if (!lockedTask) {
     const [currentTask] = await db.select().from(generationTasks).where(eq(generationTasks.id, task.id)).limit(1);
     return currentTask || task;
@@ -256,6 +267,5 @@ export const taskRoutes = new Hono()
       .where(and(eq(generationTasks.id, c.req.param("id")), eq(generationTasks.sessionId, sessionId)))
       .limit(1);
     if (!task) return fail(c, "task_not_found", "没有找到生成任务。", 404);
-    const updated = await processGenerationTask(task);
-    return ok(c, publicTask(updated));
+    return ok(c, publicTask(task));
   });
