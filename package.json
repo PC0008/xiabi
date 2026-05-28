@@ -10,6 +10,7 @@
     "check:env-contract": "node scripts/check-env-contract.mjs",
     "check:admin-config-control": "node scripts/check-admin-config-control.mjs",
     "check:public-config-resilience": "node scripts/check-public-config-resilience.mjs",
+    "check:voice-input-contract": "node scripts/check-voice-input-contract.mjs",
     "check:sensitive-output-safety": "node scripts/check-sensitive-output-safety.mjs",
     "check:verification-retry-safety": "node scripts/check-verification-retry-safety.mjs",
     "check:final-delivery-safety": "node scripts/check-final-delivery-safety.mjs",

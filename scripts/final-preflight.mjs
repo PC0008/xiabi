@@ -18,6 +18,7 @@ const steps = [
   ["check:env-contract", ["run", "check:env-contract"], "服务端环境变量与部署样例契约"],
   ["check:admin-config-control", ["run", "check:admin-config-control"], "后台配置真实控制用户端和服务端"],
   ["check:public-config-resilience", ["run", "check:public-config-resilience"], "公开配置读取在 D1 瞬时过载时有默认兜底"],
+  ["check:voice-input-contract", ["run", "check:voice-input-contract"], "语音输入只走已验证 ASR 或微信 JS-SDK，不臆造 MiniMax 转写端点"],
   ["check:sensitive-output-safety", ["run", "check:sensitive-output-safety"], "供应商失败和敏感输出安全边界"],
   ["check:verification-retry-safety", ["run", "check:verification-retry-safety"], "生产验收重试仅限无请求体 GET/HEAD"],
   ["check:final-delivery-safety", ["run", "check:final-delivery-safety"], "最终交付报告拒绝无验收输入覆盖正式证据"],
