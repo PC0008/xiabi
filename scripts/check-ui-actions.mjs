@@ -380,6 +380,11 @@ const requiredMarkers = [
     message: "user H5 voice input must support WeChat JS-SDK speech translation"
   },
   {
+    file: "server/src/routes/admin.ts",
+    marker: "wechat_jssdk_voice",
+    message: "admin diagnostics must expose WeChat in-H5 voice readiness"
+  },
+  {
     file: "scripts/verify-production.mjs",
     marker: "wechat provider config",
     message: "production verification must run the no-order WeChat Pay provider check"

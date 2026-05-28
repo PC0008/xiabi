@@ -301,6 +301,17 @@ async function buildDiagnostics() {
       note: "浏览器不支持直接语音识别，或配置 VOICE_INPUT_MODE=server 时会走这里；支持 JSON base64 和 OpenAI-compatible multipart，真实音频验收通过并设置 VOICE_ASR_VERIFIED=1 后，用户端才会把服务端录音转写视为可用。MiniMax 官方 API 总览当前公开列出的是 T2A、T2A Async、Voice Cloning、Voice Design、Voice Management，未列出独立 ASR 端点；若要输入也走 MiniMax，需要先拿到账号后台实际转写 endpoint。"
     },
     {
+      key: "wechat_jssdk_voice",
+      title: "微信内语音输入",
+      status: diagnosticStatus([], [hasVar("WECHAT_MP_APP_ID") || hasVar("WECHAT_PAY_APP_ID"), hasOptionalSecret("WECHAT_MP_APP_SECRET"), !!publicBaseUrl]),
+      items: [
+        diagnosticItem("WECHAT_MP_APP_ID 或 WECHAT_PAY_APP_ID", hasVar("WECHAT_MP_APP_ID") || hasVar("WECHAT_PAY_APP_ID"), false),
+        diagnosticItem("WECHAT_MP_APP_SECRET", hasOptionalSecret("WECHAT_MP_APP_SECRET"), false),
+        diagnosticItem("PUBLIC_BASE_URL", !!publicBaseUrl, false)
+      ],
+      note: "微信内 H5 按住说话会在这些配置齐全后请求 JS-SDK 签名，并调用 startRecord / stopRecord / translateVoice；还需要在微信公众平台把当前域名加入 JS 接口安全域名。"
+    },
+    {
       key: "admin",
       title: "管理员安全",
       status: diagnosticStatus([!!adminUser, hasSecret("ADMIN_PASSWORD_PEPPER")], [hasVar("ADMIN_INITIAL_USERNAME"), hasSecret("ADMIN_INITIAL_PASSWORD")]),

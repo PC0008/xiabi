@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 后台微信内语音自检补强：系统自检新增“微信内语音输入”诊断组，展示 `WECHAT_MP_APP_ID`/`WECHAT_PAY_APP_ID`、`WECHAT_MP_APP_SECRET`、`PUBLIC_BASE_URL` 是否具备 JS-SDK 签名条件，并明确还需要在微信公众平台配置 JS 接口安全域名；该组只返回布尔状态，不请求微信、不暴露公众号 secret。
 - 微信内 H5 语音输入补强：新增 `/api/public/wechat/jssdk-config` 服务端签名接口和用户端微信 JS-SDK 录音识别通道；在微信内打开且 `WECHAT_MP_APP_SECRET`、`PUBLIC_BASE_URL`、JS 接口安全域名配置齐全时，按住说话会优先走微信 `startRecord` / `stopRecord` / `translateVoice`，普通浏览器仍保留 Web Speech 与服务端 ASR 接入槽；`verify:journey` 新增微信语音用例并已通过 11 条移动端旅程。
 - 语音输入自检补强：后台系统自检新增“语音输入自检”按钮和 `/api/public/admin/diagnostics/voice-asr` 接口，不上传音频、不调用外部服务，只检查 `VOICE_ASR_ENDPOINT`、服务端密钥、请求格式、输入模式和 `VOICE_ASR_VERIFIED` 状态，并写入 `diagnostics.voice_asr_check` 审计日志；生产验收在提供后台账号时会验证该接口和审计筛选，方便最终区分“差配置”还是“只差真实音频样本验收”。
 - 服务端 PDF 真实验收刷新：部署后已用 `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1`、`XIABI_VERIFY_PAYMENT_CREATE=1`、`XIABI_VERIFY_ALLOW_EXTERNAL_BLOCKED=1` 跑线上生产报告；DeepSeek 任务 `2f1276c9-27dd-48ae-a6c1-d80233bb3cb5`、信件 `94b10c3e-7e42-485f-a55b-825056c4de97`、权益 `cf47eeb4-3fd7-495e-b544-7c3b909ba39d` 已通过，PDF 对象 `exports/b2bb32c7-d5ca-462c-8ed6-5680f499efa9/94b10c3e-7e42-485f-a55b-825056c4de97.pdf` 结构校验通过，MiniMax TTS traceId `06672126eb2d4212baf3f782c29eaf42`，微信下单仍为商户产品权限外部阻塞，最新订单 `a05f761d-af67-4d00-a5a4-e354a943c3f9`；`docs/delivery-status-latest.md` 当前剩余 8 项。
