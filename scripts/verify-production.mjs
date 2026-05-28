@@ -111,6 +111,14 @@ function readinessStatus(names) {
   return "pending_input";
 }
 
+function readinessAnyStatus(options) {
+  const statuses = options.map((names) => readinessStatus(names));
+  if (statuses.includes("verified")) return "verified";
+  if (statuses.includes("external_blocked")) return "external_blocked";
+  if (statuses.every((status) => status === "failed")) return "failed";
+  return "pending_input";
+}
+
 function buildReadinessReport() {
   const matrix = [
     {
@@ -185,10 +193,13 @@ function buildReadinessReport() {
       next: "设置 XIABI_VERIFY_TTS=1 会真实调用一次 MiniMax TTS。"
     },
     {
-      requirement: "语音输入转写",
-      status: readinessStatus(["voice asr"]),
-      evidence: ["voice asr"],
-      next: "MiniMax 官方 API 总览当前未列独立 ASR 端点；拿到可用 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验，兼容 JSON base64 和 OpenAI-compatible multipart。"
+      requirement: "语音输入可用路径",
+      status: readinessAnyStatus([
+        ["voice asr"],
+        ["wechat voice jssdk config", "wechat voice phone manual"]
+      ]),
+      evidence: ["voice asr", "wechat voice jssdk config", "wechat voice phone manual"],
+      next: "服务端 ASR 路径需设置 XIABI_VERIFY_ASR_AUDIO；微信内 H5 路径需设置 XIABI_VERIFY_WECHAT_VOICE=1 验证 JS-SDK 签名，并在手机微信实测通过后设置 XIABI_VERIFY_WECHAT_VOICE_MANUAL=1。"
     }
   ];
   return {
@@ -1382,6 +1393,42 @@ async function verifyAsr() {
   });
 }
 
+async function verifyWechatVoiceInput() {
+  if (process.env.XIABI_VERIFY_WECHAT_VOICE !== "1") {
+    skipOrStrict("wechat voice jssdk config", "set XIABI_VERIFY_WECHAT_VOICE=1 after configuring WECHAT_MP_APP_SECRET and the WeChat JS security domain");
+    skipOrStrict("wechat voice phone manual", "after JS-SDK config passes, test press-to-talk in WeChat and set XIABI_VERIFY_WECHAT_VOICE_MANUAL=1");
+    return;
+  }
+  const voiceCapabilities = publicConfig?.capabilities?.voice || {};
+  if (voiceCapabilities.wechatJssdkConfigured !== true) {
+    throw new Error("public config does not report wechatJssdkConfigured=true");
+  }
+  const cookie = await createGuestSession();
+  const result = await api("/api/public/wechat/jssdk-config", {
+    method: "POST",
+    body: JSON.stringify({ url: `${baseUrl}/index.html` })
+  }, cookie);
+  const config = result.config || result;
+  const apis = config.jsApiList || [];
+  for (const apiName of ["startRecord", "stopRecord", "onVoiceRecordEnd", "translateVoice"]) {
+    if (!apis.includes(apiName)) throw new Error(`WeChat JS-SDK config missing ${apiName}`);
+  }
+  if (!config.configured || !config.appId || !config.timestamp || !config.nonceStr || !config.signature) {
+    throw new Error("WeChat JS-SDK config did not return a complete signed payload");
+  }
+  addCheck("wechat voice jssdk config", "ok", {
+    appId: config.appId,
+    jsApiList: apis
+  });
+  if (process.env.XIABI_VERIFY_WECHAT_VOICE_MANUAL === "1") {
+    addCheck("wechat voice phone manual", "ok", {
+      confirmedBy: "XIABI_VERIFY_WECHAT_VOICE_MANUAL"
+    });
+  } else {
+    skipOrStrict("wechat voice phone manual", "test press-to-talk in WeChat and set XIABI_VERIFY_WECHAT_VOICE_MANUAL=1");
+  }
+}
+
 await api("/api/public/health");
 addCheck("health", "ok");
 const publicConfig = await api("/api/public/config");
@@ -1407,6 +1454,7 @@ await verifyPaidOrderClosure();
 await verifySmsSend();
 await verifyTts();
 await verifyAsr();
+await verifyWechatVoiceInput();
 
 const failed = checks.filter((item) => ["missing", "failed", "external_blocked"].includes(item.status));
 const readiness = buildReadinessReport();

@@ -33,7 +33,9 @@ for (const envName of [
   "XIABI_VERIFY_SMS_CODE",
   "XIABI_VERIFY_PAYMENT_CREATE",
   "XIABI_VERIFY_PAID_ORDER_ID",
-  "XIABI_VERIFY_ASR_AUDIO"
+  "XIABI_VERIFY_ASR_AUDIO",
+  "XIABI_VERIFY_WECHAT_VOICE",
+  "XIABI_VERIFY_WECHAT_VOICE_MANUAL"
 ]) {
   requireIncludes(source, `"${envName}"`, `${envName} guard input`);
 }

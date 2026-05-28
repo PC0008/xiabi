@@ -55,7 +55,8 @@ for (const envName of [
   "XIABI_VERIFY_PAYMENT_CREATE",
   "XIABI_VERIFY_SMS_PHONE",
   "XIABI_VERIFY_TTS",
-  "XIABI_VERIFY_ASR_AUDIO"
+  "XIABI_VERIFY_ASR_AUDIO",
+  "XIABI_VERIFY_WECHAT_VOICE"
 ]) {
   const envIndex = production.indexOf(envName);
   if (envIndex === -1) fail(`missing production verifier env ${envName}`);

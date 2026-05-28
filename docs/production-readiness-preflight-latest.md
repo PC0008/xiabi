@@ -1,6 +1,6 @@
 # 生产验收状态报告
 
-生成时间：2026-05-28T09:15:46.622Z
+生成时间：2026-05-28T09:26:24.454Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 整体结果：基础通过：仍有真实外部链路等待输入或付费验收。
 完整可用：否
@@ -28,7 +28,7 @@
 | 短信发送审计链路 | 待输入 | sms audit trail | 同一轮设置 XIABI_VERIFY_SMS_PHONE、XIABI_VERIFY_ADMIN_USERNAME 和 XIABI_VERIFY_ADMIN_PASSWORD 后，会复验短信发送尝试/结果已写入后台审计日志。 |
 | 手机号绑定后资产归属 | 待输入 | sms ownership propagation | 同一轮设置 XIABI_VERIFY_DEEPSEEK=1、XIABI_VERIFY_SMS_PHONE 和 XIABI_VERIFY_SMS_CODE，可复验绑定后信件和权益归属到手机号用户。 |
 | MiniMax 说话播放 | 待输入 | minimax tts | 设置 XIABI_VERIFY_TTS=1 会真实调用一次 MiniMax TTS。 |
-| 语音输入转写 | 待输入 | voice asr | MiniMax 官方 API 总览当前未列独立 ASR 端点；拿到可用 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验，兼容 JSON base64 和 OpenAI-compatible multipart。 |
+| 语音输入可用路径 | 待输入 | voice asr, wechat voice jssdk config, wechat voice phone manual | 服务端 ASR 路径需设置 XIABI_VERIFY_ASR_AUDIO；微信内 H5 路径需设置 XIABI_VERIFY_WECHAT_VOICE=1 验证 JS-SDK 签名，并在手机微信实测通过后设置 XIABI_VERIFY_WECHAT_VOICE_MANUAL=1。 |
 
 ## 最终人工验证批次
 
@@ -141,3 +141,5 @@ npm run verify:production:report
 - sms audit trail: skipped；set XIABI_VERIFY_SMS_PHONE and admin verifier credentials to verify SMS audit logs
 - minimax tts: skipped；set XIABI_VERIFY_TTS=1 to call MiniMax TTS
 - voice asr: skipped；set XIABI_VERIFY_ASR_AUDIO to an audio file path after configuring a real VOICE_ASR_ENDPOINT
+- wechat voice jssdk config: skipped；set XIABI_VERIFY_WECHAT_VOICE=1 after configuring WECHAT_MP_APP_SECRET and the WeChat JS security domain
+- wechat voice phone manual: skipped；after JS-SDK config passes, test press-to-talk in WeChat and set XIABI_VERIFY_WECHAT_VOICE_MANUAL=1

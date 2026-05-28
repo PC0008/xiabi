@@ -108,14 +108,18 @@ const batches = [
   },
   {
     title: "微信内 H5 语音 JS-SDK 人工验收",
-    externalEffect: "不由本脚本自动调用；需要在手机微信中打开线上地址按住说话",
-    required: [],
-    optional: [],
+    externalEffect: "会调用微信 access_token/jsapi_ticket 接口做签名自检；手机按住说话仍需人工确认",
+    required: ["XIABI_VERIFY_WECHAT_VOICE"],
+    optional: ["XIABI_VERIFY_WECHAT_VOICE_MANUAL"],
     deployment: ["WECHAT_MP_APP_SECRET", "PUBLIC_BASE_URL", "微信公众平台 JS 接口安全域名"],
-    unlocks: ["微信内录音与 translateVoice 返回文字"],
+    unlocks: ["微信 JS-SDK 签名配置", "微信内录音与 translateVoice 返回文字"],
     command: [
-      "# 在手机微信打开线上用户端",
-      "# 按住说话，确认能返回真实文本并进入确认页"
+      '$env:XIABI_VERIFY_WECHAT_VOICE="1"',
+      "npm run verify:production:report",
+      "",
+      "# 在手机微信打开线上用户端，按住说话确认能返回真实文本并进入确认页后：",
+      '$env:XIABI_VERIFY_WECHAT_VOICE_MANUAL="1"',
+      "npm run verify:production:report"
     ]
   }
 ];

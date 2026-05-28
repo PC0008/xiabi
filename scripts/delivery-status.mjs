@@ -82,12 +82,21 @@ const manualBatches = [
     ]
   },
   {
-    title: "语音输入 ASR 样本",
+    title: "语音输入 ASR 样本与微信内按住说话",
     owner: "语音供应商/项目管理员",
-    needs: "可用 VOICE_ASR_ENDPOINT、真实音频样本、预期关键句；微信内 H5 还需要公众号 JS 接口安全域名已配置，并在微信里按住说话确认能返回文本",
+    needs: "服务端路径需要可用 VOICE_ASR_ENDPOINT、真实音频样本、预期关键句；微信内路径需要 WECHAT_MP_APP_SECRET、公众号 JS 接口安全域名，并在微信里按住说话确认能返回文本",
     command: [
+      "# 服务端 ASR 路径",
       '$env:XIABI_VERIFY_ASR_AUDIO="D:\\path\\to\\sample.wav"',
       '$env:XIABI_VERIFY_ASR_EXPECTED_TEXT="样本音频里应出现的关键句"',
+      "npm run verify:production:report",
+      "",
+      "# 微信内 H5 路径",
+      '$env:XIABI_VERIFY_WECHAT_VOICE="1"',
+      "npm run verify:production:report",
+      "",
+      "# 手机微信实测通过后",
+      '$env:XIABI_VERIFY_WECHAT_VOICE_MANUAL="1"',
       "npm run verify:production:report"
     ]
   }
@@ -242,6 +251,7 @@ async function main() {
     "- `npm run verify:production` 返回 `complete=true`，才表示目标进入完整真实运行状态。",
     "- `ok=true` 只代表本次执行的检查没有失败，不代表所有外部链路都已经验收。",
     "- MiniMax 官方当前未公开独立 ASR/STT 端点；只有拿到可用 `VOICE_ASR_ENDPOINT` 并通过真实音频样本后，才应设置 `VOICE_ASR_VERIFIED=1`。",
+    "- 微信内 H5 语音输入需要 `WECHAT_MP_APP_SECRET`、公众号 JS 接口安全域名和手机微信实测；仅拿到 JS-SDK 签名不等于已经完成手机端语音验收。",
     ""
   );
   await fs.writeFile(outputPath, lines.join("\n"), "utf8");

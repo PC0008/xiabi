@@ -1,6 +1,6 @@
 # 最终验收输入检查
 
-生成时间：2026-05-28T09:15:46.989Z
+生成时间：2026-05-28T09:26:24.924Z
 
 ## 当前报告快照
 
@@ -9,12 +9,12 @@
 - 完整可用：否
 - 正式矩阵：已验证 5 / 待输入 7 / 外部阻塞 1 / 失败 0
 - 交付状态清单：本轮预检稍后刷新；当前文件，生成时间 2026-05-28T08:04:51.075Z
-- 无外部费用预检：本轮预检执行中，最终报告将在本清单之后写入；当前文件，生成时间 2026-05-28T09:11:30.058Z
+- 无外部费用预检：本轮预检执行中，最终报告将在本清单之后写入；当前文件，生成时间 2026-05-28T09:15:47.422Z
 
 ## 本机输入准备度
 
 - 可直接执行的最终验收批次：0/7
-- 当前仍缺少的 verifier 输入：XIABI_VERIFY_ADMIN_USERNAME、XIABI_VERIFY_ADMIN_PASSWORD、XIABI_VERIFY_DEEPSEEK、XIABI_VERIFY_REPEAT_FREE、XIABI_VERIFY_TTS、XIABI_VERIFY_SMS_PHONE、XIABI_VERIFY_PAYMENT_CREATE、XIABI_VERIFY_PAID_ORDER_ID、XIABI_VERIFY_ASR_AUDIO
+- 当前仍缺少的 verifier 输入：XIABI_VERIFY_ADMIN_USERNAME、XIABI_VERIFY_ADMIN_PASSWORD、XIABI_VERIFY_DEEPSEEK、XIABI_VERIFY_REPEAT_FREE、XIABI_VERIFY_TTS、XIABI_VERIFY_SMS_PHONE、XIABI_VERIFY_PAYMENT_CREATE、XIABI_VERIFY_PAID_ORDER_ID、XIABI_VERIFY_ASR_AUDIO、XIABI_VERIFY_WECHAT_VOICE
 
 说明：本脚本只检查环境变量是否已准备，不打印任何真实账号、密码、手机号、订单号、密钥或音频路径，也不会调用外部服务。
 
@@ -117,13 +117,19 @@ npm run verify:production:report
 
 ### 微信内 H5 语音 JS-SDK 人工验收
 
-- 状态：需人工确认
-- 外部影响：不由本脚本自动调用；需要在手机微信中打开线上地址按住说话
-- 可验收能力：微信内录音与 translateVoice 返回文字
+- 状态：未就绪
+- 外部影响：会调用微信 access_token/jsapi_ticket 接口做签名自检；手机按住说话仍需人工确认
+- 可验收能力：微信 JS-SDK 签名配置、微信内录音与 translateVoice 返回文字
+- 必需输入：XIABI_VERIFY_WECHAT_VOICE（缺少）
+- 可选输入：XIABI_VERIFY_WECHAT_VOICE_MANUAL（缺少）
 - 线上/平台前置项：WECHAT_MP_APP_SECRET、PUBLIC_BASE_URL、微信公众平台 JS 接口安全域名
 
 ```powershell
-# 在手机微信打开线上用户端
-# 按住说话，确认能返回真实文本并进入确认页
+$env:XIABI_VERIFY_WECHAT_VOICE="1"
+npm run verify:production:report
+
+# 在手机微信打开线上用户端，按住说话确认能返回真实文本并进入确认页后：
+$env:XIABI_VERIFY_WECHAT_VOICE_MANUAL="1"
+npm run verify:production:report
 ```
 
