@@ -17,6 +17,7 @@ const steps = [
   ["check:admin-config-control", ["run", "check:admin-config-control"], "后台配置真实控制用户端和服务端"],
   ["check:sensitive-output-safety", ["run", "check:sensitive-output-safety"], "供应商失败和敏感输出安全边界"],
   ["check:verification-retry-safety", ["run", "check:verification-retry-safety"], "生产验收重试仅限无请求体 GET/HEAD"],
+  ["check:final-delivery-safety", ["run", "check:final-delivery-safety"], "最终交付报告拒绝无验收输入覆盖正式证据"],
   ["check:sms-code-safety", ["run", "check:sms-code-safety"], "短信验证码哈希安全边界"],
   ["check:generation-task-safety", ["run", "check:generation-task-safety"], "写信任务轮询与重试幂等安全门"],
   ["check:admin-permissions", ["run", "check:admin-permissions"], "后台高风险权限边界"],

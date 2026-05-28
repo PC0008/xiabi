@@ -10,6 +10,7 @@
     "check:admin-config-control": "node scripts/check-admin-config-control.mjs",
     "check:sensitive-output-safety": "node scripts/check-sensitive-output-safety.mjs",
     "check:verification-retry-safety": "node scripts/check-verification-retry-safety.mjs",
+    "check:final-delivery-safety": "node scripts/check-final-delivery-safety.mjs",
     "check:sms-code-safety": "node scripts/check-sms-code-safety.mjs",
     "check:generation-task-safety": "node scripts/check-generation-task-safety.mjs",
     "check:admin-permissions": "node scripts/check-admin-permissions.mjs",
