@@ -1,5 +1,5 @@
 import { db } from "edgespark";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { entitlementLedger, files, generationTasks, guestSessions, orders, productProfiles, salesLetters, smsCodes, users } from "@defs";
 import { getAdminConfig } from "../domain/config";
@@ -35,6 +35,15 @@ async function findUserByPhoneHash(phoneHash: string) {
   return user || null;
 }
 
+async function replaceOtherPendingSmsCodes(phoneHash: string, currentCodeId: string) {
+  await db.update(smsCodes).set({ status: "replaced" }).where(and(
+    eq(smsCodes.tenantId, TENANT_ID),
+    eq(smsCodes.phoneHash, phoneHash),
+    eq(smsCodes.status, "pending"),
+    ne(smsCodes.id, currentCodeId)
+  ));
+}
+
 export const userRoutes = new Hono()
   .post("/bind-phone", async (c) => {
     const activeSession = await getActiveSession(c);
@@ -63,6 +72,7 @@ export const userRoutes = new Hono()
     if (!row) {
       return fail(c, "code_not_match", "验证码不正确或已过期。", 400);
     }
+    await replaceOtherPendingSmsCodes(phoneHash, row.id);
     if (Number(row.attempts || 0) >= 5) {
       await db.update(smsCodes).set({ status: "locked" }).where(eq(smsCodes.id, row.id));
       return fail(c, "code_locked", "验证码错误次数过多，请重新获取。", 429);

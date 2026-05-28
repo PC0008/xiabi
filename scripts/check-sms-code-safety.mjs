@@ -27,6 +27,9 @@ requireNotIncludes(smsSource, "sha256(`sms:${phone}:${code}`)", "new SMS sends u
 requireIncludes(usersSource, "hashSmsCode(phone, code, smsCodePepper())", "peppered SMS hash on bind");
 requireIncludes(usersSource, "legacyHashSmsCode(phone, code)", "legacy SMS bind compatibility");
 requireIncludes(usersSource, "row.codeHash !== codeHash && row.codeHash !== legacyCodeHash", "SMS bind checks both new and legacy hashes");
+requireIncludes(usersSource, "async function replaceOtherPendingSmsCodes", "SMS bind sibling pending code replacement helper");
+requireIncludes(usersSource, "ne(smsCodes.id, currentCodeId)", "SMS bind keeps only the active code pending");
+requireIncludes(usersSource, "await replaceOtherPendingSmsCodes(phoneHash, row.id);", "SMS bind invalidates stale sibling pending codes before validation outcomes");
 requireNotIncludes(usersSource, "const codeHash = await sha256(`sms:${phone}:${code}`)", "bind route using raw enumerable SMS hash");
 
 console.log("[ok] SMS verification codes are stored with a server-side pepper while preserving short-lived legacy compatibility");
