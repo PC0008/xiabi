@@ -95,6 +95,11 @@ const requiredMarkers = [
     message: "letter exports must reject empty generated content instead of creating blank files"
   },
   {
+    file: "server/src/routes/exports.ts",
+    marker: "onConflictDoUpdate",
+    message: "letter export file records must refresh ownership/status on repeated exports"
+  },
+  {
     file: "server/src/routes/orders.ts",
     marker: "wechat_pay_external_blocked",
     message: "WeChat product permission errors must be classified as external blockers"

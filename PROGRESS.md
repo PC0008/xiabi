@@ -14,6 +14,7 @@
 - 微信支付外部阻塞识别补强：微信下单返回 `NO_AUTH`、商户无权限或产品权限未开通时，服务端会把订单标记为 `payment_failed` 并返回结构化错误 `wechat_pay_external_blocked`，生产验收据此标为 `external_blocked`，不再靠供应商中文报错字符串猜测。
 
 - 打印版导出正式化：服务端导出不再为没有正文的信件生成空白文件，返回 `letter_not_ready`；导出结果补充 `contentType` 和安全文件名，用户端内部动作从 `export-pdf` 改为 `export-print`，避免把当前可打印 HTML 误标成服务端直出 PDF。
+- 导出文件流水幂等补强：重复导出同一封信时，服务端现在会 upsert 文件记录并刷新 `userId`、`letterId`、`kind` 和 `status`，避免旧的游客导出流水在后续绑定手机号或重新导出后仍保留过期归属；`check:ui` 已加入回归标记。
 
 - MiniMax ASR 口径复核：已重新核对 MiniMax 官方 API Overview，Speech 目录仍只公开列出 T2A、T2A Async、Voice Cloning、Voice Design、Voice Management，未列独立 ASR/语音转文字端点；新增 `docs/minimax-asr-status-2026-05-28.md` 作为交付说明，项目继续保留可配置 ASR 接入槽，不臆造 MiniMax 转写 URL。
 
@@ -192,6 +193,7 @@
 - `npm run verify:live` 通过，线上入口、`store.js` 静态资源、配置接口、会话隔离、无信件下单限制和截图验收正常。
 - `npm run verify:journey` 通过，7 个手机端交互用例覆盖通话流程、产品档案增删改、语音输入降级/服务端转写、智多星自动说话和微信支付权限阻塞提示。
 - `npm run verify:production` 基础模式通过，已验证线上健康接口、公开配置、session logout 和产品档案 CRUD；真实短信、真实支付、真实 TTS/ASR、真实 DeepSeek 调用需显式设置对应环境变量后再执行。
+- 导出文件流水幂等补强已完成部署：`npm run build`、`npm run deploy:dry`、`npm run deploy`、`npm run verify:production` 基础模式和部署后 `npm run verify:live` 均通过。
 - `XIABI_PRODUCTION_STRICT=1` 临时报告路径复验通过：命令按预期退出 1，并完整列出后台、DeepSeek、支付、短信、MiniMax TTS、ASR 等缺失验收输入，没有在第一个缺项提前中断。
 - `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1`、`XIABI_VERIFY_PAYMENT_CREATE=1`、`XIABI_VERIFY_ALLOW_EXTERNAL_BLOCKED=1` 的生产报告已刷新：DeepSeek、首次免费权益/导出、重复领取限制、MiniMax TTS、产品档案 CRUD 均通过；微信支付下单仍被商户产品权限外部阻塞。最新报告汇总为已验证 5 项、待输入 5 项、外部阻塞 1 项、失败 0 项。
 - 本地 Edgespark：`http://localhost:7775` 已启动并通过健康检查。

@@ -146,7 +146,15 @@ export const exportRoutes = new Hono()
       objectKey,
       kind: "letter_print_html",
       status: "ready"
-    }).onConflictDoNothing();
+    }).onConflictDoUpdate({
+      target: [files.bucket, files.objectKey],
+      set: {
+        userId: session.userId || null,
+        letterId: letter.id,
+        kind: "letter_print_html",
+        status: "ready"
+      }
+    });
     await db.update(salesLetters).set({ exportedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }).where(eq(salesLetters.id, letter.id));
     const { downloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(objectKey, 3600);
     return ok(c, { downloadUrl, objectKey, fileType: "print_html", contentType: "text/html; charset=utf-8", filename, expiresInSeconds: 3600 });
