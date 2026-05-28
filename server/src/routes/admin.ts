@@ -3,12 +3,14 @@ import { and, desc, eq } from "drizzle-orm";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { adminSessions, adminUsers, auditLogs, buckets, entitlementLedger, files, generationTasks, guestSessions, orders, paymentWebhookEvents, productProfiles, salesLetters, users } from "@defs";
+import type { SecretKey, VarKey } from "@defs";
 import { generateSalesLetterWithDeepSeek, SalesLetterContent } from "../adapters/letter/deepseek";
 import { isExpectedWechatAppId, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { getAdminConfig, upsertConfigScope } from "../domain/config";
 import { ConfigScope, configScopes, TENANT_ID } from "../domain/defaults";
 import { activateOrderEntitlement, markOrderPaidAndGrantEntitlement } from "../domain/entitlements";
 import { fail, ok, parseJson, readJson } from "../domain/http";
+import { optionalSecret, optionalVar } from "../domain/runtime";
 import { createToken, daysFromNow, hashPassword, hashToken, isFuture } from "../domain/security";
 
 const ADMIN_COOKIE = "xiabi_admin_session";
@@ -58,16 +60,24 @@ type AdminConfigBody = {
 
 type DiagnosticStatus = "ok" | "warn" | "missing";
 
-function getVar(key: string) {
-  return String(vars.get(key as any) || "").trim();
+function getVar(key: VarKey) {
+  return String(vars.get(key) || "").trim();
 }
 
-function hasVar(key: string) {
+function hasVar(key: VarKey) {
   return !!getVar(key);
 }
 
-function hasSecret(key: string) {
-  return !!String(secret.get(key as any) || "").trim();
+function hasSecret(key: SecretKey) {
+  return !!String(secret.get(key) || "").trim();
+}
+
+function hasOptionalVar(key: string) {
+  return !!optionalVar(key);
+}
+
+function hasOptionalSecret(key: string) {
+  return !!optionalSecret(key);
 }
 
 function listLimit(c: any) {
@@ -168,8 +178,8 @@ async function buildDiagnostics() {
   const [adminUser] = await db.select().from(adminUsers).where(eq(adminUsers.tenantId, TENANT_ID)).limit(1);
   const publicBaseUrl = getVar("PUBLIC_BASE_URL");
   const notifyUrl = getVar("PAYMENT_NOTIFY_URL");
-  const voiceAsrSecretConfigured = hasSecret("VOICE_ASR_API_KEY") || hasSecret("VOICE_API_KEY");
-  const wechatPlatformVerifierConfigured = hasSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY") || (
+  const voiceAsrSecretConfigured = hasOptionalSecret("VOICE_ASR_API_KEY") || hasSecret("VOICE_API_KEY");
+  const wechatPlatformVerifierConfigured = hasOptionalSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY") || (
     hasVar("WECHAT_PAY_MCH_ID") &&
     hasSecret("WECHAT_PAY_PRIVATE_KEY") &&
     hasSecret("WECHAT_PAY_CERT_SERIAL_NO") &&
@@ -206,18 +216,18 @@ async function buildDiagnostics() {
           hasSecret("WECHAT_PAY_CERT_SERIAL_NO"),
           hasSecret("WECHAT_PAY_API_V3_KEY"),
           wechatPlatformVerifierConfigured
-        ], [hasVar("PAYMENT_PROVIDER"), hasVar("WECHAT_MP_APP_ID" as any), !!publicBaseUrl, !!notifyUrl, hasSecret("WECHAT_MP_APP_SECRET")]),
+        ], [hasVar("PAYMENT_PROVIDER"), hasVar("WECHAT_MP_APP_ID"), !!publicBaseUrl, !!notifyUrl, hasOptionalSecret("WECHAT_MP_APP_SECRET")]),
         items: [
           diagnosticItem("PAYMENT_PROVIDER", hasVar("PAYMENT_PROVIDER"), false),
           diagnosticItem("WECHAT_PAY_APP_ID", hasVar("WECHAT_PAY_APP_ID")),
-          diagnosticItem("WECHAT_MP_APP_ID", hasVar("WECHAT_MP_APP_ID" as any), false),
+          diagnosticItem("WECHAT_MP_APP_ID", hasVar("WECHAT_MP_APP_ID"), false),
         diagnosticItem("WECHAT_PAY_MCH_ID", hasVar("WECHAT_PAY_MCH_ID")),
         diagnosticItem("WECHAT_PAY_PRIVATE_KEY", hasSecret("WECHAT_PAY_PRIVATE_KEY")),
         diagnosticItem("WECHAT_PAY_CERT_SERIAL_NO", hasSecret("WECHAT_PAY_CERT_SERIAL_NO")),
           diagnosticItem("WECHAT_PAY_API_V3_KEY", hasSecret("WECHAT_PAY_API_V3_KEY")),
-          diagnosticItem("WECHAT_PAY_PLATFORM_PUBLIC_KEY", hasSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY"), false),
+          diagnosticItem("WECHAT_PAY_PLATFORM_PUBLIC_KEY", hasOptionalSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY"), false),
           diagnosticItem("wechat_platform_certificate_auto_fetch", wechatPlatformVerifierConfigured, false),
-          diagnosticItem("WECHAT_MP_APP_SECRET", hasSecret("WECHAT_MP_APP_SECRET"), false),
+          diagnosticItem("WECHAT_MP_APP_SECRET", hasOptionalSecret("WECHAT_MP_APP_SECRET"), false),
           diagnosticItem("PUBLIC_BASE_URL", !!publicBaseUrl, false),
           diagnosticItem("PAYMENT_NOTIFY_URL", !!notifyUrl, false)
         ],
@@ -259,15 +269,15 @@ async function buildDiagnostics() {
     {
       key: "voice_asr",
       title: "语音输入转写",
-      status: diagnosticStatus([hasVar("VOICE_ASR_ENDPOINT"), voiceAsrSecretConfigured], [hasVar("VOICE_ASR_PROVIDER"), hasVar("VOICE_ASR_MODEL"), hasVar("VOICE_ASR_REQUEST_FORMAT" as any), hasVar("VOICE_INPUT_MODE" as any), hasVar("VOICE_ASR_VERIFIED" as any)]),
+      status: diagnosticStatus([hasOptionalVar("VOICE_ASR_ENDPOINT"), voiceAsrSecretConfigured], [hasOptionalVar("VOICE_ASR_PROVIDER"), hasOptionalVar("VOICE_ASR_MODEL"), hasOptionalVar("VOICE_ASR_REQUEST_FORMAT"), hasOptionalVar("VOICE_INPUT_MODE"), hasOptionalVar("VOICE_ASR_VERIFIED")]),
       items: [
-        diagnosticItem("VOICE_ASR_ENDPOINT", hasVar("VOICE_ASR_ENDPOINT")),
+        diagnosticItem("VOICE_ASR_ENDPOINT", hasOptionalVar("VOICE_ASR_ENDPOINT")),
         diagnosticItem("VOICE_ASR_API_KEY 或 VOICE_API_KEY", voiceAsrSecretConfigured),
-        diagnosticItem("VOICE_ASR_PROVIDER", hasVar("VOICE_ASR_PROVIDER"), false),
-        diagnosticItem("VOICE_ASR_MODEL", hasVar("VOICE_ASR_MODEL"), false),
-        diagnosticItem("VOICE_ASR_REQUEST_FORMAT", hasVar("VOICE_ASR_REQUEST_FORMAT" as any), false),
-        diagnosticItem("VOICE_INPUT_MODE", hasVar("VOICE_INPUT_MODE" as any), false),
-        diagnosticItem("VOICE_ASR_VERIFIED", hasVar("VOICE_ASR_VERIFIED" as any), false)
+        diagnosticItem("VOICE_ASR_PROVIDER", hasOptionalVar("VOICE_ASR_PROVIDER"), false),
+        diagnosticItem("VOICE_ASR_MODEL", hasOptionalVar("VOICE_ASR_MODEL"), false),
+        diagnosticItem("VOICE_ASR_REQUEST_FORMAT", hasOptionalVar("VOICE_ASR_REQUEST_FORMAT"), false),
+        diagnosticItem("VOICE_INPUT_MODE", hasOptionalVar("VOICE_INPUT_MODE"), false),
+        diagnosticItem("VOICE_ASR_VERIFIED", hasOptionalVar("VOICE_ASR_VERIFIED"), false)
       ],
       note: "浏览器不支持直接语音识别，或配置 VOICE_INPUT_MODE=server 时会走这里；支持 JSON base64 和 OpenAI-compatible multipart，真实音频验收通过并设置 VOICE_ASR_VERIFIED=1 后，用户端才会把服务端录音转写视为可用。MiniMax 官方 API 总览当前公开列出的是 T2A、T2A Async、Voice Cloning、Voice Design、Voice Management，未列出独立 ASR 端点；若要输入也走 MiniMax，需要先拿到账号后台实际转写 endpoint。"
     },

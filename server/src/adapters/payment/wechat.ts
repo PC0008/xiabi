@@ -1,4 +1,5 @@
 import { secret, vars } from "edgespark";
+import { optionalSecret, optionalVar } from "../../domain/runtime";
 
 export type CreateWechatPaymentInput = {
   orderId: string;
@@ -189,7 +190,7 @@ function getMerchantAuthConfig() {
 
 function getWechatOAuthConfig() {
   const appId = getWechatMpAppId();
-  const appSecret = secret.get("WECHAT_MP_APP_SECRET" as any);
+  const appSecret = optionalSecret("WECHAT_MP_APP_SECRET");
   const baseUrl = (vars.get("PUBLIC_BASE_URL") || "").replace(/\/+$/, "");
   if (!appId || !appSecret || !baseUrl) return null;
   return { appId, appSecret, baseUrl };
@@ -207,14 +208,14 @@ function sanitizeOAuthReturnUrl(returnUrl: string) {
 export function getWechatPaymentReadiness() {
   const merchantAuthReady = !!vars.get("WECHAT_PAY_MCH_ID") && !!secret.get("WECHAT_PAY_CERT_SERIAL_NO") && !!secret.get("WECHAT_PAY_PRIVATE_KEY");
   const apiV3KeyReady = !!secret.get("WECHAT_PAY_API_V3_KEY");
-  const platformVerifierReady = !!secret.get("WECHAT_PAY_PLATFORM_PUBLIC_KEY" as any) || (merchantAuthReady && apiV3KeyReady);
+  const platformVerifierReady = !!optionalSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY") || (merchantAuthReady && apiV3KeyReady);
   const items = {
     appId: !!vars.get("WECHAT_PAY_APP_ID"),
     mchId: !!vars.get("WECHAT_PAY_MCH_ID"),
     privateKey: !!secret.get("WECHAT_PAY_PRIVATE_KEY"),
     certSerialNo: !!secret.get("WECHAT_PAY_CERT_SERIAL_NO"),
     apiV3Key: apiV3KeyReady,
-    platformPublicKey: !!secret.get("WECHAT_PAY_PLATFORM_PUBLIC_KEY" as any),
+    platformPublicKey: !!optionalSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY"),
     platformCertificateAutoFetch: merchantAuthReady && apiV3KeyReady,
     notifyUrl: !!(vars.get("PAYMENT_NOTIFY_URL") || vars.get("PUBLIC_BASE_URL"))
   };
@@ -230,7 +231,7 @@ export function getWechatPayAppId() {
 }
 
 export function getWechatMpAppId() {
-  return String(vars.get("WECHAT_MP_APP_ID" as any) || vars.get("WECHAT_PAY_APP_ID") || "").trim();
+  return String(vars.get("WECHAT_MP_APP_ID") || vars.get("WECHAT_PAY_APP_ID") || "").trim();
 }
 
 export function isExpectedWechatAppId(appId?: string) {
@@ -242,8 +243,8 @@ export function getWechatOAuthReadiness() {
   const mpAppId = getWechatMpAppId();
   const items = {
     appId: !!mpAppId,
-    dedicatedMpAppId: !!vars.get("WECHAT_MP_APP_ID" as any),
-    appSecret: !!secret.get("WECHAT_MP_APP_SECRET" as any),
+    dedicatedMpAppId: !!vars.get("WECHAT_MP_APP_ID"),
+    appSecret: !!optionalSecret("WECHAT_MP_APP_SECRET"),
     publicBaseUrl: !!vars.get("PUBLIC_BASE_URL")
   };
   return {
@@ -283,7 +284,7 @@ export async function verifyWechatOAuthState(value: string, sessionId = "") {
 
 export async function exchangeWechatOAuthCode(code: string) {
   const appId = getWechatMpAppId();
-  const appSecret = secret.get("WECHAT_MP_APP_SECRET" as any);
+  const appSecret = optionalSecret("WECHAT_MP_APP_SECRET");
   if (!appId || !appSecret) return { configured: false, message: "微信公众号授权配置还不完整。" };
   const url = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${encodeURIComponent(appId)}&secret=${encodeURIComponent(appSecret)}&code=${encodeURIComponent(code)}&grant_type=authorization_code`;
   const response = await fetch(url);
@@ -510,11 +511,11 @@ export async function verifyWechatWebhook(headers: Headers, body: string) {
   if (!Number.isFinite(timestampSeconds) || Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds) > 5 * 60) {
     return { verified: false, reason: "wechatpay_timestamp_out_of_range" };
   }
-  const expectedPlatformSerial = secret.get("WECHAT_PAY_PLATFORM_CERT_SERIAL_NO" as any) || vars.get("WECHAT_PAY_PLATFORM_CERT_SERIAL_NO" as any);
+  const expectedPlatformSerial = optionalSecret("WECHAT_PAY_PLATFORM_CERT_SERIAL_NO") || optionalVar("WECHAT_PAY_PLATFORM_CERT_SERIAL_NO");
   if (expectedPlatformSerial && serial !== expectedPlatformSerial) {
     return { verified: false, reason: "wechatpay_serial_mismatch" };
   }
-  const configuredPublicKey = secret.get("WECHAT_PAY_PLATFORM_PUBLIC_KEY" as any);
+  const configuredPublicKey = optionalSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY");
   const publicKey = configuredPublicKey || await fetchWechatPlatformCertificate(serial).catch(() => "");
   if (!publicKey) {
     return { verified: false, reason: "wechat_pay_platform_public_key_or_certificate_missing" };

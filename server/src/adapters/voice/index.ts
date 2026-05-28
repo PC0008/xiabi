@@ -1,4 +1,5 @@
 import { secret, vars } from "edgespark";
+import { optionalSecret, optionalVar } from "../../domain/runtime";
 
 export type VoiceTurnInput = {
   sessionId: string;
@@ -132,7 +133,7 @@ function extensionFromMime(mimeType: string) {
 }
 
 function resolveAsrRequestFormat(endpoint: string): AsrRequestFormat {
-  const configured = String(vars.get("VOICE_ASR_REQUEST_FORMAT" as any) || "").trim().toLowerCase();
+  const configured = optionalVar("VOICE_ASR_REQUEST_FORMAT").toLowerCase();
   if (configured === "openai" || configured === "multipart") return "openai";
   if (configured === "json") return "json";
   return endpoint.includes("/audio/transcriptions") ? "openai" : "json";
@@ -309,9 +310,9 @@ export async function processVoiceTurn(input: VoiceTurnInput) {
     };
   }
 
-  const configuredAsrEndpoint = vars.get("VOICE_ASR_ENDPOINT" as any);
-  const apiKey = secret.get("VOICE_ASR_API_KEY" as any) || secret.get("VOICE_API_KEY");
-  const asrProvider = vars.get("VOICE_ASR_PROVIDER" as any) || provider;
+  const configuredAsrEndpoint = optionalVar("VOICE_ASR_ENDPOINT");
+  const apiKey = optionalSecret("VOICE_ASR_API_KEY") || secret.get("VOICE_API_KEY");
+  const asrProvider = optionalVar("VOICE_ASR_PROVIDER") || provider;
   if (!configuredAsrEndpoint || !apiKey) {
     return {
       provider: asrProvider,
@@ -323,7 +324,7 @@ export async function processVoiceTurn(input: VoiceTurnInput) {
     };
   }
 
-  const model = vars.get("VOICE_ASR_MODEL" as any) || "";
+  const model = optionalVar("VOICE_ASR_MODEL");
   const mimeType = input.mimeType || "audio/webm";
   const groupId = String(vars.get("MINIMAX_GROUP_ID") || "").trim();
   const shouldUseMiniMaxGroupId = !!groupId && (

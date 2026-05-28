@@ -2,6 +2,7 @@ import { db, secret, vars } from "edgespark";
 import { Hono } from "hono";
 import { getPublicConfig } from "../domain/config";
 import { ok } from "../domain/http";
+import { optionalSecret, optionalVar } from "../domain/runtime";
 
 export const publicRoutes = new Hono()
   .get("/health", (c) =>
@@ -12,20 +13,20 @@ export const publicRoutes = new Hono()
     })
   )
   .get("/config", async (c) => {
-    const asrConfigured = !!String(vars.get("VOICE_ASR_ENDPOINT" as any) || "").trim() && !!(
-      String(secret.get("VOICE_ASR_API_KEY" as any) || "").trim() ||
-      String(secret.get("VOICE_API_KEY" as any) || "").trim()
+    const asrConfigured = !!optionalVar("VOICE_ASR_ENDPOINT") && !!(
+      optionalSecret("VOICE_ASR_API_KEY") ||
+      String(secret.get("VOICE_API_KEY") || "").trim()
     );
-    const asrVerified = asrConfigured && String(vars.get("VOICE_ASR_VERIFIED" as any) || "").trim() === "1";
+    const asrVerified = asrConfigured && optionalVar("VOICE_ASR_VERIFIED") === "1";
     return ok(c, {
       ...(await getPublicConfig(db)),
       capabilities: {
         voice: {
-          ttsConfigured: !!String(secret.get("VOICE_API_KEY" as any) || "").trim() && !!String(vars.get("MINIMAX_VOICE_ID") || "").trim(),
+          ttsConfigured: !!String(secret.get("VOICE_API_KEY") || "").trim() && !!String(vars.get("MINIMAX_VOICE_ID") || "").trim(),
           asrConfigured,
           asrVerified,
-          asrPreferred: String(vars.get("VOICE_INPUT_MODE" as any) || "").trim().toLowerCase() === "server" ||
-            String(vars.get("VOICE_ASR_PROVIDER" as any) || "").trim().toLowerCase() === "minimax"
+          asrPreferred: optionalVar("VOICE_INPUT_MODE").toLowerCase() === "server" ||
+            optionalVar("VOICE_ASR_PROVIDER").toLowerCase() === "minimax"
         }
       }
     });

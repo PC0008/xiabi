@@ -200,6 +200,16 @@ const requiredMarkers = [
     message: "public voice API must log provider details server-side instead of exposing raw errors"
   },
   {
+    file: "server/src/domain/runtime.ts",
+    marker: "optionalVar",
+    message: "optional provider runtime vars must be centralized so they do not block deploy"
+  },
+  {
+    file: "server/src/domain/runtime.ts",
+    marker: "optionalSecret",
+    message: "optional provider secrets must be centralized so they do not block deploy"
+  },
+  {
     file: "server/src/domain/session.ts",
     marker: "eq(guestSessions.status, \"active\")",
     message: "shared session guard must verify active session status"
