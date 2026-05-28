@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 微信回调审计补强：微信支付回调无效 JSON 现在会先落库为 failed 事件再返回 `invalid_payload`；已处理过的重复回调也必须先通过微信签名校验，验签通过后才返回 duplicate，避免伪重复请求绕过回调审计口径。
+
 - 微信查单补偿安全收紧：微信支付成功交易校验已集中到 `assertWechatPaidTransactionMatchesOrder`，用户侧查单、微信回调、后台回调重处理和后台订单“查单”共用同一套 appid/mchid/out_trade_no/transaction_id/金额/币种校验；后台查单遇到 SUCCESS 但字段不匹配时会返回 `wechat_transaction_mismatch`，不会补发权益。
 
 - 生产运行时配置契约补强：`WECHAT_MP_APP_ID` 已加入服务端必填 runtime 类型；`VOICE_ASR_*`、`VOICE_INPUT_MODE`、`WECHAT_MP_APP_SECRET`、微信平台验签公钥/序列号改为集中式 optional runtime 读取，避免这些待最终配置的外部接入位变成 Edgespark 部署硬阻塞；`check:ui` 新增回归标记避免后续可选配置读取再次散落。

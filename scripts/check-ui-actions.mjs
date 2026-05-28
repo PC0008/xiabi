@@ -230,6 +230,16 @@ const requiredMarkers = [
     message: "admin order reconciliation must not grant entitlement when WeChat transaction fields mismatch"
   },
   {
+    file: "server/src/routes/webhooks.ts",
+    marker: "invalid_json",
+    message: "invalid WeChat webhook payloads must be recorded before failing"
+  },
+  {
+    file: "server/src/routes/webhooks.ts",
+    marker: "event.status === \"processed\"",
+    message: "duplicate WeChat webhook events must still pass signature verification before duplicate ack"
+  },
+  {
     file: "server/src/routes/users.ts",
     marker: "ownershipUpdates",
     message: "phone binding must migrate session assets in a single batched ownership update"

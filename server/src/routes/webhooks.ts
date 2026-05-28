@@ -56,7 +56,21 @@ async function decryptWechatResource(resource: NonNullable<WechatNotification["r
 export const webhookRoutes = new Hono()
   .post("/wechat-pay", async (c) => {
     const payload = await c.req.text();
-    const notification = JSON.parse(payload || "{}") as WechatNotification;
+    let notification: WechatNotification;
+    try {
+      notification = JSON.parse(payload || "{}") as WechatNotification;
+    } catch {
+      await db.insert(paymentWebhookEvents).values({
+        id: crypto.randomUUID(),
+        tenantId: TENANT_ID,
+        provider: "wechat",
+        eventId: crypto.randomUUID(),
+        status: "failed",
+        payloadJson: payload || "",
+        errorMessage: "invalid_json"
+      });
+      return fail(c, "invalid_payload", "invalid payload", 400);
+    }
     const eventId = notification.id || crypto.randomUUID();
     const [insertedEvent] = await db.insert(paymentWebhookEvents).values({
       id: crypto.randomUUID(),
@@ -71,20 +85,22 @@ export const webhookRoutes = new Hono()
       .from(paymentWebhookEvents)
       .where(and(eq(paymentWebhookEvents.provider, "wechat"), eq(paymentWebhookEvents.eventId, eventId)))
       .limit(1);
-    if (event?.status === "processed") return ok(c, { received: true, duplicate: true });
     if (!event) return fail(c, "webhook_event_missing", "webhook event missing", 500);
+
+    const verified = await verifyWechatWebhook(c.req.raw.headers, payload);
+    if (!verified.verified) {
+      if (event.status !== "processed") {
+        await db.update(paymentWebhookEvents).set({ status: "failed", errorMessage: verified.reason }).where(eq(paymentWebhookEvents.id, event.id));
+      }
+      return fail(c, "invalid_signature", "invalid signature", 401);
+    }
+    if (event.status === "processed") return ok(c, { received: true, duplicate: true });
     if (!insertedEvent) {
       await db.update(paymentWebhookEvents).set({
         status: "received",
         payloadJson: payload || "{}",
         errorMessage: null
       }).where(eq(paymentWebhookEvents.id, event.id));
-    }
-
-    const verified = await verifyWechatWebhook(c.req.raw.headers, payload);
-    if (!verified.verified) {
-      await db.update(paymentWebhookEvents).set({ status: "failed", errorMessage: verified.reason }).where(eq(paymentWebhookEvents.id, event.id));
-      return fail(c, "invalid_signature", "invalid signature", 401);
     }
 
     try {
