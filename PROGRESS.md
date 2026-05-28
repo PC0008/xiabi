@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 语音输入最终验收口径补强：`verify:production` 的 ASR 样本验收现在不只检查服务端是否能把音频转成文字，还会确认公开配置已下发 `capabilities.voice.asrConfigured=true` 与 `capabilities.voice.asrVerified=true`；避免出现“后端接口能转写，但手机端仍因为 `VOICE_ASR_VERIFIED` 未部署而不能按住录音”的假通过。
 - 短信正式验收前置补强：新增阿里云短信供应商配置自检，不发送验证码，只调用 `GetSmsSign` / `GetSmsTemplate` 查询签名和模板审核状态；后台“系统自检”页新增“短信供应商自检”按钮，结果只展示签名/模板状态和关联签名，不显示 AccessKey 或 Secret，并写入 `diagnostics.sms_provider_check` 审计日志，方便最终真实手机号验收前先排除签名、模板、权限类问题。
 - 生产真实复验刷新：部署后已用真实外部调用重新跑 `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1`、`XIABI_VERIFY_PAYMENT_CREATE=1`、`XIABI_VERIFY_ALLOW_EXTERNAL_BLOCKED=1` 的 `verify:production:report`；DeepSeek 写信、首次免费权益/导出、重复免费拦截、MiniMax TTS 音色均通过，最新 MiniMax traceId `0667095d9530827b98445a208a557874`，微信支付仍阻塞于商户产品权限，最新未完成订单 `918417ab-8f3b-4f1a-bf7c-e684cd9d5ed6`；`docs/delivery-status-latest.md` 当前剩余 8 项。
 - Edgespark 部署契约修复：实际部署时发现 `server/src/defs/runtime.ts` 会被 CLI 作为“必填运行时键”校验，导致 `VOICE_ASR_*`、微信平台公钥/证书、公众号 secret、`SMS_CODE_PEPPER` 等最终验收或可选增强项误阻塞生产部署；已改为只让直接 `vars.get/secret.get` 的核心键进入类型联合，可选接入项继续保留在 `.env.example`、后台自检和生产验收脚本中。修复后 `npm run deploy` 已成功部署到 `https://immortal-sponge-1728.edgespark.app`，`npm run verify:live` 和基础 `npm run verify:production` 均通过。

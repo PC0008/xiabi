@@ -1168,11 +1168,19 @@ async function verifyAsr() {
       throw new Error(`ASR transcript did not include expected text. expected=${expectedText} transcript=${result.transcript}`);
     }
   }
+  const voiceCapabilities = publicConfig?.capabilities?.voice || {};
+  if (voiceCapabilities.asrConfigured !== true) {
+    throw new Error("ASR sample passed but public config does not report asrConfigured=true");
+  }
+  if (voiceCapabilities.asrVerified !== true) {
+    throw new Error("ASR sample passed but VOICE_ASR_VERIFIED=1 is not reflected in public config, so user recording fallback remains disabled");
+  }
   addCheck("voice asr", "ok", {
     provider: result.provider,
     requestFormat: result.requestFormat,
     transcriptLength: result.transcript.length,
-    expectedMatched: expectedText ? true : undefined
+    expectedMatched: expectedText ? true : undefined,
+    userRecordingEnabled: voiceCapabilities.asrVerified === true
   });
 }
 

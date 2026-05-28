@@ -130,6 +130,11 @@ const requiredMarkers = [
     message: "production export verification must inspect DOCX package structure"
   },
   {
+    file: "scripts/verify-production.mjs",
+    marker: "userRecordingEnabled",
+    message: "production ASR verification must prove the public user recording fallback is enabled"
+  },
+  {
     file: "server/src/routes/exports.ts",
     marker: "export_rate_limited",
     message: "letter exports must rate-limit repeated download generation"
