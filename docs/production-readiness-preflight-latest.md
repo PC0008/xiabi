@@ -1,6 +1,6 @@
 # 生产验收状态报告
 
-生成时间：2026-05-28T06:14:35.916Z
+生成时间：2026-05-28T06:19:28.286Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 整体结果：基础通过：仍有真实外部链路等待输入或付费验收。
 完整可用：否
@@ -24,7 +24,7 @@
 | 微信支付下单 | 待输入 | wechat payment create | 设置 XIABI_VERIFY_PAYMENT_CREATE=1 后复验。 |
 | 微信支付拉起审计链路 | 待输入 | wechat payment audit trail | 同一轮设置 XIABI_VERIFY_PAYMENT_CREATE=1、XIABI_VERIFY_ADMIN_USERNAME 和 XIABI_VERIFY_ADMIN_PASSWORD 后，会复验支付拉起尝试/结果已写入后台审计日志。 |
 | 微信付款回调与权益到账 | 待输入 | wechat paid order closure, paid entitlement idempotency | 完成真实付款后设置 XIABI_VERIFY_PAID_ORDER_ID，并可设置 XIABI_VERIFY_REQUIRE_WEBHOOK=1；脚本会复验重复补发不重复加权益。 |
-| 短信发送与手机号绑定 | 待输入 | sms send, sms bind | 设置 XIABI_VERIFY_SMS_PHONE 发送验证码；收到后设置 XIABI_VERIFY_SMS_CODE 复验绑定。 |
+| 短信发送与手机号绑定 | 待输入 | sms provider config, sms send, sms bind | 先提供后台账号运行短信供应商自检；再设置 XIABI_VERIFY_SMS_PHONE 发送验证码，收到后设置 XIABI_VERIFY_SMS_CODE 复验绑定。 |
 | 短信发送审计链路 | 待输入 | sms audit trail | 同一轮设置 XIABI_VERIFY_SMS_PHONE、XIABI_VERIFY_ADMIN_USERNAME 和 XIABI_VERIFY_ADMIN_PASSWORD 后，会复验短信发送尝试/结果已写入后台审计日志。 |
 | 手机号绑定后资产归属 | 待输入 | sms ownership propagation | 同一轮设置 XIABI_VERIFY_DEEPSEEK=1、XIABI_VERIFY_SMS_PHONE 和 XIABI_VERIFY_SMS_CODE，可复验绑定后信件和权益归属到手机号用户。 |
 | MiniMax 说话播放 | 待输入 | minimax tts | 设置 XIABI_VERIFY_TTS=1 会真实调用一次 MiniMax TTS。 |
@@ -127,6 +127,7 @@ npm run verify:production:report
 - admin account controls: skipped；set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to verify owner can manage admin accounts
 - admin config propagation: skipped；set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to verify admin config controls public config
 - admin config audit diff: skipped；set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to verify config update audit details
+- sms provider config: skipped；set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to run the no-send Aliyun sign/template check
 - deepseek generation: skipped；set XIABI_VERIFY_DEEPSEEK=1 to run a real generation
 - first free entitlement and export: skipped；set XIABI_VERIFY_DEEPSEEK=1 to verify first free entitlement and export
 - first free repeat guard: skipped；set XIABI_VERIFY_DEEPSEEK=1 and XIABI_VERIFY_REPEAT_FREE=1 to verify repeat guard

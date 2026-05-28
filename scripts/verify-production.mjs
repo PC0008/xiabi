@@ -146,9 +146,9 @@ function buildReadinessReport() {
     },
     {
       requirement: "短信发送与手机号绑定",
-      status: checkStatus("sms bind") === "ok" ? "verified" : readinessStatus(["sms send"]),
-      evidence: ["sms send", "sms bind"],
-      next: "设置 XIABI_VERIFY_SMS_PHONE 发送验证码；收到后设置 XIABI_VERIFY_SMS_CODE 复验绑定。"
+      status: checkStatus("sms bind") === "ok" ? "verified" : readinessStatus(["sms provider config", "sms send"]),
+      evidence: ["sms provider config", "sms send", "sms bind"],
+      next: "先提供后台账号运行短信供应商自检；再设置 XIABI_VERIFY_SMS_PHONE 发送验证码，收到后设置 XIABI_VERIFY_SMS_CODE 复验绑定。"
     },
     {
       requirement: "短信发送审计链路",
@@ -665,6 +665,49 @@ async function verifyAdminDiagnostics() {
     truncated: configAudit.detail.truncated,
     scopeCount: (configAudit.detail.scopes || []).length
   });
+}
+
+async function verifySmsProviderConfig() {
+  const admin = await adminLogin();
+  if (!admin) {
+    skipOrStrict("sms provider config", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to run the no-send Aliyun sign/template check");
+    return;
+  }
+  try {
+    const payload = await api("/api/public/admin/diagnostics/sms-provider", { method: "POST" }, admin.cookie);
+    const smsProvider = payload.smsProvider || {};
+    if (!smsProvider.configured) {
+      addCheck("sms provider config", "missing", {
+        provider: smsProvider.provider || "aliyun",
+        reason: smsProvider.message || "SMS provider is not fully configured"
+      });
+      return;
+    }
+    if (!smsProvider.ready) {
+      addCheck("sms provider config", "external_blocked", {
+        provider: smsProvider.provider || "aliyun",
+        signStatus: smsProvider.sign?.status,
+        templateStatus: smsProvider.template?.status,
+        next: "check Aliyun SMS sign and template approval before sending a real code"
+      });
+      return;
+    }
+    addCheck("sms provider config", "ok", {
+      provider: smsProvider.provider || "aliyun",
+      signStatus: smsProvider.sign?.status,
+      templateStatus: smsProvider.template?.status,
+      relatedSignName: smsProvider.template?.relatedSignName || ""
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.code === "sms_provider_check_failed") {
+      addCheck("sms provider config", "external_blocked", {
+        reason: error.message,
+        next: "check Aliyun SMS AccessKey, sign, template, and service activation status"
+      });
+      return;
+    }
+    throw error;
+  }
 }
 
 async function verifyAdminAccountControls(ownerAdmin) {
@@ -1200,6 +1243,7 @@ addCheck("public config", "ok", { voiceCapabilities: publicConfig.capabilities.v
 await verifySessionLogout();
 await verifyProductProfileCrud();
 await verifyAdminDiagnostics();
+await verifySmsProviderConfig();
 await verifyDeepSeek();
 await verifyPaymentCreate();
 await verifyPaidOrderClosure();

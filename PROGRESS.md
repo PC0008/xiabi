@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 短信最终验收口径补强：`verify:production` 现在会在提供后台账号时调用后台“短信供应商自检”，不发送验证码，先校验阿里云短信签名和模板是否配置/审核就绪；生产报告的“短信发送与手机号绑定”会把 `sms provider config` 纳入证据，避免最后真实手机号发码时才暴露签名、模板或产品权限问题。
 - 语音输入最终验收口径补强：`verify:production` 的 ASR 样本验收现在不只检查服务端是否能把音频转成文字，还会确认公开配置已下发 `capabilities.voice.asrConfigured=true` 与 `capabilities.voice.asrVerified=true`；避免出现“后端接口能转写，但手机端仍因为 `VOICE_ASR_VERIFIED` 未部署而不能按住录音”的假通过。
 - 短信正式验收前置补强：新增阿里云短信供应商配置自检，不发送验证码，只调用 `GetSmsSign` / `GetSmsTemplate` 查询签名和模板审核状态；后台“系统自检”页新增“短信供应商自检”按钮，结果只展示签名/模板状态和关联签名，不显示 AccessKey 或 Secret，并写入 `diagnostics.sms_provider_check` 审计日志，方便最终真实手机号验收前先排除签名、模板、权限类问题。
 - 生产真实复验刷新：部署后已用真实外部调用重新跑 `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1`、`XIABI_VERIFY_PAYMENT_CREATE=1`、`XIABI_VERIFY_ALLOW_EXTERNAL_BLOCKED=1` 的 `verify:production:report`；DeepSeek 写信、首次免费权益/导出、重复免费拦截、MiniMax TTS 音色均通过，最新 MiniMax traceId `0667095d9530827b98445a208a557874`，微信支付仍阻塞于商户产品权限，最新未完成订单 `918417ab-8f3b-4f1a-bf7c-e684cd9d5ed6`；`docs/delivery-status-latest.md` 当前剩余 8 项。

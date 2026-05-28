@@ -321,6 +321,11 @@ const requiredMarkers = [
   },
   {
     file: "scripts/verify-production.mjs",
+    marker: "sms provider config",
+    message: "production verification must run the no-send SMS provider sign/template check"
+  },
+  {
+    file: "scripts/verify-production.mjs",
     marker: "wechat payment audit trail",
     message: "production verification must prove payment attempts are visible in audit logs"
   },
