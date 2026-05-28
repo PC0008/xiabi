@@ -14,6 +14,7 @@ const steps = [
   ["check:ui", ["run", "check:ui"], "用户端/后台关键交互覆盖标记"],
   ["check:admin-permissions", ["run", "check:admin-permissions"], "后台高风险权限边界"],
   ["check:bind-phone-unique", ["run", "check:bind-phone-unique"], "手机号绑定唯一性与冲突回查"],
+  ["check:payment-entitlement-safety", ["run", "check:payment-entitlement-safety"], "微信支付成功判定与权益发放安全门"],
   ["verify:order-payment-switch", ["run", "verify:order-payment-switch"], "支付开关和续付边界"],
   ["verify:live", ["run", "verify:live"], "线上入口/API 边界/截图巡检"],
   ["verify:journey", ["run", "verify:journey"], "移动端用户主流程旅程"],

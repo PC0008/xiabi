@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 支付权益安全门补强：新增 `npm run check:payment-entitlement-safety`，静态验证微信付款成功必须严格匹配事件类型、交易状态、商户订单号、微信交易号、AppID、商户号、金额和币种；用户轮询、微信回调、后台补偿和回调重处理都必须先过该校验后才能发放权益，同时验证补发入口只允许已支付订单、权益流水使用订单维度幂等键。该检查已纳入 `npm run verify:preflight`。
+
 - 预检报告数据源隔离补强：`npm run verify:preflight` 现在会把无外部费用的生产基础验收写入 `docs/production-readiness-preflight-latest.md`，并基于该报告生成 `docs/delivery-status-preflight-latest.md`；正式交付用的 `docs/production-readiness-latest.md` 和 `docs/delivery-status-latest.md` 不会被基础预检覆盖，避免历史真实联调证据和当前无外部费用预检状态互相污染。
 - 最终无外部费用预检补强：新增 `npm run verify:preflight`，串行运行 typecheck、build、UI/权限/绑定/支付开关静态回归、线上 live 巡检、移动端 journey、生产基础验收和交付状态生成，并写入 `docs/final-preflight-latest.md`；该命令不会主动设置 DeepSeek、短信、微信支付、MiniMax TTS 或 ASR 的真实调用变量，用于最终人工验收前先确认代码、部署和主流程没有基础回归。
 - 交付清单可追溯性补强：`npm run delivery:status` 生成的 `docs/delivery-status-latest.md` 现在会写入来源生产验收报告的生成时间，README 也明确最终交付前应先运行 `npm run verify:production:report` 刷新报告，再生成交付状态清单，避免拿旧报告误判当前真实状态。
