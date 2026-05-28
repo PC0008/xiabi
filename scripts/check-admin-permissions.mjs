@@ -4,6 +4,7 @@ const source = fs.readFileSync("server/src/routes/admin.ts", "utf8");
 const sensitiveRoutes = [
   [".patch(\"/config\"", ".get(\"/dashboard\""],
   [".post(\"/admins\"", ".get(\"/config\""],
+  [".patch(\"/admins/:id\"", ".get(\"/config\""],
   [".post(\"/tasks/:id/retry\"", ".get(\"/orders\""],
   [".post(\"/orders/:id/reconcile\"", ".post(\"/orders/:id/rebuild-entitlement\""],
   [".post(\"/orders/:id/rebuild-entitlement\"", ".get(\"/orders/:id\""],

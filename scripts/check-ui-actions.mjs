@@ -130,9 +130,24 @@ const requiredMarkers = [
     message: "owner admins must be able to create read-only admin accounts"
   },
   {
+    file: "server/src/routes/admin.ts",
+    marker: ".patch(\"/admins/:id\"",
+    message: "owner admins must be able to disable or reset read-only admin accounts"
+  },
+  {
     file: "h5/admin.js",
     marker: "data-admin-field",
     message: "admin UI must expose account creation fields"
+  },
+  {
+    file: "h5/admin.js",
+    marker: "data-admin-reset-password",
+    message: "admin UI must expose account password reset controls"
+  },
+  {
+    file: "h5/store.js",
+    marker: "adminPatch",
+    message: "admin UI must support PATCH mutations"
   },
   {
     file: "h5/admin.js",

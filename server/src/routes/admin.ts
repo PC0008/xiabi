@@ -36,6 +36,12 @@ type AdminCreateBody = {
   password?: string;
 };
 
+type AdminUpdateBody = {
+  displayName?: string;
+  status?: string;
+  password?: string;
+};
+
 type FeedbackStatusBody = {
   status?: string;
   note?: string;
@@ -847,6 +853,55 @@ export const adminRoutes = new Hono()
     }).returning();
     await logAdmin(admin!.id, "admin.create", "admin_user", { username, displayName, role: "viewer" }, created.id);
     return ok(c, { admin: publicAdmin(created) });
+  })
+  .patch("/admins/:id", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireOwnerOrFail(c, admin);
+    if (denied) return denied;
+    const id = c.req.param("id");
+    const body = await readJson<AdminUpdateBody>(c);
+    const [target] = await db
+      .select()
+      .from(adminUsers)
+      .where(and(eq(adminUsers.tenantId, TENANT_ID), eq(adminUsers.id, id)))
+      .limit(1);
+    if (!target) return fail(c, "admin_not_found", "后台账号不存在。", 404);
+    if (target.role === "owner") return fail(c, "owner_account_protected", "Owner 账号不能在这里修改。", 403);
+
+    const updates: Partial<typeof adminUsers.$inferInsert> = { updatedAt: new Date().toISOString() };
+    const auditDetail: Record<string, unknown> = { username: target.username, role: target.role };
+    const displayName = body.displayName === undefined ? undefined : String(body.displayName || "").trim();
+    if (displayName !== undefined) {
+      if (!displayName) return fail(c, "missing_admin_display_name", "请输入显示名称。", 400);
+      if (displayName.length > 40) return fail(c, "admin_display_name_too_long", "显示名称最多 40 位。", 413);
+      updates.displayName = displayName;
+      auditDetail.displayName = displayName;
+    }
+
+    const status = body.status === undefined ? undefined : String(body.status || "").trim();
+    if (status !== undefined) {
+      if (!["active", "disabled"].includes(status)) return fail(c, "invalid_admin_status", "账号状态不正确。", 400);
+      updates.status = status;
+      auditDetail.status = status;
+    }
+
+    const password = body.password === undefined ? "" : String(body.password || "");
+    if (password) {
+      if (password.length < 10) return fail(c, "weak_password", "新密码至少需要 10 位。", 400);
+      if (password.length > ADMIN_PASSWORD_MAX_LENGTH) return fail(c, "admin_password_too_long", "密码长度超出限制。", 413);
+      const pepper = secret.get("ADMIN_PASSWORD_PEPPER");
+      if (!pepper) return fail(c, "admin_pepper_missing", "后台密码安全配置缺失。", 500);
+      updates.passwordHash = await hashPassword(password, pepper);
+      auditDetail.passwordReset = true;
+    }
+
+    if (Object.keys(updates).length === 1) return fail(c, "missing_admin_update", "没有需要修改的后台账号内容。", 400);
+    const [updated] = await db.update(adminUsers).set(updates).where(eq(adminUsers.id, target.id)).returning();
+    if (updates.status === "disabled" || updates.passwordHash) {
+      await db.delete(adminSessions).where(eq(adminSessions.adminId, target.id));
+    }
+    await logAdmin(admin!.id, "admin.update", "admin_user", auditDetail, target.id);
+    return ok(c, { admin: publicAdmin(updated) });
   })
   .get("/config", async (c) => {
     const admin = await requireAdmin(c);

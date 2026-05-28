@@ -289,6 +289,13 @@
     });
   }
 
+  async function adminPatch(path, body = {}) {
+    return apiFetch(`/admin${path}`, {
+      method: "PATCH",
+      body: JSON.stringify(body)
+    });
+  }
+
   function getAppState() {
     return {
       authed: readFlag(keys.authed),
@@ -400,6 +407,7 @@
     submitFeedback,
     adminFetch,
     adminPost,
+    adminPatch,
     getAppState,
     persistAppState,
     setAuthed,

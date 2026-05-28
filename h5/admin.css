@@ -608,6 +608,29 @@ button {
   cursor: not-allowed;
 }
 
+.inline-admin-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mini-input {
+  min-height: 30px;
+  width: 118px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 12px;
+}
+
+.muted-text {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .table-wrap {
   overflow-x: auto;
 }

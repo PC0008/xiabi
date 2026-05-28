@@ -118,6 +118,7 @@ const adminState = {
     displayName: "",
     password: ""
   },
+  adminResetPasswords: {},
   feedbackNotes: {},
   detail: null
 };
@@ -774,20 +775,32 @@ function renderUsers() {
 
 function renderAdmins() {
   const admins = adminState.lists.admins?.admins || [];
-  const rows = admins.map((item) => [
-    shortId(item.id),
-    item.username,
-    item.displayName || "-",
-    item.role === "owner" ? "owner" : "只读运营",
-    item.status,
-    formatDate(item.lastLoginAt),
-    formatDate(item.createdAt)
-  ]);
+  const rows = admins.map((item) => {
+    const canManage = canAdminWrite() && item.role !== "owner";
+    const resetValue = adminState.adminResetPasswords[item.id] || "";
+    const nextStatus = item.status === "active" ? "disabled" : "active";
+    return [
+      shortId(item.id),
+      item.username,
+      item.displayName || "-",
+      item.role === "owner" ? "owner" : "只读运营",
+      item.status === "active" ? "启用" : "停用",
+      formatDate(item.lastLoginAt),
+      formatDate(item.createdAt),
+      actionCell(canManage ? `
+        <div class="inline-admin-actions">
+          <button class="mini-action ${item.status === "active" ? "warn-action" : ""}" data-action="toggle-admin-status" data-admin-id="${h(item.id)}" data-admin-status="${h(nextStatus)}">${item.status === "active" ? "停用" : "启用"}</button>
+          <input class="mini-input" data-admin-reset-password="${h(item.id)}" type="password" value="${h(resetValue)}" placeholder="新密码" maxlength="256" autocomplete="new-password" />
+          <button class="mini-action" data-action="reset-admin-password" data-admin-id="${h(item.id)}">重置密码</button>
+        </div>
+      ` : `<span class="muted-text">${item.role === "owner" ? "Owner 保护" : "只读"}</span>`)
+    ];
+  });
   return layout(`
     <section class="section split">
       <div class="panel card">
         <div class="panel-head"><div><div class="panel-title">管理员列表</div><div class="panel-desc">只读运营账号可以查看数据和处理低风险反馈，不能改配置、查单、补权益或重处理回调。</div></div></div>
-        ${tableOnly(["ID", "账号", "显示名", "角色", "状态", "最近登录", "创建时间"], rows)}
+        ${tableOnly(["ID", "账号", "显示名", "角色", "状态", "最近登录", "创建时间", "操作"], rows)}
       </div>
       <div class="panel card">
         <div class="panel-head"><div><div class="panel-title">新增只读运营账号</div><div class="panel-desc">新账号创建后可用账号密码登录后台；初始密码请线下交接，后台不会回显。</div></div></div>
@@ -1365,6 +1378,41 @@ document.addEventListener("click", async (event) => {
     } catch (error) {
       showToast(error.message || "后台账号创建失败");
     }
+  } else if (action === "toggle-admin-status") {
+    if (!canAdminWrite()) {
+      showToast("当前账号没有权限修改后台账号");
+      return;
+    }
+    try {
+      await window.XiabiStore.adminPatch(`/admins/${actionTarget.dataset.adminId}`, {
+        status: actionTarget.dataset.adminStatus
+      });
+      adminState.lists.admins = await window.XiabiStore.adminFetch("/admins");
+      showToast(actionTarget.dataset.adminStatus === "active" ? "后台账号已启用" : "后台账号已停用");
+      render();
+    } catch (error) {
+      showToast(error.message || "后台账号状态修改失败");
+    }
+  } else if (action === "reset-admin-password") {
+    if (!canAdminWrite()) {
+      showToast("当前账号没有权限重置后台密码");
+      return;
+    }
+    const adminId = actionTarget.dataset.adminId;
+    const password = String(adminState.adminResetPasswords[adminId] || "");
+    if (password.length < 10) {
+      showToast("新密码至少需要 10 位");
+      return;
+    }
+    try {
+      await window.XiabiStore.adminPatch(`/admins/${adminId}`, { password });
+      delete adminState.adminResetPasswords[adminId];
+      adminState.lists.admins = await window.XiabiStore.adminFetch("/admins");
+      showToast("后台账号密码已重置");
+      render();
+    } catch (error) {
+      showToast(error.message || "后台账号密码重置失败");
+    }
   } else if (action === "close-detail") {
     adminState.detail = null;
     render();
@@ -1583,6 +1631,12 @@ document.addEventListener("input", (event) => {
   const adminField = event.target.dataset.adminField;
   if (adminField && adminField in adminState.adminCreate) {
     adminState.adminCreate[adminField] = event.target.value;
+    return;
+  }
+
+  const adminResetPassword = event.target.dataset.adminResetPassword;
+  if (adminResetPassword) {
+    adminState.adminResetPasswords[adminResetPassword] = event.target.value;
     return;
   }
 

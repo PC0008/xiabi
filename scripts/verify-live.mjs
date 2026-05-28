@@ -199,6 +199,12 @@ checks.push(await assertJson(
   (payload) => payload?.error?.code === "not_authenticated"
 ));
 checks.push(await assertJson(
+  "/api/public/admin/admins/not-authenticated",
+  { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: "disabled" }) },
+  401,
+  (payload) => payload?.error?.code === "not_authenticated"
+));
+checks.push(await assertJson(
   "/api/public/admin/login",
   {
     method: "POST",
