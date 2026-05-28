@@ -42,16 +42,23 @@ for (const envName of [
 
 requireIncludes(source, "const hasAnyFinalInput = verifierInputs.some(hasEnv);", "any verifier input guard");
 requireIncludes(source, "const allowBasicRefresh = process.env.XIABI_DELIVERY_FINAL_ALLOW_BASIC === \"1\";", "explicit basic refresh override");
+requireIncludes(source, "const formalReportPath = \"docs/production-readiness-latest.md\";", "formal production report path");
 requireIncludes(source, "if (!hasAnyFinalInput && !allowBasicRefresh)", "formal report refresh refusal branch");
 requireIncludes(source, "delivery:final refused to refresh formal production reports without final verifier inputs.", "operator-facing refusal message");
 requireIncludes(source, "run npm run verify:preflight for a no-cost basic check", "safe no-cost alternative guidance");
 requireIncludes(source, "process.exit(2);", "distinct refusal exit code");
+requireIncludes(source, "function formalReportComplete()", "formal report completion parser");
+requireIncludes(source, "/^完整可用：是$/m.test(markdown)", "formal report complete=true gate");
 
 requireIncludes(source, "runStep(\"verify:production:report\", [\"run\", \"verify:production:report\"])", "production report refresh step");
 requireIncludes(source, "runStep(\"delivery:status\", [\"run\", \"delivery:status\"])", "delivery status refresh step");
 requireIncludes(source, "runStep(\"acceptance:inputs\", [\"run\", \"acceptance:inputs\"])", "acceptance input refresh step");
 requireBefore(source, "verify:production:report", "delivery:status", "final delivery report order");
 requireBefore(source, "delivery:status", "acceptance:inputs", "final delivery status before inputs");
-requireIncludes(source, "process.exit(verification.code);", "preserve production verification exit code");
+requireIncludes(source, "if (verification.code !== 0)", "preserve failing production verification exit code");
+requireIncludes(source, "if (!formalReportComplete())", "refuse successful exit while formal report is incomplete");
+requireIncludes(source, "delivery:final refreshed reports, but formal production readiness is still incomplete.", "incomplete formal report refusal message");
+requireIncludes(source, "process.exit(3);", "distinct incomplete final report exit code");
+requireIncludes(source, "process.exit(0);", "successful final delivery exit only after complete report");
 
 console.log("[ok] delivery:final refuses basic formal refreshes and preserves final acceptance report ordering");

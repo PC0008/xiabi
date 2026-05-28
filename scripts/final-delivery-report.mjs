@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const verifierInputs = [
@@ -22,6 +23,7 @@ function hasEnv(name) {
 
 const hasAnyFinalInput = verifierInputs.some(hasEnv);
 const allowBasicRefresh = process.env.XIABI_DELIVERY_FINAL_ALLOW_BASIC === "1";
+const formalReportPath = "docs/production-readiness-latest.md";
 
 if (!hasAnyFinalInput && !allowBasicRefresh) {
   console.error("delivery:final refused to refresh formal production reports without final verifier inputs.");
@@ -47,6 +49,11 @@ function runStep(name, args) {
   });
 }
 
+function formalReportComplete() {
+  const markdown = fs.readFileSync(formalReportPath, "utf8");
+  return /^完整可用：是$/m.test(markdown);
+}
+
 const verification = await runStep("verify:production:report", ["run", "verify:production:report"]);
 const delivery = await runStep("delivery:status", ["run", "delivery:status"]);
 const acceptance = await runStep("acceptance:inputs", ["run", "acceptance:inputs"]);
@@ -55,4 +62,14 @@ if (delivery.code !== 0 || acceptance.code !== 0) {
   process.exit(delivery.code || acceptance.code || 1);
 }
 
-process.exit(verification.code);
+if (verification.code !== 0) {
+  process.exit(verification.code);
+}
+
+if (!formalReportComplete()) {
+  console.error("delivery:final refreshed reports, but formal production readiness is still incomplete.");
+  console.error("Complete the remaining production acceptance items until docs/production-readiness-latest.md says `完整可用：是`.");
+  process.exit(3);
+}
+
+process.exit(0);
