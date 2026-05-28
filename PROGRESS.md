@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 预检报告数据源隔离补强：`npm run verify:preflight` 现在会把无外部费用的生产基础验收写入 `docs/production-readiness-preflight-latest.md`，并基于该报告生成 `docs/delivery-status-preflight-latest.md`；正式交付用的 `docs/production-readiness-latest.md` 和 `docs/delivery-status-latest.md` 不会被基础预检覆盖，避免历史真实联调证据和当前无外部费用预检状态互相污染。
 - 最终无外部费用预检补强：新增 `npm run verify:preflight`，串行运行 typecheck、build、UI/权限/绑定/支付开关静态回归、线上 live 巡检、移动端 journey、生产基础验收和交付状态生成，并写入 `docs/final-preflight-latest.md`；该命令不会主动设置 DeepSeek、短信、微信支付、MiniMax TTS 或 ASR 的真实调用变量，用于最终人工验收前先确认代码、部署和主流程没有基础回归。
 - 交付清单可追溯性补强：`npm run delivery:status` 生成的 `docs/delivery-status-latest.md` 现在会写入来源生产验收报告的生成时间，README 也明确最终交付前应先运行 `npm run verify:production:report` 刷新报告，再生成交付状态清单，避免拿旧报告误判当前真实状态。
 - 最终交付状态清单补强：新增 `npm run delivery:status`，该命令不触发 DeepSeek、短信、微信支付或语音供应商调用，只读取最新生产验收报告并生成 `docs/delivery-status-latest.md`，集中列出完整可用判定、剩余验收项、人工验证批次、责任方和执行命令，方便最后交付时一次性核对而不必在 README、报告和凭据清单之间来回查找。

@@ -5,6 +5,8 @@ import path from "node:path";
 const root = process.cwd();
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const outputPath = path.join(root, "docs", "final-preflight-latest.md");
+const readinessOutput = path.join(root, "docs", "production-readiness-preflight-latest.md");
+const deliveryOutput = path.join(root, "docs", "delivery-status-preflight-latest.md");
 
 const steps = [
   ["typecheck", ["run", "typecheck"], "服务端与静态前端类型/源码检查"],
@@ -15,16 +17,24 @@ const steps = [
   ["verify:order-payment-switch", ["run", "verify:order-payment-switch"], "支付开关和续付边界"],
   ["verify:live", ["run", "verify:live"], "线上入口/API 边界/截图巡检"],
   ["verify:journey", ["run", "verify:journey"], "移动端用户主流程旅程"],
-  ["verify:production", ["run", "verify:production"], "生产基础验收，不触发外部付费调用"],
-  ["delivery:status", ["run", "delivery:status"], "最终交付状态清单生成"]
+  ["verify:production", ["run", "verify:production"], "生产基础验收，不触发外部付费调用", {
+    XIABI_VERIFY_REPORT_PATH: readinessOutput
+  }],
+  ["delivery:status", ["run", "delivery:status"], "最终交付状态清单生成", {
+    XIABI_DELIVERY_READINESS_PATH: readinessOutput,
+    XIABI_DELIVERY_OUTPUT_PATH: deliveryOutput
+  }]
 ];
 
-function runStep(name, args) {
+function runStep(name, args, extraEnv = {}) {
   return new Promise((resolve) => {
     const startedAt = Date.now();
     const child = spawn([npmCommand, ...args].join(" "), {
       cwd: root,
-      env: process.env,
+      env: {
+        ...process.env,
+        ...extraEnv
+      },
       shell: true
     });
     child.stdout.on("data", (chunk) => process.stdout.write(chunk));
@@ -59,6 +69,12 @@ function renderReport(results) {
   }
   lines.push(
     "",
+    "## 输出文件",
+    "",
+    `- 预检报告：${path.relative(root, outputPath).replace(/\\/g, "/")}`,
+    `- 生产基础验收报告：${path.relative(root, readinessOutput).replace(/\\/g, "/")}`,
+    `- 预检交付状态清单：${path.relative(root, deliveryOutput).replace(/\\/g, "/")}`,
+    "",
     "## 口径",
     "",
     "- 该预检不会主动设置 DeepSeek、短信、微信支付、MiniMax TTS 或 ASR 的真实调用环境变量。",
@@ -70,9 +86,9 @@ function renderReport(results) {
 
 async function main() {
   const results = [];
-  for (const [name, args, description] of steps) {
+  for (const [name, args, description, extraEnv] of steps) {
     console.log(`\n=== ${name}: ${description} ===`);
-    const result = await runStep(name, args);
+    const result = await runStep(name, args, extraEnv);
     results.push(result);
     if (result.status !== "passed") break;
   }

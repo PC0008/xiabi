@@ -2,8 +2,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const root = process.cwd();
-const readinessPath = path.join(root, "docs", "production-readiness-latest.md");
-const outputPath = path.join(root, "docs", "delivery-status-latest.md");
+const readinessPath = process.env.XIABI_DELIVERY_READINESS_PATH
+  ? path.resolve(process.env.XIABI_DELIVERY_READINESS_PATH)
+  : path.join(root, "docs", "production-readiness-latest.md");
+const outputPath = process.env.XIABI_DELIVERY_OUTPUT_PATH
+  ? path.resolve(process.env.XIABI_DELIVERY_OUTPUT_PATH)
+  : path.join(root, "docs", "delivery-status-latest.md");
 
 const statusOrder = {
   "失败": 0,
