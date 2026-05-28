@@ -24,6 +24,7 @@
     "verify:production": "node scripts/verify-production.mjs",
     "verify:production:report": "node scripts/verify-production.mjs --report docs/production-readiness-latest.md",
     "verify:preflight": "node scripts/final-preflight.mjs",
+    "edgespark:readiness": "node scripts/edgespark-runtime-readiness.mjs",
     "acceptance:inputs": "node scripts/final-acceptance-inputs.mjs",
     "delivery:status": "node scripts/delivery-status.mjs",
     "delivery:final": "node scripts/final-delivery-report.mjs",

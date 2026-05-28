@@ -11,6 +11,7 @@ const outputPath = process.env.XIABI_DELIVERY_OUTPUT_PATH
 const finalPreflightPath = path.join(root, "docs", "final-preflight-latest.md");
 const preflightReadinessPath = path.join(root, "docs", "production-readiness-preflight-latest.md");
 const preflightDeliveryPath = path.join(root, "docs", "delivery-status-preflight-latest.md");
+const edgesparkReadinessPath = path.join(root, "docs", "edgespark-runtime-readiness-latest.md");
 
 const statusOrder = {
   "失败": 0,
@@ -174,12 +175,26 @@ async function readCurrentPreflightSnapshot() {
   }
 }
 
+async function readEdgesparkSnapshot() {
+  try {
+    const markdown = await fs.readFile(edgesparkReadinessPath, "utf8");
+    return {
+      generatedAt: markdown.match(/^生成时间：(.+)$/m)?.[1]?.trim() || "",
+      groups: markdown.match(/^- 能力组：(.+)$/m)?.[1]?.trim() || "",
+      batches: markdown.match(/^- 最终验收批次：(.+)$/m)?.[1]?.trim() || ""
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
   const markdown = await fs.readFile(readinessPath, "utf8");
   const summary = parseSummary(markdown);
   const matrix = parseMatrix(markdown);
   const remaining = matrix.filter((item) => item.status !== "已验证");
   const preflightSnapshot = await readCurrentPreflightSnapshot();
+  const edgesparkSnapshot = await readEdgesparkSnapshot();
   const lines = [
     "# 最终交付状态清单",
     "",
@@ -211,6 +226,19 @@ async function main() {
       `- 预检交付清单：${path.relative(root, preflightDeliveryPath).replace(/\\/g, "/")}`,
       "",
       "说明：本节只证明当前代码、线上基础接口和移动端旅程的无外部费用预检状态；上方正式结论仍以真实外部联调报告为准。",
+      ""
+    );
+  }
+  if (edgesparkSnapshot) {
+    lines.push(
+      "## Edgespark 配置快照",
+      "",
+      `- 配置报告：${path.relative(root, edgesparkReadinessPath).replace(/\\/g, "/")}`,
+      `- 生成时间：${edgesparkSnapshot.generatedAt || "未读取到"}`,
+      `- 能力组：${edgesparkSnapshot.groups || "未读取到"}`,
+      `- 最终验收批次：${edgesparkSnapshot.batches || "未读取到"}`,
+      "",
+      "说明：本节只证明平台变量和 Secret 是否存在，不证明外部服务真实调用已经通过。",
       ""
     );
   }

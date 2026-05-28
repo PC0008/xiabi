@@ -23,7 +23,6 @@ export async function ensureTenant(db: Database) {
 }
 
 export async function getConfigScope<T extends ConfigScope>(db: Database, scope: T) {
-  await ensureTenant(db);
   const [row] = await withTransientDbRetry(`config_scope_${scope}`, () =>
     db
       .select()
@@ -39,7 +38,6 @@ export async function getConfigScope<T extends ConfigScope>(db: Database, scope:
 }
 
 async function getConfigScopes(db: Database, scopes: ConfigScope[]) {
-  await ensureTenant(db);
   const rows = await withTransientDbRetry("config_scopes_select", () =>
     db
       .select()
