@@ -1,6 +1,6 @@
 # 最终交付状态清单
 
-生成时间：2026-05-28T08:01:31.244Z
+生成时间：2026-05-28T08:04:51.075Z
 来源报告：docs/production-readiness-latest.md
 来源报告生成时间：2026-05-28T07:26:30.953Z
 线上地址：https://immortal-sponge-1728.edgespark.app
@@ -13,6 +13,18 @@
 - 待输入：7
 - 外部阻塞：1
 - 失败：0
+
+## 当前代码预检快照
+
+- 预检报告：docs/final-preflight-latest.md
+- 预检生成时间：2026-05-28T07:56:30.212Z
+- 预检结果：通过
+- 预检生产基础报告：docs/production-readiness-preflight-latest.md
+- 预检基础状态：基础通过：仍有真实外部链路等待输入或付费验收。
+- 预检统计：已验证 1 / 待输入 12 / 外部阻塞 0 / 失败 0
+- 预检交付清单：docs/delivery-status-preflight-latest.md
+
+说明：本节只证明当前代码、线上基础接口和移动端旅程的无外部费用预检状态；上方正式结论仍以真实外部联调报告为准。
 
 ## 剩余验收项
 

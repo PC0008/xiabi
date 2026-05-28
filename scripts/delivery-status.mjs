@@ -8,6 +8,9 @@ const readinessPath = process.env.XIABI_DELIVERY_READINESS_PATH
 const outputPath = process.env.XIABI_DELIVERY_OUTPUT_PATH
   ? path.resolve(process.env.XIABI_DELIVERY_OUTPUT_PATH)
   : path.join(root, "docs", "delivery-status-latest.md");
+const finalPreflightPath = path.join(root, "docs", "final-preflight-latest.md");
+const preflightReadinessPath = path.join(root, "docs", "production-readiness-preflight-latest.md");
+const preflightDeliveryPath = path.join(root, "docs", "delivery-status-preflight-latest.md");
 
 const statusOrder = {
   "失败": 0,
@@ -137,11 +140,37 @@ function renderCommand(lines) {
   return ["```powershell", ...lines, "```"].join("\n");
 }
 
+async function readCurrentPreflightSnapshot() {
+  if (path.resolve(readinessPath) === path.resolve(preflightReadinessPath)) return null;
+  try {
+    const [finalPreflight, preflightReadiness] = await Promise.all([
+      fs.readFile(finalPreflightPath, "utf8"),
+      fs.readFile(preflightReadinessPath, "utf8")
+    ]);
+    const finalGeneratedAt = finalPreflight.match(/^生成时间：(.+)$/m)?.[1]?.trim() || "";
+    const finalResult = finalPreflight.match(/^整体结果：(.+)$/m)?.[1]?.trim() || "";
+    const preflightSummary = parseSummary(preflightReadiness);
+    return {
+      finalGeneratedAt,
+      finalResult,
+      readinessGeneratedAt: preflightSummary.generatedAt,
+      overall: preflightSummary.overall,
+      verified: preflightSummary.verified,
+      pendingInput: preflightSummary.pendingInput,
+      externalBlocked: preflightSummary.externalBlocked,
+      failed: preflightSummary.failed
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
   const markdown = await fs.readFile(readinessPath, "utf8");
   const summary = parseSummary(markdown);
   const matrix = parseMatrix(markdown);
   const remaining = matrix.filter((item) => item.status !== "已验证");
+  const preflightSnapshot = await readCurrentPreflightSnapshot();
   const lines = [
     "# 最终交付状态清单",
     "",
@@ -158,12 +187,30 @@ async function main() {
     `- 待输入：${summary.pendingInput || "0"}`,
     `- 外部阻塞：${summary.externalBlocked || "0"}`,
     `- 失败：${summary.failed || "0"}`,
-    "",
+    ""
+  ];
+  if (preflightSnapshot) {
+    lines.push(
+      "## 当前代码预检快照",
+      "",
+      `- 预检报告：${path.relative(root, finalPreflightPath).replace(/\\/g, "/")}`,
+      `- 预检生成时间：${preflightSnapshot.finalGeneratedAt || "未读取到"}`,
+      `- 预检结果：${preflightSnapshot.finalResult || "未读取到"}`,
+      `- 预检生产基础报告：${path.relative(root, preflightReadinessPath).replace(/\\/g, "/")}`,
+      `- 预检基础状态：${preflightSnapshot.overall || "未读取到"}`,
+      `- 预检统计：已验证 ${preflightSnapshot.verified || "0"} / 待输入 ${preflightSnapshot.pendingInput || "0"} / 外部阻塞 ${preflightSnapshot.externalBlocked || "0"} / 失败 ${preflightSnapshot.failed || "0"}`,
+      `- 预检交付清单：${path.relative(root, preflightDeliveryPath).replace(/\\/g, "/")}`,
+      "",
+      "说明：本节只证明当前代码、线上基础接口和移动端旅程的无外部费用预检状态；上方正式结论仍以真实外部联调报告为准。",
+      ""
+    );
+  }
+  lines.push(
     "## 剩余验收项",
     "",
     "| 能力 | 当前状态 | 下一步 |",
     "| --- | --- | --- |"
-  ];
+  );
   if (remaining.length) {
     for (const item of remaining) {
       lines.push(`| ${item.capability} | ${item.status} | ${item.next || "等待最终复验。"} |`);
