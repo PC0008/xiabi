@@ -3,6 +3,7 @@ import path from "node:path";
 
 const baseUrl = process.env.XIABI_VERIFY_BASE_URL || "https://immortal-sponge-1728.edgespark.app";
 const strict = process.env.XIABI_PRODUCTION_STRICT === "1";
+const allowExternalBlocked = process.env.XIABI_VERIFY_ALLOW_EXTERNAL_BLOCKED === "1";
 const checks = [];
 const reportArgIndex = process.argv.indexOf("--report");
 const reportPath = reportArgIndex >= 0 ? process.argv[reportArgIndex + 1] : process.env.XIABI_VERIFY_REPORT_PATH;
@@ -834,12 +835,16 @@ const report = {
   generatedAt: new Date().toISOString(),
   baseUrl,
   strict,
+  allowExternalBlocked,
   checks,
   readiness
 };
 await writeReport(report);
 if (failed.length) {
   console.error(JSON.stringify(report, null, 2));
+  if (allowExternalBlocked && failed.every((item) => item.status === "external_blocked")) {
+    process.exit(0);
+  }
   process.exit(1);
 }
 
