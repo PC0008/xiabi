@@ -145,6 +145,16 @@ const requiredMarkers = [
     message: "sending a new SMS code must invalidate older pending codes for the same phone"
   },
   {
+    file: "server/src/routes/sms.ts",
+    marker: "status: \"sending\"",
+    message: "SMS codes must be stored before provider send to avoid unusable delivered codes"
+  },
+  {
+    file: "server/src/routes/sms.ts",
+    marker: "status: \"failed\"",
+    message: "failed SMS provider sends must close their pre-created verification code record"
+  },
+  {
     file: "server/src/routes/admin.ts",
     marker: "requireOwnerOrFail",
     message: "high-risk admin mutations must require owner role"

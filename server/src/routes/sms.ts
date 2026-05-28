@@ -1,5 +1,5 @@
 import { db } from "edgespark";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { smsCodes } from "@defs";
 import { sendSmsCode, SmsProviderError } from "../adapters/sms";
@@ -64,7 +64,11 @@ export const smsRoutes = new Hono()
     const [latest] = await db
       .select()
       .from(smsCodes)
-      .where(and(eq(smsCodes.tenantId, TENANT_ID), eq(smsCodes.phoneHash, phoneHash), eq(smsCodes.status, "pending")))
+      .where(and(
+        eq(smsCodes.tenantId, TENANT_ID),
+        eq(smsCodes.phoneHash, phoneHash),
+        or(eq(smsCodes.status, "pending"), eq(smsCodes.status, "sending"))
+      ))
       .orderBy(desc(smsCodes.createdAt))
       .limit(1);
     const now = Date.now();
@@ -85,27 +89,33 @@ export const smsRoutes = new Hono()
     }
 
     const code = createCode();
+    const codeId = crypto.randomUUID();
+    await db.insert(smsCodes).values({
+      id: codeId,
+      tenantId: TENANT_ID,
+      phoneHash,
+      codeHash: await sha256(`sms:${phone}:${code}`),
+      status: "sending",
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString()
+    });
     let result;
     try {
       result = await sendSmsCode({ phone, code });
     } catch (error) {
+      await db.update(smsCodes).set({ status: "failed" }).where(eq(smsCodes.id, codeId));
       return fail(c, "sms_send_failed", smsSendFailedMessage(error), 502);
     }
     if (!result.configured) {
+      await db.update(smsCodes).set({ status: "failed" }).where(eq(smsCodes.id, codeId));
       return fail(c, "sms_not_configured", result.message || "短信服务还没有完成配置。", 503);
     }
-    await db.update(smsCodes).set({ status: "replaced" }).where(and(
-      eq(smsCodes.tenantId, TENANT_ID),
-      eq(smsCodes.phoneHash, phoneHash),
-      eq(smsCodes.status, "pending")
-    ));
-    await db.insert(smsCodes).values({
-      id: crypto.randomUUID(),
-      tenantId: TENANT_ID,
-      phoneHash,
-      codeHash: await sha256(`sms:${phone}:${code}`),
-      status: "pending",
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString()
-    });
+    await db.batch([
+      db.update(smsCodes).set({ status: "replaced" }).where(and(
+        eq(smsCodes.tenantId, TENANT_ID),
+        eq(smsCodes.phoneHash, phoneHash),
+        eq(smsCodes.status, "pending")
+      )),
+      db.update(smsCodes).set({ status: "pending" }).where(eq(smsCodes.id, codeId))
+    ]);
     return ok(c, { sent: true, phoneMasked: result.phone, provider: result.provider, configured: result.configured });
   });
