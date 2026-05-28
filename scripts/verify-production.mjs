@@ -1,6 +1,9 @@
 import fs from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 
+const requireFromServer = createRequire(path.join(process.cwd(), "server", "package.json"));
+const JSZip = requireFromServer("jszip");
 const baseUrl = process.env.XIABI_VERIFY_BASE_URL || "https://immortal-sponge-1728.edgespark.app";
 const strict = process.env.XIABI_PRODUCTION_STRICT === "1";
 const allowExternalBlocked = process.env.XIABI_VERIFY_ALLOW_EXTERNAL_BLOCKED === "1";
@@ -42,6 +45,42 @@ function addCheck(name, status, detail = {}) {
 
 function findCheck(name) {
   return checks.find((item) => item.name === name) || null;
+}
+
+async function verifyDocxBytes(docxBytes) {
+  const zip = await JSZip.loadAsync(docxBytes);
+  const requiredEntries = [
+    "[Content_Types].xml",
+    "_rels/.rels",
+    "docProps/core.xml",
+    "docProps/app.xml",
+    "word/document.xml",
+    "word/styles.xml",
+    "word/_rels/document.xml.rels"
+  ];
+  for (const entry of requiredEntries) {
+    if (!zip.file(entry)) throw new Error(`DOCX export missing ${entry}`);
+  }
+  const contentTypes = await zip.file("[Content_Types].xml").async("string");
+  const rels = await zip.file("_rels/.rels").async("string");
+  const documentXml = await zip.file("word/document.xml").async("string");
+  const coreXml = await zip.file("docProps/core.xml").async("string");
+  if (!contentTypes.includes("application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml")) {
+    throw new Error("DOCX export missing document content type");
+  }
+  if (!rels.includes('Target="word/document.xml"')) {
+    throw new Error("DOCX export missing office document relationship");
+  }
+  if (!documentXml.includes("<w:document") || !documentXml.includes("<w:body") || !documentXml.includes("<w:t")) {
+    throw new Error("DOCX export did not contain a Word document body");
+  }
+  if (!coreXml.includes("<dc:creator>") || !coreXml.includes("</dc:creator>") || !coreXml.includes("<cp:lastModifiedBy>")) {
+    throw new Error("DOCX export missing core document metadata");
+  }
+  return {
+    entries: requiredEntries.length,
+    documentXmlBytes: new TextEncoder().encode(documentXml).byteLength
+  };
 }
 
 function checkStatus(name) {
@@ -767,12 +806,14 @@ async function verifyDeepSeek() {
   if (docxBytes.length < 1000 || docxBytes[0] !== 0x50 || docxBytes[1] !== 0x4b) {
     throw new Error("DOCX export did not return a valid zip-based document");
   }
+  const docxStructure = await verifyDocxBytes(docxBytes);
   addCheck("first free entitlement and export", "ok", {
     letterId: claimedLetterId,
     entitlementId: firstFree.id,
     objectKey: exported.objectKey,
     textObjectKey: exported.textObjectKey,
-    docxObjectKey: exported.docxObjectKey
+    docxObjectKey: exported.docxObjectKey,
+    docxStructure
   });
   deepSeekVerification = {
     cookie,

@@ -125,6 +125,11 @@ const requiredMarkers = [
     message: "letter exports must include a DOCX file for editable customer documents"
   },
   {
+    file: "scripts/verify-production.mjs",
+    marker: "verifyDocxBytes",
+    message: "production export verification must inspect DOCX package structure"
+  },
+  {
     file: "server/src/routes/exports.ts",
     marker: "export_rate_limited",
     message: "letter exports must rate-limit repeated download generation"
