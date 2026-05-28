@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 交付验收报告补强：`verify:production:report` 现在会在 `docs/production-readiness-latest.md` 里自动生成“最终人工验证批次”，逐批列出后台账号、DeepSeek/权益/导出、短信绑定、微信下单、微信真实付款回调、ASR 音频样本需要设置的环境变量和执行命令，避免最后交付时只靠口头清单。
 - 信件实际使用补强：已领取完整销售信的详情页新增“复制全文”，会复制标题、场景和全部正文，方便直接粘贴到微信或客户私聊；移动端旅程验收新增用例覆盖复制按钮与剪贴板内容。
 - 导出体验补强：同一次信件导出现在会同时生成可打印 HTML 和 UTF-8 文本版 `.txt`，用户端导出页新增“下载文本版”，后台文件流水也会记录 `letter_plain_text`；生产验收会校验文本版下载地址、内容和手机号绑定后的文件归属迁移。
 - MiniMax ASR 官方口径复核：2026-05-28 再次读取 MiniMax 官方文档索引 `https://platform.minimax.io/docs/llms.txt`，Speech API 仍只列 T2A HTTP/WebSocket/Async、Voice Cloning、Voice Design、Voice Management，未列 ASR/STT/Transcription；交付文档已补充来源说明，项目继续保留服务端 ASR 接入槽，不硬编码未公开 MiniMax 转写 URL。

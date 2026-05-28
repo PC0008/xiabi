@@ -1,6 +1,6 @@
 # 生产验收状态报告
 
-生成时间：2026-05-28T01:12:30.744Z
+生成时间：2026-05-28T01:28:33.583Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 整体结果：基础通过：仍有真实外部链路等待输入或付费验收。
 完整可用：否
@@ -27,6 +27,77 @@
 | 手机号绑定后资产归属 | 待输入 | sms ownership propagation | 同一轮设置 XIABI_VERIFY_DEEPSEEK=1、XIABI_VERIFY_SMS_PHONE 和 XIABI_VERIFY_SMS_CODE，可复验绑定后信件和权益归属到手机号用户。 |
 | MiniMax 说话播放 | 待输入 | minimax tts | 设置 XIABI_VERIFY_TTS=1 会真实调用一次 MiniMax TTS。 |
 | 语音输入转写 | 待输入 | voice asr | MiniMax 官方 API 总览当前未列独立 ASR 端点；拿到可用 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验，兼容 JSON base64 和 OpenAI-compatible multipart。 |
+
+## 最终人工验证批次
+
+下面这些批次只在要做最终交付验收时执行；会真实调用外部服务或产生支付/短信/模型费用。不要把真实密钥写入仓库，只在本机或 Edgespark 环境变量里设置。
+
+### 1. 后台账号与后台控制前台
+
+证明：管理员登录、系统自检、运营列表、后台配置传播到用户端、配置审计差异。
+
+```powershell
+$env:XIABI_VERIFY_ADMIN_USERNAME="后台账号"
+$env:XIABI_VERIFY_ADMIN_PASSWORD="后台密码"
+$env:XIABI_PRODUCTION_STRICT="1"
+npm run verify:production:report
+```
+
+### 2. DeepSeek 写信、首次免费、导出与 MiniMax 说话
+
+证明：真实写信任务、首次免费权益流水、重复免费领取拦截、打印版/文本版导出、MiniMax TTS 返回可播放音频。
+
+```powershell
+$env:XIABI_VERIFY_DEEPSEEK="1"
+$env:XIABI_VERIFY_REPEAT_FREE="1"
+$env:XIABI_VERIFY_TTS="1"
+npm run verify:production:report
+```
+
+### 3. 阿里云短信与手机号绑定
+
+证明：真实短信发送、验证码绑定、同一轮写信资产归属迁移到绑定手机号用户。
+
+```powershell
+$env:XIABI_VERIFY_DEEPSEEK="1"
+$env:XIABI_VERIFY_SMS_PHONE="可接收验证码的手机号"
+npm run verify:production:report
+
+$env:XIABI_VERIFY_SMS_CODE="收到的6位验证码"
+npm run verify:production:report
+```
+
+### 4. 微信支付下单权限
+
+证明：真实请求微信支付创建订单；如果商户产品权限未开通，会被标成外部阻塞而不是代码失败。
+
+```powershell
+$env:XIABI_VERIFY_PAYMENT_CREATE="1"
+$env:XIABI_VERIFY_ALLOW_EXTERNAL_BLOCKED="1"
+npm run verify:production:report
+```
+
+### 5. 微信真实付款、回调与权益到账
+
+证明：真实付款后订单 paid、权益流水到账、回调事件已处理、后台补权益连续执行两次仍幂等。
+
+```powershell
+$env:XIABI_VERIFY_ADMIN_USERNAME="后台账号"
+$env:XIABI_VERIFY_ADMIN_PASSWORD="后台密码"
+$env:XIABI_VERIFY_PAID_ORDER_ID="已完成付款的订单ID"
+$env:XIABI_VERIFY_REQUIRE_WEBHOOK="1"
+npm run verify:production:report
+```
+
+### 6. 语音输入 ASR 样本
+
+证明：服务端 ASR 接入位能识别真实音频；通过后才应把 VOICE_ASR_VERIFIED 设为 1 并重新部署。
+
+```powershell
+$env:XIABI_VERIFY_ASR_AUDIO="D:\path\to\sample.wav"
+$env:XIABI_VERIFY_ASR_EXPECTED_TEXT="样本音频里应出现的关键句"
+npm run verify:production:report
+```
 
 ## 历史联调证据
 
