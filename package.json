@@ -6,6 +6,7 @@
     "build": "npm --prefix web run build",
     "typecheck": "npm --prefix server run typecheck && npm --prefix web run typecheck",
     "check:ui": "node scripts/check-ui-actions.mjs",
+    "check:env-contract": "node scripts/check-env-contract.mjs",
     "check:admin-permissions": "node scripts/check-admin-permissions.mjs",
     "check:bind-phone-unique": "node scripts/check-bind-phone-unique.mjs",
     "check:payment-entitlement-safety": "node scripts/check-payment-entitlement-safety.mjs",

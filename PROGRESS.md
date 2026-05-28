@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 部署配置契约补强：新增 `npm run check:env-contract`，扫描服务端代码中读取的 `vars.get`、`secret.get`、`optionalVar` 和 `optionalSecret` 名称，并要求全部出现在 `.env.example`，避免微信支付商户号/公众号 ID、短信签名/模板码、MiniMax/DeepSeek 等真实配置项在部署清单里遗漏；该检查已纳入 `npm run verify:preflight`。
+
 - 支付权益安全门补强：新增 `npm run check:payment-entitlement-safety`，静态验证微信付款成功必须严格匹配事件类型、交易状态、商户订单号、微信交易号、AppID、商户号、金额和币种；用户轮询、微信回调、后台补偿和回调重处理都必须先过该校验后才能发放权益，同时验证补发入口只允许已支付订单、权益流水使用订单维度幂等键。该检查已纳入 `npm run verify:preflight`。
 
 - 预检报告数据源隔离补强：`npm run verify:preflight` 现在会把无外部费用的生产基础验收写入 `docs/production-readiness-preflight-latest.md`，并基于该报告生成 `docs/delivery-status-preflight-latest.md`；正式交付用的 `docs/production-readiness-latest.md` 和 `docs/delivery-status-latest.md` 不会被基础预检覆盖，避免历史真实联调证据和当前无外部费用预检状态互相污染。
