@@ -635,6 +635,31 @@ async function verifyAdminDiagnostics() {
   if (missingDiagnosticGroups.length) {
     throw new Error(`admin diagnostics missing groups: ${missingDiagnosticGroups.join(", ")}`);
   }
+  const expectedFinalReadinessItems = [
+    "admin_account_ready",
+    "public_runtime_ready",
+    "deepseek_ready",
+    "wechat_pay_config_ready",
+    "sms_config_ready",
+    "minimax_tts_ready",
+    "voice_input_ready",
+    "real_paid_order_with_entitlement",
+    "paid_orders_all_have_entitlements",
+    "no_failed_payment_webhooks",
+    "no_failed_generation_tasks"
+  ];
+  const finalReadinessGroup = groups.find((group) => group.key === "final_readiness");
+  const finalReadinessItemNames = new Set((finalReadinessGroup?.items || []).map((item) => item.name));
+  const missingFinalReadinessItems = expectedFinalReadinessItems.filter((name) => !finalReadinessItemNames.has(name));
+  if (missingFinalReadinessItems.length) {
+    throw new Error(`admin final_readiness diagnostics missing items: ${missingFinalReadinessItems.join(", ")}`);
+  }
+  const requiredFinalReadinessItems = (finalReadinessGroup?.items || [])
+    .filter((item) => item.required !== false)
+    .map((item) => item.name);
+  if (requiredFinalReadinessItems.length) {
+    throw new Error(`admin final_readiness items must be delivery status signals, not required config: ${requiredFinalReadinessItems.join(", ")}`);
+  }
   const missingRequired = groups.flatMap((group) =>
     (group.items || [])
       .filter((item) => item.required !== false && !item.configured)
@@ -643,6 +668,7 @@ async function verifyAdminDiagnostics() {
   addCheck("admin diagnostics", missingRequired.length ? "missing" : "ok", {
     summary: diagnostics.summary,
     groups: requiredDiagnosticGroups.length,
+    finalReadinessItems: expectedFinalReadinessItems.length,
     missingRequired
   });
   if (strict && missingRequired.length) {
