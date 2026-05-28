@@ -197,6 +197,7 @@ test("call page falls back to typing when browser speech and server ASR are unav
 
   await expect(page.locator(".question-card")).toBeVisible();
   await expect(page.locator("#typedText")).toBeVisible();
+  await expect(page.locator(".speech-live.error", { hasText: "先打字告诉智多星" })).toBeVisible();
   await expect(page.locator('[data-action="voice-answer"]')).toHaveCount(0);
   await expect(page.locator('[data-action="voice-mode"]')).toHaveCount(0);
 });

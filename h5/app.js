@@ -569,7 +569,7 @@ function canFallbackToRecordedAsr() {
 function voiceUnavailableMessage() {
   if (!voiceEnabled()) return "语音服务暂未开启，请先使用打字模式。";
   if (!recordingSupported() && !speechSupported()) return "当前浏览器不支持按住说话，请先改用打字模式。";
-  return "语音转文字服务还没有完成配置，请先使用打字模式。";
+  return "当前环境暂时不能直接按住说话，请先打字告诉智多星。";
 }
 
 function blobToDataUrl(blob) {
@@ -773,6 +773,7 @@ function renderCall() {
   const enough = canConfirmAnswers();
   const canUseVoice = voiceInputAvailable();
   const activeInputMode = canUseVoice ? state.inputMode : "text";
+  const visibleVoiceError = !canUseVoice ? (state.voiceError || voiceUnavailableMessage()) : state.voiceError;
   return shell(`
     <div class="call-top">
       <button class="call-top-btn" data-go="home">↙</button>
@@ -800,9 +801,9 @@ function renderCall() {
       ${enough ? `<button class="ready-mini" data-go="confirm">信息够了，查看整理结果</button>` : ""}
       ${q.required === false ? `<button class="ready-mini" data-action="skip-question">这一步先跳过</button>` : ""}
     </div>
-    ${(state.voiceTranscript || state.voiceError) ? `
-      <div class="speech-live ${state.voiceError ? "error" : ""}">
-        ${state.voiceError ? h(state.voiceError) : (state.speakerOn ? h(state.voiceTranscript) : `我听到：${h(state.voiceTranscript)}`)}
+    ${(state.voiceTranscript || visibleVoiceError) ? `
+      <div class="speech-live ${visibleVoiceError ? "error" : ""}">
+        ${visibleVoiceError ? h(visibleVoiceError) : (state.speakerOn ? h(state.voiceTranscript) : `我听到：${h(state.voiceTranscript)}`)}
       </div>
     ` : ""}
     ${activeInputMode === "voice" ? `
@@ -1881,7 +1882,10 @@ document.addEventListener("click", async (event) => {
     if (!generationEnabled()) return;
     state.answers = [];
     state.answerItems = [];
-    state.inputMode = voiceInputAvailable() ? "voice" : "text";
+    const canUseVoice = voiceInputAvailable();
+    state.inputMode = canUseVoice ? "voice" : "text";
+    state.voiceError = canUseVoice ? "" : voiceUnavailableMessage();
+    state.voiceTranscript = "";
     persist();
     go("call");
   } else if (action === "voice-answer") {
