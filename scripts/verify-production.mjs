@@ -191,8 +191,7 @@ async function writeReport(report) {
 }
 
 function skipOrStrict(name, reason) {
-  addCheck(name, "skipped", { reason });
-  if (strict) throw new Error(`strict verification requires ${name}: ${reason}`);
+  addCheck(name, strict ? "missing" : "skipped", { reason });
 }
 
 function getCookie(headers) {
