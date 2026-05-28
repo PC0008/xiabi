@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 公开接口会话边界补强：新增 `npm run check:public-session-safety`，静态验证写信任务、短信、语音、订单支付/查单、导出、首次免费领取、手机号绑定、产品档案、反馈和微信授权等公开写入或外部调用接口都必须确认当前会话仍为 active，避免用户退出后旧 cookie 继续触发写数据、发短信、拉支付或调用语音/写信服务；该检查已纳入 `npm run verify:preflight`。
+
 - 部署配置契约补强：新增 `npm run check:env-contract`，扫描服务端代码中读取的 `vars.get`、`secret.get`、`optionalVar` 和 `optionalSecret` 名称，并要求全部出现在 `.env.example`，避免微信支付商户号/公众号 ID、短信签名/模板码、MiniMax/DeepSeek 等真实配置项在部署清单里遗漏；该检查已纳入 `npm run verify:preflight`。
 
 - 支付权益安全门补强：新增 `npm run check:payment-entitlement-safety`，静态验证微信付款成功必须严格匹配事件类型、交易状态、商户订单号、微信交易号、AppID、商户号、金额和币种；用户轮询、微信回调、后台补偿和回调重处理都必须先过该校验后才能发放权益，同时验证补发入口只允许已支付订单、权益流水使用订单维度幂等键。该检查已纳入 `npm run verify:preflight`。
