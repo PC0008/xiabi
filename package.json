@@ -13,6 +13,7 @@
     "verify:live": "node scripts/verify-live.mjs",
     "verify:production": "node scripts/verify-production.mjs",
     "verify:production:report": "node scripts/verify-production.mjs --report docs/production-readiness-latest.md",
+    "delivery:status": "node scripts/delivery-status.mjs",
     "deploy:dry": "edgespark deploy --dry-run",
     "deploy": "edgespark deploy",
     "logs": "edgespark log tail"
