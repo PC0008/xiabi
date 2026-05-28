@@ -28,7 +28,7 @@ npm run delivery:status
 - 生产外部验收：`npm run verify:production`，默认只跑健康检查和公开配置；配置 verifier 环境变量后，会真实调用 DeepSeek、微信支付创建、真实已支付订单闭环、短信、MiniMax TTS 和 ASR。
 - 严格生产验收：设置 `XIABI_PRODUCTION_STRICT=1` 后，任何外部链路 verifier 未配置都会失败，不再跳过。
 - 生产状态报告：`npm run verify:production:report` 会刷新 `docs/production-readiness-latest.md`，并输出最后人工验证批次；其中 `ok=true` 只表示本次已执行项目没有失败，`complete=true` 才表示所有生产链路已经完整验收。
-- 最终交付状态：`npm run delivery:status` 不触发外部付费调用，只读取最新生产状态报告并生成 `docs/delivery-status-latest.md`，用于最后汇总人工验收顺序、责任方和剩余阻塞。
+- 最终交付状态：先用 `npm run verify:production:report` 刷新生产状态报告，再执行 `npm run delivery:status` 生成 `docs/delivery-status-latest.md`；后者不触发外部付费调用，只汇总人工验收顺序、责任方和剩余阻塞。
 
 ## 当前真实状态
 

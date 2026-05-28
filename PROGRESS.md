@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 交付清单可追溯性补强：`npm run delivery:status` 生成的 `docs/delivery-status-latest.md` 现在会写入来源生产验收报告的生成时间，README 也明确最终交付前应先运行 `npm run verify:production:report` 刷新报告，再生成交付状态清单，避免拿旧报告误判当前真实状态。
 - 最终交付状态清单补强：新增 `npm run delivery:status`，该命令不触发 DeepSeek、短信、微信支付或语音供应商调用，只读取最新生产验收报告并生成 `docs/delivery-status-latest.md`，集中列出完整可用判定、剩余验收项、人工验证批次、责任方和执行命令，方便最后交付时一次性核对而不必在 README、报告和凭据清单之间来回查找。
 - 用户端语音降级体验补强：当手机浏览器不支持语音识别且服务端 ASR 尚未通过真实样本验收时，通话页会明确提示“当前环境暂时不能直接按住说话，请先打字告诉智多星”，并保持打字流程可继续；线上 `verify:journey` 已覆盖该场景，避免用户在 MiniMax ASR 未公开端点前误以为通话流程是假或按钮失效。
 - 语音失败审计补强：MiniMax TTS 或服务端 ASR 调用失败时，公开接口会在保留产品化用户提示的同时写入 `voice.speak_failed` / `voice.transcribe_failed` 审计事件；后台日志筛选和生产后台验收同步支持语音失败事件，方便真实运营排查供应商瞬时波动、配置或端点问题。

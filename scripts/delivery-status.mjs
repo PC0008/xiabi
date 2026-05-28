@@ -143,6 +143,7 @@ async function main() {
     "",
     `生成时间：${new Date().toISOString()}`,
     `来源报告：${path.relative(root, readinessPath).replace(/\\/g, "/")}`,
+    `来源报告生成时间：${summary.generatedAt || "未读取到"}`,
     `线上地址：${summary.baseUrl || "未读取到"}`,
     "",
     "## 当前结论",
