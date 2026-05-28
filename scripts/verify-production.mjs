@@ -11,6 +11,8 @@ const checks = [];
 const reportArgIndex = process.argv.indexOf("--report");
 const reportPath = reportArgIndex >= 0 ? process.argv[reportArgIndex + 1] : process.env.XIABI_VERIFY_REPORT_PATH;
 let deepSeekVerification = null;
+const retryableStatuses = new Set([500, 502, 503, 504]);
+const idempotentMethods = new Set(["GET", "HEAD"]);
 const historicalEvidence = [
   {
     capability: "DOCX 文档版导出",
@@ -404,6 +406,18 @@ class ApiError extends Error {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function requestMethod(init = {}) {
+  return String(init.method || "GET").toUpperCase();
+}
+
+function shouldRetryRequest(init = {}) {
+  return idempotentMethods.has(requestMethod(init)) && !init.body;
+}
+
 async function readJsonResponse(response, label) {
   const text = await response.text();
   let payload = null;
@@ -419,16 +433,32 @@ async function readJsonResponse(response, label) {
 }
 
 async function api(pathname, init = {}, cookie = "") {
-  const response = await fetch(`${baseUrl}${pathname}`, {
-    credentials: "include",
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      ...(cookie ? { cookie } : {}),
-      ...(init.headers || {})
+  const maxAttempts = shouldRetryRequest(init) ? 3 : 1;
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch(`${baseUrl}${pathname}`, {
+        credentials: "include",
+        ...init,
+        headers: {
+          "content-type": "application/json",
+          ...(cookie ? { cookie } : {}),
+          ...(init.headers || {})
+        }
+      });
+      if (attempt < maxAttempts && retryableStatuses.has(response.status)) {
+        await response.text();
+        await sleep(500 * attempt);
+        continue;
+      }
+      return await readJsonResponse(response, pathname);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= maxAttempts || !shouldRetryRequest(init) || error instanceof ApiError) throw error;
+      await sleep(500 * attempt);
     }
-  });
-  return readJsonResponse(response, pathname);
+  }
+  throw lastError;
 }
 
 async function expectApiError(pathname, init = {}, cookie = "", expectedStatus, expectedCode) {

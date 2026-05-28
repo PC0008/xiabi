@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 验收脚本抗抖动补强：`verify:production` 和 `verify:live` 现在只会对 GET/HEAD 这类无副作用请求做最多 3 次短重试，用于规避边缘网络或瞬时 5xx 抖动；支付下单、短信发送、DeepSeek、MiniMax 和 ASR 等 POST 外部调用不会重试，避免重复扣费、重复下单或重复发码。
 - 后台最终交付闸门补强：系统自检新增 `final_readiness` 诊断组，把管理员账号、公网运行地址、DeepSeek、微信支付配置、短信配置、MiniMax TTS、语音输入、真实已支付订单权益、失败回调和失败生成任务聚合成一张“最终交付就绪”卡；该组用于后台一眼判断真实版本还卡在哪，不暴露密钥，也不会替代分项真实验收。
 - 最终预检链路继续收紧：`npm run verify:preflight` 现在会在生产基础验收后自动执行 `npm run acceptance:inputs`，并在 `docs/final-preflight-latest.md` 输出文件区列出 `docs/final-acceptance-inputs-latest.md`；这样最终无费用预检会同时刷新代码/部署/旅程状态、交付状态和人工验收输入准备度，避免最后交付前忘记检查后台账号、真实手机号、支付订单或 ASR 音频样本。
 - 最终验收输入检查补强：新增 `npm run acceptance:inputs`，只检查本机 verifier 输入准备度并生成 `docs/final-acceptance-inputs-latest.md`，覆盖后台账号、DeepSeek/MiniMax TTS、短信手机号/验证码、微信支付创建、真实已支付订单、ASR 音频样本和微信内 H5 语音人工验收前置项；脚本不打印真实账号、密码、手机号、订单号、密钥或音频路径，也不调用任何外部服务，方便最终交付时把人工验证清单一次性跑完。

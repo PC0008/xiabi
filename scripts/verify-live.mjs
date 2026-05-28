@@ -6,6 +6,19 @@ import { promisify } from "node:util";
 const execAsync = promisify(exec);
 const baseUrl = process.env.XIABI_VERIFY_BASE_URL || "https://immortal-sponge-1728.edgespark.app";
 const assetsDir = path.resolve("docs/assets");
+const retryableStatuses = new Set([500, 502, 503, 504]);
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function requestMethod(init = {}) {
+  return String(init?.method || "GET").toUpperCase();
+}
+
+function shouldRetryRequest(init = {}) {
+  return ["GET", "HEAD"].includes(requestMethod(init)) && !init?.body;
+}
 
 async function assertHttp(pathname, check) {
   const { status, text } = await fetchText(pathname);
@@ -14,8 +27,18 @@ async function assertHttp(pathname, check) {
 }
 
 async function assertJson(pathname, init, expectedStatus, check) {
-  const response = await fetch(`${baseUrl}${pathname}`, init);
-  const text = await response.text();
+  const maxAttempts = shouldRetryRequest(init) ? 3 : 1;
+  let response;
+  let text = "";
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    response = await fetch(`${baseUrl}${pathname}`, init);
+    text = await response.text();
+    if (attempt < maxAttempts && retryableStatuses.has(response.status)) {
+      await sleep(500 * attempt);
+      continue;
+    }
+    break;
+  }
   let payload = null;
   try {
     payload = text ? JSON.parse(text) : null;
@@ -36,8 +59,17 @@ function getCookie(headers) {
 }
 
 async function fetchText(pathname) {
-  const response = await fetch(`${baseUrl}${pathname}`);
-  const text = await response.text();
+  let response;
+  let text = "";
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    response = await fetch(`${baseUrl}${pathname}`);
+    text = await response.text();
+    if (attempt < 3 && retryableStatuses.has(response.status)) {
+      await sleep(500 * attempt);
+      continue;
+    }
+    break;
+  }
   if (!response.ok) throw new Error(`${pathname} returned ${response.status}`);
   return { pathname, status: response.status, text };
 }
