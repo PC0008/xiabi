@@ -72,6 +72,87 @@ function buildPlainTextLetter(letter: typeof salesLetters.$inferSelect, paragrap
   ].join("\n\n");
 }
 
+function utf16Hex(value: unknown) {
+  const text = String(value ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
+  let hex = "";
+  for (let index = 0; index < text.length; index += 1) {
+    hex += text.charCodeAt(index).toString(16).padStart(4, "0");
+  }
+  return hex;
+}
+
+function pdfTextWidth(value: string) {
+  return Array.from(value).reduce((total, char) => total + (char.charCodeAt(0) > 255 ? 2 : 1), 0);
+}
+
+function wrapPdfText(value: unknown, maxWidth = 58) {
+  const lines: string[] = [];
+  for (const rawLine of String(value ?? "").split(/\r?\n/)) {
+    let line = "";
+    for (const char of Array.from(rawLine.trim())) {
+      if (line && pdfTextWidth(`${line}${char}`) > maxWidth) {
+        lines.push(line);
+        line = char.trimStart();
+      } else {
+        line += char;
+      }
+    }
+    if (line) lines.push(line);
+  }
+  return lines.length ? lines : [""];
+}
+
+function buildPdfLetter(letter: typeof salesLetters.$inferSelect, paragraphs: string[]) {
+  const pageStreams: string[] = [];
+  let lines: string[] = [];
+  let y = 782;
+  const pushPage = () => {
+    if (lines.length) pageStreams.push(lines.join("\n"));
+    lines = [];
+    y = 782;
+  };
+  const addLine = (text: string, size = 12, leading = 20, x = 72) => {
+    if (y < 70) pushPage();
+    lines.push(`BT /F1 ${size} Tf ${x} ${y} Td <${utf16Hex(text)}> Tj ET`);
+    y -= leading;
+  };
+
+  for (const line of wrapPdfText(letter.title, 34)) addLine(line, 21, 28);
+  addLine(`智多星整理 · ${letter.scene}场景`, 11, 30);
+  for (const paragraph of paragraphs) {
+    for (const line of wrapPdfText(paragraph, 56)) addLine(line, 12, 21);
+    y -= 8;
+  }
+  pushPage();
+
+  const encoder = new TextEncoder();
+  const contentObjectStart = 5;
+  const pageObjectIds = pageStreams.map((_, index) => contentObjectStart + index * 2 + 1);
+  const objects: string[] = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Count ${pageStreams.length} /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(" ")}] >>`,
+    "<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light /Encoding /UniGB-UCS2-H /DescendantFonts [4 0 R] >>",
+    "<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 5 >> /DW 1000 >>"
+  ];
+  for (let index = 0; index < pageStreams.length; index += 1) {
+    const stream = pageStreams[index];
+    objects.push(`<< /Length ${encoder.encode(stream).length} >>\nstream\n${stream}\nendstream`);
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentObjectStart + index * 2} 0 R >>`);
+  }
+
+  let pdf = "%PDF-1.7\n";
+  const offsets = [0];
+  for (let index = 0; index < objects.length; index += 1) {
+    offsets.push(encoder.encode(pdf).length);
+    pdf += `${index + 1} 0 obj\n${objects[index]}\nendobj\n`;
+  }
+  const xrefOffset = encoder.encode(pdf).length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets.slice(1)) pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return encoder.encode(pdf);
+}
+
 async function buildDocxLetter(letter: typeof salesLetters.$inferSelect, paragraphs: string[]) {
   const zip = new JSZip();
   const now = new Date().toISOString();
@@ -217,10 +298,13 @@ export const exportRoutes = new Hono()
     const filename = safeExportFilename(letter, "html");
     const textFilename = safeExportFilename(letter, "txt");
     const docxFilename = safeExportFilename(letter, "docx");
+    const pdfFilename = safeExportFilename(letter, "pdf");
     const objectKey = `exports/${sessionId}/${letter.id}.html`;
     const textObjectKey = `exports/${sessionId}/${letter.id}.txt`;
     const docxObjectKey = `exports/${sessionId}/${letter.id}.docx`;
+    const pdfObjectKey = `exports/${sessionId}/${letter.id}.pdf`;
     const docxBody = await buildDocxLetter(letter, paragraphs);
+    const pdfBody = buildPdfLetter(letter, paragraphs);
     await storage.from(buckets.xiabiFiles).put(objectKey, new TextEncoder().encode(htmlBody), {
       contentType: "text/html; charset=utf-8",
       contentDisposition: `inline; filename="${filename}"`
@@ -232,6 +316,10 @@ export const exportRoutes = new Hono()
     await storage.from(buckets.xiabiFiles).put(docxObjectKey, docxBody, {
       contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       contentDisposition: `attachment; filename="${docxFilename}"`
+    });
+    await storage.from(buckets.xiabiFiles).put(pdfObjectKey, pdfBody, {
+      contentType: "application/pdf",
+      contentDisposition: `attachment; filename="${pdfFilename}"`
     });
     await db.insert(files).values({
       id: crypto.randomUUID(),
@@ -287,6 +375,24 @@ export const exportRoutes = new Hono()
         status: "ready"
       }
     });
+    await db.insert(files).values({
+      id: crypto.randomUUID(),
+      tenantId: TENANT_ID,
+      userId: session.userId || null,
+      letterId: letter.id,
+      bucket: buckets.xiabiFiles.bucket_name,
+      objectKey: pdfObjectKey,
+      kind: "letter_pdf",
+      status: "ready"
+    }).onConflictDoUpdate({
+      target: [files.bucket, files.objectKey],
+      set: {
+        userId: session.userId || null,
+        letterId: letter.id,
+        kind: "letter_pdf",
+        status: "ready"
+      }
+    });
     await db.update(salesLetters).set({ exportedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }).where(eq(salesLetters.id, letter.id));
     await db.insert(auditLogs).values({
       id: crypto.randomUUID(),
@@ -297,15 +403,17 @@ export const exportRoutes = new Hono()
       targetType: "sales_letter",
       targetId: letter.id,
       detailJson: JSON.stringify({
-        formats: ["print_html", "plain_text", "docx"],
+        formats: ["print_html", "plain_text", "docx", "pdf"],
         objectKey,
         textObjectKey,
-        docxObjectKey
+        docxObjectKey,
+        pdfObjectKey
       })
     });
     const { downloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(objectKey, 3600);
     const { downloadUrl: textDownloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(textObjectKey, 3600);
     const { downloadUrl: docxDownloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(docxObjectKey, 3600);
+    const { downloadUrl: pdfDownloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(pdfObjectKey, 3600);
     return ok(c, {
       downloadUrl,
       objectKey,
@@ -322,6 +430,11 @@ export const exportRoutes = new Hono()
       docxFileType: "docx",
       docxContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       docxFilename,
+      pdfDownloadUrl,
+      pdfObjectKey,
+      pdfFileType: "pdf",
+      pdfContentType: "application/pdf",
+      pdfFilename,
       expiresInSeconds: 3600
     });
   });

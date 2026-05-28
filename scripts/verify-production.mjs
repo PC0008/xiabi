@@ -83,6 +83,20 @@ async function verifyDocxBytes(docxBytes) {
   };
 }
 
+function verifyPdfBytes(pdfBytes) {
+  const text = new TextDecoder().decode(pdfBytes);
+  if (pdfBytes.length < 800 || !text.startsWith("%PDF-")) {
+    throw new Error("PDF export did not return a valid PDF header");
+  }
+  for (const marker of ["/Type /Page", "/STSong-Light", "xref", "%%EOF"]) {
+    if (!text.includes(marker)) throw new Error(`PDF export missing ${marker}`);
+  }
+  return {
+    bytes: pdfBytes.length,
+    pages: (text.match(/\/Type \/Page\b/g) || []).length
+  };
+}
+
 function checkStatus(name) {
   return findCheck(name)?.status || "not_run";
 }
@@ -118,7 +132,7 @@ function buildReadinessReport() {
       requirement: "首次免费权益与导出",
       status: readinessStatus(["first free entitlement and export"]),
       evidence: ["first free entitlement and export"],
-      next: "设置 XIABI_VERIFY_DEEPSEEK=1 后会在同一会话内验证领取、权益流水和打印版导出。"
+      next: "设置 XIABI_VERIFY_DEEPSEEK=1 后会在同一会话内验证领取、权益流水和 HTML/TXT/DOCX/PDF 导出。"
     },
     {
       requirement: "首次免费重复领取限制",
@@ -212,7 +226,7 @@ function manualVerificationBatches() {
     },
     {
       title: "2. DeepSeek 写信、首次免费、导出与 MiniMax 说话",
-      proves: "真实写信任务、首次免费权益流水、重复免费领取拦截、打印版/文本版导出、MiniMax TTS 返回可播放音频。",
+      proves: "真实写信任务、首次免费权益流水、重复免费领取拦截、HTML/TXT/DOCX/PDF 导出、MiniMax TTS 返回可播放音频。",
       commands: [
         "$env:XIABI_VERIFY_DEEPSEEK=\"1\"",
         "$env:XIABI_VERIFY_REPEAT_FREE=\"1\"",
@@ -831,6 +845,9 @@ async function verifyDeepSeek() {
   if (!exported.docxDownloadUrl || exported.docxFileType !== "docx" || exported.docxContentType !== "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || !String(exported.docxFilename || "").endsWith(".docx")) {
     throw new Error("DOCX export did not return a document download URL");
   }
+  if (!exported.pdfDownloadUrl || exported.pdfFileType !== "pdf" || exported.pdfContentType !== "application/pdf" || !String(exported.pdfFilename || "").endsWith(".pdf")) {
+    throw new Error("PDF export did not return a direct PDF download URL");
+  }
   const html = await fetch(exported.downloadUrl);
   if (!html.ok) throw new Error(`Printable export URL returned ${html.status}`);
   const text = await html.text();
@@ -850,13 +867,18 @@ async function verifyDeepSeek() {
     throw new Error("DOCX export did not return a valid zip-based document");
   }
   const docxStructure = await verifyDocxBytes(docxBytes);
+  const pdfFile = await fetch(exported.pdfDownloadUrl);
+  if (!pdfFile.ok) throw new Error(`PDF export URL returned ${pdfFile.status}`);
+  const pdfStructure = verifyPdfBytes(new Uint8Array(await pdfFile.arrayBuffer()));
   addCheck("first free entitlement and export", "ok", {
     letterId: claimedLetterId,
     entitlementId: firstFree.id,
     objectKey: exported.objectKey,
     textObjectKey: exported.textObjectKey,
     docxObjectKey: exported.docxObjectKey,
-    docxStructure
+    pdfObjectKey: exported.pdfObjectKey,
+    docxStructure,
+    pdfStructure
   });
   deepSeekVerification = {
     cookie,
@@ -864,7 +886,8 @@ async function verifyDeepSeek() {
     entitlementId: firstFree.id,
     exportObjectKey: exported.objectKey,
     textExportObjectKey: exported.textObjectKey,
-    docxExportObjectKey: exported.docxObjectKey
+    docxExportObjectKey: exported.docxObjectKey,
+    pdfExportObjectKey: exported.pdfObjectKey
   };
   if (process.env.XIABI_VERIFY_REPEAT_FREE === "1") {
     addCheck("first free repeat guard", "ok", {
@@ -1127,6 +1150,11 @@ async function verifySmsSend() {
           const docxFile = (detail.files || []).find((item) => item.objectKey === deepSeekVerification.docxExportObjectKey);
           if (!docxFile) throw new Error("SMS bind did not leave the DOCX export visible in admin letter detail");
           if (docxFile.userId !== bind.userId) throw new Error("SMS bind did not propagate DOCX export ownership to the bound user");
+        }
+        if (deepSeekVerification.pdfExportObjectKey) {
+          const pdfFile = (detail.files || []).find((item) => item.objectKey === deepSeekVerification.pdfExportObjectKey);
+          if (!pdfFile) throw new Error("SMS bind did not leave the PDF export visible in admin letter detail");
+          if (pdfFile.userId !== bind.userId) throw new Error("SMS bind did not propagate PDF export ownership to the bound user");
         }
         exportFileOwnershipChecked = true;
       }

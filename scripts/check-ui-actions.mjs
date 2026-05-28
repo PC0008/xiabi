@@ -125,9 +125,19 @@ const requiredMarkers = [
     message: "letter exports must include a DOCX file for editable customer documents"
   },
   {
+    file: "server/src/routes/exports.ts",
+    marker: "letter_pdf",
+    message: "letter exports must include a direct PDF file for final customer delivery"
+  },
+  {
     file: "scripts/verify-production.mjs",
     marker: "verifyDocxBytes",
     message: "production export verification must inspect DOCX package structure"
+  },
+  {
+    file: "scripts/verify-production.mjs",
+    marker: "verifyPdfBytes",
+    message: "production export verification must inspect direct PDF structure"
   },
   {
     file: "scripts/verify-production.mjs",
@@ -183,6 +193,11 @@ const requiredMarkers = [
     file: "h5/app.js",
     marker: "export-docx",
     message: "user export page must expose the editable document download action"
+  },
+  {
+    file: "h5/app.js",
+    marker: "export-file-pdf",
+    message: "user export page must expose the direct PDF download action"
   },
   {
     file: "h5/app.js",

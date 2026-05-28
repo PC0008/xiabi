@@ -1,8 +1,8 @@
 # 最终交付状态清单
 
-生成时间：2026-05-28T05:45:02.134Z
+生成时间：2026-05-28T07:26:41.140Z
 来源报告：docs/production-readiness-latest.md
-来源报告生成时间：2026-05-28T05:45:01.725Z
+来源报告生成时间：2026-05-28T07:26:30.953Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 
 ## 当前结论
@@ -22,7 +22,7 @@
 | 管理后台登录与运营接口 | 待输入 | 设置 XIABI_VERIFY_ADMIN_USERNAME / XIABI_VERIFY_ADMIN_PASSWORD 后复验。 |
 | 微信支付拉起审计链路 | 待输入 | 同一轮设置 XIABI_VERIFY_PAYMENT_CREATE=1、XIABI_VERIFY_ADMIN_USERNAME 和 XIABI_VERIFY_ADMIN_PASSWORD 后，会复验支付拉起尝试/结果已写入后台审计日志。 |
 | 微信付款回调与权益到账 | 待输入 | 完成真实付款后设置 XIABI_VERIFY_PAID_ORDER_ID，并可设置 XIABI_VERIFY_REQUIRE_WEBHOOK=1；脚本会复验重复补发不重复加权益。 |
-| 短信发送与手机号绑定 | 待输入 | 设置 XIABI_VERIFY_SMS_PHONE 发送验证码；收到后设置 XIABI_VERIFY_SMS_CODE 复验绑定。 |
+| 短信发送与手机号绑定 | 待输入 | 先提供后台账号运行短信供应商自检；再设置 XIABI_VERIFY_SMS_PHONE 发送验证码，收到后设置 XIABI_VERIFY_SMS_CODE 复验绑定。 |
 | 短信发送审计链路 | 待输入 | 同一轮设置 XIABI_VERIFY_SMS_PHONE、XIABI_VERIFY_ADMIN_USERNAME 和 XIABI_VERIFY_ADMIN_PASSWORD 后，会复验短信发送尝试/结果已写入后台审计日志。 |
 | 手机号绑定后资产归属 | 待输入 | 同一轮设置 XIABI_VERIFY_DEEPSEEK=1、XIABI_VERIFY_SMS_PHONE 和 XIABI_VERIFY_SMS_CODE，可复验绑定后信件和权益归属到手机号用户。 |
 | 语音输入转写 | 待输入 | MiniMax 官方 API 总览当前未列独立 ASR 端点；拿到可用 VOICE_ASR_ENDPOINT 后，设置 XIABI_VERIFY_ASR_AUDIO=本地音频路径复验，兼容 JSON base64 和 OpenAI-compatible multipart。 |
@@ -31,10 +31,10 @@
 
 以下命令只在最终交付验收时执行。它们可能真实调用 DeepSeek、短信、微信支付、MiniMax 或 ASR 服务；不要把真实密钥写入仓库。
 
-### 后台账号与后台控制前台
+### 后台账号、后台控制前台与供应商前置自检
 
 - 责任方：项目管理员
-- 需要准备：后台账号、后台密码
+- 需要准备：后台账号、后台密码；该批次不发送短信、不创建订单，会自检短信签名/模板和微信支付证书
 
 ```powershell
 $env:XIABI_VERIFY_ADMIN_USERNAME="后台账号"

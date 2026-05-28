@@ -1,8 +1,8 @@
 # 最终交付状态清单
 
-生成时间：2026-05-28T07:13:21.630Z
+生成时间：2026-05-28T07:22:56.939Z
 来源报告：docs/production-readiness-preflight-latest.md
-来源报告生成时间：2026-05-28T07:13:21.119Z
+来源报告生成时间：2026-05-28T07:22:56.491Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 
 ## 当前结论
@@ -20,7 +20,7 @@
 | --- | --- | --- |
 | 管理后台登录与运营接口 | 待输入 | 设置 XIABI_VERIFY_ADMIN_USERNAME / XIABI_VERIFY_ADMIN_PASSWORD 后复验。 |
 | DeepSeek 写信闭环 | 待输入 | 设置 XIABI_VERIFY_DEEPSEEK=1 会真实消耗一次生成额度。 |
-| 首次免费权益与导出 | 待输入 | 设置 XIABI_VERIFY_DEEPSEEK=1 后会在同一会话内验证领取、权益流水和打印版导出。 |
+| 首次免费权益与导出 | 待输入 | 设置 XIABI_VERIFY_DEEPSEEK=1 后会在同一会话内验证领取、权益流水和 HTML/TXT/DOCX/PDF 导出。 |
 | 首次免费重复领取限制 | 待输入 | 设置 XIABI_VERIFY_DEEPSEEK=1 和 XIABI_VERIFY_REPEAT_FREE=1 后，会生成第二封信并验证重复免费领取被拒绝。 |
 | 微信支付下单 | 待输入 | 设置 XIABI_VERIFY_PAYMENT_CREATE=1 后复验。 |
 | 微信支付拉起审计链路 | 待输入 | 同一轮设置 XIABI_VERIFY_PAYMENT_CREATE=1、XIABI_VERIFY_ADMIN_USERNAME 和 XIABI_VERIFY_ADMIN_PASSWORD 后，会复验支付拉起尝试/结果已写入后台审计日志。 |
