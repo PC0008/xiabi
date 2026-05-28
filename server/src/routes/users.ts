@@ -1,14 +1,12 @@
 import { db } from "edgespark";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { entitlementLedger, files, generationTasks, guestSessions, orders, productProfiles, salesLetters, smsCodes, users } from "@defs";
 import { getAdminConfig } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, readJson } from "../domain/http";
+import { getActiveSession } from "../domain/session";
 import { sha256 } from "../domain/security";
-
-const SESSION_COOKIE = "xiabi_session";
 
 type BindPhoneBody = {
   phone?: string;
@@ -34,8 +32,9 @@ async function findUserByPhoneHash(phoneHash: string) {
 
 export const userRoutes = new Hono()
   .post("/bind-phone", async (c) => {
-    const sessionId = getCookie(c, SESSION_COOKIE);
-    if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const activeSession = await getActiveSession(c);
+    if (!activeSession) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const { sessionId } = activeSession;
     const body = await readJson<BindPhoneBody>(c);
     const phone = normalizePhone(String(body.phone || ""));
     const code = String(body.code || "").trim();

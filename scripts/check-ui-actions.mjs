@@ -56,6 +56,11 @@ const requiredMarkers = [
   },
   {
     file: "server/src/routes/tasks.ts",
+    marker: "getActiveSession(c)",
+    message: "paid or costly public generation entry must reject logged-out sessions"
+  },
+  {
+    file: "server/src/routes/tasks.ts",
     marker: "answer_too_long",
     message: "public generation task creation must reject oversized answers before queuing"
   },
@@ -138,6 +143,11 @@ const requiredMarkers = [
     file: "server/src/routes/voice.ts",
     marker: "console.error(\"voice_transcribe_failed\"",
     message: "public voice API must log provider details server-side instead of exposing raw errors"
+  },
+  {
+    file: "server/src/domain/session.ts",
+    marker: "eq(guestSessions.status, \"active\")",
+    message: "shared session guard must verify active session status"
   }
 ];
 

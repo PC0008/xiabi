@@ -12,7 +12,7 @@ async function getCurrentSession(sessionId: string) {
   const [session] = await db
     .select()
     .from(guestSessions)
-    .where(and(eq(guestSessions.tenantId, TENANT_ID), eq(guestSessions.id, sessionId)))
+    .where(and(eq(guestSessions.tenantId, TENANT_ID), eq(guestSessions.id, sessionId), eq(guestSessions.status, "active")))
     .limit(1);
   return session || null;
 }

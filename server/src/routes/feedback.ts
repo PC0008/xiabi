@@ -1,12 +1,11 @@
 import { db } from "edgespark";
 import { and, desc, eq } from "drizzle-orm";
-import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { auditLogs } from "@defs";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, readJson } from "../domain/http";
+import { getActiveSession } from "../domain/session";
 
-const SESSION_COOKIE = "xiabi_session";
 const MAX_FEEDBACK_CONTENT_LENGTH = 2000;
 const MAX_FEEDBACK_CATEGORY_LENGTH = 80;
 const HOURLY_FEEDBACK_LIMIT = 12;
@@ -18,8 +17,9 @@ type FeedbackBody = {
 
 export const feedbackRoutes = new Hono()
   .post("/", async (c) => {
-    const sessionId = getCookie(c, SESSION_COOKIE);
-    if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const activeSession = await getActiveSession(c);
+    if (!activeSession) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const { sessionId } = activeSession;
     const body = await readJson<FeedbackBody>(c);
     const content = String(body.content || "").trim();
     if (!content) return fail(c, "missing_content", "请填写反馈内容。", 400);

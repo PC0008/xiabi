@@ -1,11 +1,10 @@
 import { db } from "edgespark";
-import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { processVoiceTurn, speakWithMiniMax } from "../adapters/voice";
 import { getAdminConfig } from "../domain/config";
 import { fail, ok, readJson } from "../domain/http";
+import { getActiveSession } from "../domain/session";
 
-const SESSION_COOKIE = "xiabi_session";
 const MAX_TRANSCRIBE_TEXT_LENGTH = 2000;
 const MAX_AUDIO_BASE64_LENGTH = 8 * 1024 * 1024;
 const ALLOWED_AUDIO_MIME = new Set([
@@ -32,8 +31,8 @@ type TranscribeBody = {
 
 export const voiceRoutes = new Hono()
   .post("/speak", async (c) => {
-    const sessionId = getCookie(c, SESSION_COOKIE);
-    if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const activeSession = await getActiveSession(c);
+    if (!activeSession) return fail(c, "missing_session", "请先开始一次会话。", 401);
     const config = await getAdminConfig(db);
     const system = config.system as Record<string, unknown>;
     if (system.voice_enabled === false) return fail(c, "voice_disabled", "语音服务暂未开启。", 503);
@@ -48,8 +47,9 @@ export const voiceRoutes = new Hono()
     }
   })
   .post("/transcribe", async (c) => {
-    const sessionId = getCookie(c, SESSION_COOKIE);
-    if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const activeSession = await getActiveSession(c);
+    if (!activeSession) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const { sessionId } = activeSession;
     const config = await getAdminConfig(db);
     const system = config.system as Record<string, unknown>;
     if (system.voice_enabled === false) return fail(c, "voice_disabled", "语音服务暂未开启。", 503);

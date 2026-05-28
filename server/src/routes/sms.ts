@@ -1,15 +1,14 @@
 import { db } from "edgespark";
 import { and, desc, eq } from "drizzle-orm";
-import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { smsCodes } from "@defs";
 import { sendSmsCode, SmsProviderError } from "../adapters/sms";
 import { getAdminConfig } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, readJson } from "../domain/http";
+import { getActiveSession } from "../domain/session";
 import { sha256 } from "../domain/security";
 
-const SESSION_COOKIE = "xiabi_session";
 const RESEND_INTERVAL_MS = 60_000;
 const HOURLY_LIMIT = 5;
 const DAILY_LIMIT = 12;
@@ -50,8 +49,8 @@ function smsSendFailedMessage(error: unknown) {
 
 export const smsRoutes = new Hono()
   .post("/send-code", async (c) => {
-    const sessionId = getCookie(c, SESSION_COOKIE);
-    if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const activeSession = await getActiveSession(c);
+    if (!activeSession) return fail(c, "missing_session", "请先开始一次会话。", 401);
     const body = await readJson<SendCodeBody>(c);
     const phone = normalizePhone(String(body.phone || ""));
     if (!/^1\d{10}$/.test(phone)) return fail(c, "invalid_phone", "请输入正确的手机号。", 400);

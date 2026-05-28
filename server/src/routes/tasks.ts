@@ -1,6 +1,5 @@
 import { ctx, db } from "edgespark";
 import { and, desc, eq } from "drizzle-orm";
-import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { generationTasks, salesLetters } from "@defs";
 import { generateSalesLetterWithDeepSeek, type SalesLetterContent } from "../adapters/letter/deepseek";
@@ -8,8 +7,8 @@ import { enqueueTask } from "../adapters/task";
 import { getConfigScope } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, parseJson, readJson } from "../domain/http";
+import { getActiveSession } from "../domain/session";
 
-const SESSION_COOKIE = "xiabi_session";
 const MAX_ANSWERS = 12;
 const MAX_ANSWER_LENGTH = 1200;
 const MAX_ANSWER_ITEMS = 12;
@@ -202,8 +201,9 @@ async function hasTooManyRecentGenerationTasks(sessionId: string) {
 
 export const taskRoutes = new Hono()
   .post("/", async (c) => {
-    const sessionId = getCookie(c, SESSION_COOKIE);
-    if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const activeSession = await getActiveSession(c);
+    if (!activeSession) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const { sessionId, session } = activeSession;
 
     const body = await readJson<CreateTaskBody>(c);
     const rawAnswers = Array.isArray(body.answers) ? body.answers.map(String) : [];
@@ -248,6 +248,7 @@ export const taskRoutes = new Hono()
       id: taskId,
       tenantId: TENANT_ID,
       sessionId,
+      userId: session.userId || null,
       type: "sales_letter",
       status: "queued",
       inputJson: JSON.stringify(taskInput),
@@ -259,8 +260,9 @@ export const taskRoutes = new Hono()
     return ok(c, { taskId, status: "queued", queue });
   })
   .get("/:id", async (c) => {
-    const sessionId = getCookie(c, SESSION_COOKIE);
-    if (!sessionId) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const activeSession = await getActiveSession(c);
+    if (!activeSession) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const { sessionId } = activeSession;
     const [task] = await db
       .select()
       .from(generationTasks)
