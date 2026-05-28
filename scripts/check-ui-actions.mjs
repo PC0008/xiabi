@@ -153,6 +153,11 @@ const requiredMarkers = [
     file: "server/src/domain/entitlements.ts",
     marker: "db.batch([",
     message: "payment closure must update paid order and grant entitlement in one batched operation"
+  },
+  {
+    file: "server/src/routes/users.ts",
+    marker: "ownershipUpdates",
+    message: "phone binding must migrate session assets in a single batched ownership update"
   }
 ];
 
