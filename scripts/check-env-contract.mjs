@@ -14,13 +14,15 @@ const envKeys = new Set(
 );
 
 const envReads = new Map();
-const varReads = new Map();
-const secretReads = new Map();
+const directVarReads = new Map();
+const directSecretReads = new Map();
+const optionalVarReads = new Map();
+const optionalSecretReads = new Map();
 const patterns = [
-  [/\bvars\.get\(\s*["']([A-Z0-9_]+)["']\s*\)/g, varReads],
-  [/\bsecret\.get\(\s*["']([A-Z0-9_]+)["']\s*\)/g, secretReads],
-  [/\boptionalVar\(\s*["']([A-Z0-9_]+)["']\s*\)/g, varReads],
-  [/\boptionalSecret\(\s*["']([A-Z0-9_]+)["']\s*\)/g, secretReads]
+  [/\bvars\.get\(\s*["']([A-Z0-9_]+)["']\s*\)/g, directVarReads],
+  [/\bsecret\.get\(\s*["']([A-Z0-9_]+)["']\s*\)/g, directSecretReads],
+  [/\boptionalVar\(\s*["']([A-Z0-9_]+)["']\s*\)/g, optionalVarReads],
+  [/\boptionalSecret\(\s*["']([A-Z0-9_]+)["']\s*\)/g, optionalSecretReads]
 ];
 
 function walk(dir) {
@@ -75,6 +77,17 @@ function reportMissingTypedKeys(reads, declared, label) {
   return missingTypedKeys.length;
 }
 
+function reportOptionalOnlyTypedKeys(optionalReads, directReads, declared, label) {
+  const optionalOnlyTypedKeys = [...optionalReads.keys()]
+    .filter((key) => !directReads.has(key) && declared.has(key))
+    .sort();
+  for (const key of optionalOnlyTypedKeys) {
+    const refs = [...new Set(optionalReads.get(key) || [])].join(", ");
+    console.error(`${key} is read only via optional ${label} access but declared in server/src/defs/runtime.ts, which makes EdgeSpark deploy require it (${refs})`);
+  }
+  return optionalOnlyTypedKeys.length;
+}
+
 const missing = [...envReads.keys()]
   .filter((key) => !envKeys.has(key))
   .sort();
@@ -88,9 +101,11 @@ if (missing.length) {
   failureCount += missing.length;
 }
 
-failureCount += reportMissingTypedKeys(varReads, varTypes, "VarKey");
-failureCount += reportMissingTypedKeys(secretReads, secretTypes, "SecretKey");
+failureCount += reportMissingTypedKeys(directVarReads, varTypes, "VarKey");
+failureCount += reportMissingTypedKeys(directSecretReads, secretTypes, "SecretKey");
+failureCount += reportOptionalOnlyTypedKeys(optionalVarReads, directVarReads, varTypes, "VarKey");
+failureCount += reportOptionalOnlyTypedKeys(optionalSecretReads, directSecretReads, secretTypes, "SecretKey");
 
 if (failureCount) process.exit(1);
 
-console.log(`[ok] .env.example and runtime types cover ${envReads.size} runtime variables read by server code`);
+console.log(`[ok] .env.example covers ${envReads.size} runtime variables read by server code; runtime types cover required direct reads`);

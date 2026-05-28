@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- Edgespark 部署契约修复：实际部署时发现 `server/src/defs/runtime.ts` 会被 CLI 作为“必填运行时键”校验，导致 `VOICE_ASR_*`、微信平台公钥/证书、公众号 secret、`SMS_CODE_PEPPER` 等最终验收或可选增强项误阻塞生产部署；已改为只让直接 `vars.get/secret.get` 的核心键进入类型联合，可选接入项继续保留在 `.env.example`、后台自检和生产验收脚本中。修复后 `npm run deploy` 已成功部署到 `https://immortal-sponge-1728.edgespark.app`，`npm run verify:live` 和基础 `npm run verify:production` 均通过。
 - 短信验证码安全补强：新增 `SMS_CODE_PEPPER` 可选服务端密钥，新发送验证码改为带服务端 pepper 的哈希存储，并兼容短期旧验证码哈希校验；新增 `npm run check:sms-code-safety` 并纳入 `verify:preflight`，防止 6 位验证码哈希在数据库泄露后被离线枚举。
 - DOCX 导出验收补强：`verify:production` 在真实 DeepSeek/领取/导出链路中不再只检查 DOCX 是 zip 文件，还会解析包结构并验证 `[Content_Types].xml`、关系文件、`word/document.xml`、样式和 core metadata，降低最终交付时“下载到了文件但 Word 打不开”的风险；`check:ui` 已加入该验收标记。
 - 部署运行时契约补强：`server/src/defs/runtime.ts` 已补齐 `VOICE_ASR_*`、微信平台证书、公众号授权 secret 等正式接入变量；`npm run check:env-contract` 现在同时验证 `.env.example` 和运行时类型声明，避免后续 Edgespark 配置项“文档有、类型契约漏掉”。
