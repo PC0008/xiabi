@@ -69,9 +69,10 @@ export const voiceRoutes = new Hono()
     const body = await readJson<SpeakBody>(c);
     const text = String(body.text || "").trim();
     if (!text) return fail(c, "missing_text", "请输入要朗读的内容。", 400);
-    if (await voiceRateLimited(sessionId, "voice.speak", VOICE_SPEAK_HOURLY_LIMIT)) {
+    if (await voiceRateLimited(sessionId, "voice.speak_attempt", VOICE_SPEAK_HOURLY_LIMIT)) {
       return fail(c, "voice_speak_rate_limited", "语音播放太频繁了，请稍后再试。", 429);
     }
+    await logVoiceEvent(sessionId, "voice.speak_attempt", { textLength: text.length });
     try {
       const result = await speakWithMiniMax(text);
       await logVoiceEvent(sessionId, "voice.speak", {
@@ -100,9 +101,15 @@ export const voiceRoutes = new Hono()
     if (text.length > MAX_TRANSCRIBE_TEXT_LENGTH) return fail(c, "text_too_long", "输入内容过长，请分几次发送。", 413);
     if (audioBase64.length > MAX_AUDIO_BASE64_LENGTH) return fail(c, "audio_too_large", "录音太长，请缩短后再试。", 413);
     if (audioBase64 && mimeType && !ALLOWED_AUDIO_MIME.has(mimeType)) return fail(c, "unsupported_audio_type", "当前录音格式暂不支持。", 415);
-    if (await voiceRateLimited(sessionId, "voice.transcribe", VOICE_TRANSCRIBE_HOURLY_LIMIT)) {
+    if (await voiceRateLimited(sessionId, "voice.transcribe_attempt", VOICE_TRANSCRIBE_HOURLY_LIMIT)) {
       return fail(c, "voice_transcribe_rate_limited", "语音输入太频繁了，请稍后再试。", 429);
     }
+    await logVoiceEvent(sessionId, "voice.transcribe_attempt", {
+      inputMode: text ? "text" : "audio",
+      textLength: text.length,
+      audioBytesApprox: audioBase64 ? Math.ceil(audioBase64.length * 0.75) : 0,
+      mimeType: mimeType || rawMimeType || ""
+    });
     try {
       const result = await processVoiceTurn({
         sessionId,

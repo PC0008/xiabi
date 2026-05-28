@@ -131,13 +131,13 @@ const requiredMarkers = [
   },
   {
     file: "server/src/routes/voice.ts",
-    marker: "voice_speak_rate_limited",
-    message: "voice TTS calls must be rate-limited before external provider calls"
+    marker: "voice.speak_attempt",
+    message: "voice TTS attempts must be audited and rate-limited before external provider calls"
   },
   {
     file: "server/src/routes/voice.ts",
-    marker: "voice.transcribe",
-    message: "voice transcription calls must be audited for operations traceability"
+    marker: "voice.transcribe_attempt",
+    message: "voice transcription attempts must be audited and rate-limited before external provider calls"
   },
   {
     file: "h5/app.js",

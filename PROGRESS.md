@@ -1,6 +1,7 @@
 # PROGRESS.md
 
 - 语音接口风控补强：`/voice/speak` 和 `/voice/transcribe` 现在按会话做小时级频率限制，避免真实 MiniMax TTS/ASR 接入后被重复点击或异常调用放大成本；成功调用会写入 `voice.speak` / `voice.transcribe` 审计事件，记录配置状态、供应商、输入模式和音频大小摘要。
+- 语音限流口径收紧：语音播放和语音转写现在在调用外部供应商前先写入 `voice.speak_attempt` / `voice.transcribe_attempt`，限流按尝试次数计算，供应商异常或配置错误导致的失败重试也会被小时级限制挡住。
 
 - 导出风控补强：服务端导出接口新增同一会话每小时 20 次限制，命中后返回 `export_rate_limited`；每次成功导出会写入 `letter.export` 审计事件，记录 HTML/TXT/DOCX 三种文件对象，方便后台追踪导出行为并防止重复点击持续写存储。
 
