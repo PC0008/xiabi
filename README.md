@@ -30,9 +30,11 @@ npm run verify:production
 
 ## 当前真实状态
 
-项目已经部署到 Edgespark 生产环境，基础 API、后台配置、用户端主流程、订单/权益、微信支付接入位、短信接入位、MiniMax TTS、ASR 转发接入位和 DeepSeek 写信链路均已接入代码。写信任务创建后会通过 Edgespark 后台执行能力推进，前端轮询负责查询和兜底恢复。
+项目已经部署到 Edgespark 生产环境，基础 API、后台配置、用户端主流程、订单/权益、微信支付接入位、短信接入位、MiniMax TTS、ASR 转发接入位和 DeepSeek 写信链路均已接入代码。写信任务创建后会通过 Edgespark 后台执行能力推进，前端轮询负责查询。
 
-完整商业闭环仍需要一次带真实外部凭据的生产联调：后台登录、真实 DeepSeek 生成、真实短信绑定、真实微信小额付款与回调、MiniMax TTS、ASR 音频样本。
+已在线上真实验收 DeepSeek 写信、首次免费领取、重复免费领取拦截、打印版导出和 MiniMax TTS。微信支付创建已真实请求微信支付，但当前商户号仍被微信产品权限阻塞，需要在商户平台开通 H5 支付或 JSAPI 支付后复验。完整商业闭环剩余后台账号验收、真实短信绑定、真实微信小额付款与回调、ASR 音频样本。
+
+旧的小程序、CloudBase、mock 阶段文档仅作历史参考；当前权威口径以本 README、`PROGRESS.md`、`docs/production-readiness-latest.md`、`docs/生产验收与配置清单_v1.md` 为准。
 
 ## 配置入口
 

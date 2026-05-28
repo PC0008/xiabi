@@ -4,7 +4,7 @@
 
 ## 口径
 
-本文按 H5/Web + Edgespark.dev 重新定义，不沿用旧小程序/CloudBase API。当前 H5 mock 可继续用 `localStorage`，但真实权限只从服务端订单流水和权益流水计算。
+本文是 H5/Web + Edgespark.dev 方向的早期数据模型草案，保留作结构参考。当前项目已经进入真实服务端阶段，运行时不再依赖 H5 mock；真实权限只从服务端订单流水和权益流水计算，当前实现以 `server/src/defs/db_schema.ts`、`server/drizzle/`、`server/src/routes/*` 和生产验收文档为准。
 
 ## 核心原则
 

@@ -1,5 +1,7 @@
 # 《下笔有元》API 接口契约 v0.1
 
+> 历史说明：本文是早期小程序/CloudBase/mock 阶段接口草案，已不是当前实现口径。当前默认路径是 H5/Web + H5 管理后台 + Edgespark.dev 后端；真实接口以 `server/src/routes/*`、`README.md`、`PROGRESS.md` 和 `生产验收与配置清单_v1.md` 为准。
+
 > 目标：定义小程序、总后台、CloudBase 云函数、支付回调、生成任务之间的接口边界。  
 > 当前原则：测试号阶段可 mock，但接口形状按正式链路设计，避免后续重构。
 
