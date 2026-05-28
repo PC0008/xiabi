@@ -123,6 +123,12 @@ checks.push(await assertJson(
   (payload) => payload?.error?.code === "answer_item_too_long"
 ));
 checks.push(await assertJson(
+  "/api/public/sms/send-code",
+  { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ phone: "12345" }) },
+  400,
+  (payload) => payload?.error?.code === "invalid_phone"
+));
+checks.push(await assertJson(
   "/api/public/orders",
   { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ productType: "single" }) },
   [400, 403],
@@ -173,6 +179,24 @@ checks.push(await assertJson(
   { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ text: "测试语音文本" }) },
   200,
   (payload) => payload?.data?.transcript === "测试语音文本"
+));
+checks.push(await assertJson(
+  "/api/public/voice/speak",
+  { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ text: "" }) },
+  400,
+  (payload) => payload?.error?.code === "missing_text"
+));
+checks.push(await assertJson(
+  "/api/public/voice/transcribe",
+  { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ text: "x".repeat(2001) }) },
+  413,
+  (payload) => payload?.error?.code === "text_too_long"
+));
+checks.push(await assertJson(
+  "/api/public/voice/transcribe",
+  { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ audioBase64: "UklGRg==", mimeType: "application/octet-stream" }) },
+  415,
+  (payload) => payload?.error?.code === "unsupported_audio_type"
 ));
 checks.push(await assertJson(
   "/api/public/voice/transcribe",
