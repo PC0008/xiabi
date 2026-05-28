@@ -67,6 +67,37 @@ test("agreement and privacy pages are reachable from user entry points", async (
   await expect(page.locator(".legal-section", { hasText: "第三方服务" })).toBeVisible();
 });
 
+test("feedback category and content are submitted to the backend", async ({ page }) => {
+  let requestBody = null;
+  await page.route("**/api/public/feedback", async (route) => {
+    requestBody = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, data: { submitted: true, feedbackId: "feedback-verification" } })
+    });
+  });
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+
+  await page.locator('[data-action="auth"]').click();
+  await page.goto(`${baseUrl}/index.html#feedback`, { waitUntil: "domcontentloaded" });
+  await page.locator('[data-feedback-tag="支付或订单问题"]').click();
+  await expect(page.locator('[data-feedback-tag="支付或订单问题"]')).toHaveClass(/active/);
+  await page.locator("#feedbackText").fill("付款后没有看到权益到账");
+  await page.locator('[data-action="submit-feedback"]').click();
+
+  await expect(page.locator(".success-title", { hasText: "反馈已收到" })).toBeVisible();
+  expect(requestBody).toMatchObject({
+    category: "支付或订单问题",
+    content: "付款后没有看到权益到账"
+  });
+});
+
 test("product archive can be created, edited, and deleted", async ({ page }) => {
   await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
   await page.evaluate(() => {

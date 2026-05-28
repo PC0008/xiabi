@@ -160,6 +160,7 @@ const state = {
   speakerOn: false,
   showMicSheet: false,
   typedText: "",
+  feedbackCategory: "用户反馈",
   feedbackText: "",
   feedbackSent: false,
   answers: storedState.answers,
@@ -1278,7 +1279,7 @@ function renderFeedback() {
     <div class="feedback-card card">
       <div class="feedback-label">选择一个类型</div>
       <div class="feedback-tags">
-        ${quick.map((item) => `<button class="feedback-tag" data-feedback-tag="${item}">${item}</button>`).join("")}
+        ${quick.map((item) => `<button class="feedback-tag ${state.feedbackCategory === item ? "active" : ""}" data-feedback-tag="${item}">${item}</button>`).join("")}
       </div>
       <div class="feedback-label">补充说明</div>
       <textarea id="feedbackText" class="feedback-input" placeholder="把问题写在这里，比如哪一步不顺、哪句话不满意、希望怎么改。">${h(state.feedbackText)}</textarea>
@@ -1816,7 +1817,7 @@ document.addEventListener("click", async (event) => {
 
   const feedbackTag = event.target.closest("[data-feedback-tag]");
   if (feedbackTag) {
-    state.feedbackText = `${feedbackTag.dataset.feedbackTag}：`;
+    state.feedbackCategory = feedbackTag.dataset.feedbackTag || "用户反馈";
     render();
     return;
   }
@@ -2192,7 +2193,7 @@ document.addEventListener("click", async (event) => {
     const input = document.getElementById("feedbackText");
     state.feedbackText = input ? input.value.trim() : state.feedbackText;
     try {
-      await window.XiabiStore.submitFeedback(state.feedbackText);
+      await window.XiabiStore.submitFeedback(state.feedbackText, state.feedbackCategory);
       state.feedbackSent = true;
       render();
     } catch (error) {

@@ -115,6 +115,11 @@ const requiredMarkers = [
     message: "claimed letters must support direct copy for real customer messaging"
   },
   {
+    file: "h5/app.js",
+    marker: "feedbackCategory",
+    message: "user feedback tags must be submitted as backend categories"
+  },
+  {
     file: "server/src/routes/orders.ts",
     marker: "wechat_pay_external_blocked",
     message: "WeChat product permission errors must be classified as external blockers"

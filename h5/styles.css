@@ -1924,6 +1924,12 @@ button {
   font-weight: 800;
 }
 
+.feedback-tag.active {
+  border-color: rgba(22, 161, 94, 0.55);
+  background: rgba(22, 161, 94, 0.14);
+  color: #0d7f45;
+}
+
 .feedback-input {
   width: 100%;
   min-height: 132px;
