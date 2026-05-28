@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 后台配置公开字段白名单补强：`/api/public/admin/config` 保存 `home`、`pricing`、`guideStages`、`templates`、`system` 时现在只保留产品约定字段，不再把未知字段随配置落库或下发到用户端；`system` scope 也改为显式开关白名单，避免后台误填的内部字段、备注或密钥形态内容进入公网配置。`check:admin-config-control` 已增加该回归门禁。
+
 - 领取权益边界补强：`/api/public/letters/:id/claim` 现在会先确认用户是否已通过年卡、单封解锁或既有权益拥有完整访问权；只有没有任何访问权时才写入首次免费权益流水，避免已付费用户领取已解锁信件时误消耗首次免费权益。`check:payment-entitlement-safety` 已覆盖该顺序。
 - 后台失败任务重试改为异步：总后台点击“重试生成”不再把 DeepSeek 调用压在 HTTP 请求内等待完成，而是把失败任务重置为 `queued`、写入 `task.retry_queued` 审计并交给后台任务继续执行；管理端提示改为“任务已重新排队”，符合长耗时写信任务异步化原则。
 - 写信任务幂等安全门补强：DeepSeek 返回后、写入销售信前，服务端会再次确认任务仍是本次锁定的 `running` 状态且未已有 `letterId`；后台失败任务重试也加同样冲突保护并写入 `task.retry_conflict` 审计，避免慢请求、恢复/重试竞态导致重复落信或重复消耗结果；新增 `npm run check:generation-task-safety` 并纳入最终预检。

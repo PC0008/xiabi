@@ -1,6 +1,6 @@
 # 最终无外部费用预检报告
 
-生成时间：2026-05-28T06:58:23.597Z
+生成时间：2026-05-28T07:13:21.658Z
 整体结果：通过
 
 ## 检查项
@@ -9,7 +9,7 @@
 | --- | --- | --- | --- |
 | typecheck | 通过 | 2.8s | 服务端与静态前端类型/源码检查 |
 | build | 通过 | 0.7s | 静态 Web 构建 |
-| check:ui | 通过 | 0.5s | 用户端/后台关键交互覆盖标记 |
+| check:ui | 通过 | 0.4s | 用户端/后台关键交互覆盖标记 |
 | check:env-contract | 通过 | 0.4s | 服务端环境变量与部署样例契约 |
 | check:admin-config-control | 通过 | 0.4s | 后台配置真实控制用户端和服务端 |
 | check:sensitive-output-safety | 通过 | 0.4s | 供应商失败和敏感输出安全边界 |
@@ -21,7 +21,7 @@
 | check:payment-entitlement-safety | 通过 | 0.4s | 微信支付成功判定与权益发放安全门 |
 | verify:order-payment-switch | 通过 | 0.4s | 支付开关和续付边界 |
 | verify:live | 通过 | 30.5s | 线上入口/API 边界/截图巡检 |
-| verify:journey | 通过 | 36.9s | 移动端用户主流程旅程 |
+| verify:journey | 通过 | 35.6s | 移动端用户主流程旅程 |
 | verify:production | 通过 | 4.9s | 生产基础验收，不触发外部付费调用 |
 | delivery:status | 通过 | 0.4s | 最终交付状态清单生成 |
 

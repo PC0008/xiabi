@@ -1,8 +1,8 @@
 # 最终交付状态清单
 
-生成时间：2026-05-28T06:58:23.559Z
+生成时间：2026-05-28T07:13:21.630Z
 来源报告：docs/production-readiness-preflight-latest.md
-来源报告生成时间：2026-05-28T06:58:23.125Z
+来源报告生成时间：2026-05-28T07:13:21.119Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 
 ## 当前结论

@@ -12,8 +12,20 @@ function requireIncludes(source, needle, label) {
   if (!source.includes(needle)) fail(`missing ${label}`);
 }
 
+function requireNotIncludes(source, needle, label) {
+  if (source.includes(needle)) fail(`unexpected ${label}`);
+}
+
 function requireAll(source, entries, label) {
   for (const needle of entries) requireIncludes(source, needle, `${label}: ${needle}`);
+}
+
+function sliceBetween(source, start, end, label) {
+  const startIndex = source.indexOf(start);
+  if (startIndex === -1) fail(`missing ${label} start`);
+  const endIndex = source.indexOf(end, startIndex + start.length);
+  if (endIndex === -1) fail(`missing ${label} end`);
+  return source.slice(startIndex, endIndex);
 }
 
 const defaults = read("server/src/domain/defaults.ts");
@@ -67,8 +79,21 @@ requireAll(adminRoutes, [
   "sanitizeHomeConfig",
   "sanitizePricing",
   "sanitizeGuideStages",
-  "sanitizeTemplates"
+  "sanitizeTemplates",
+  "sanitizeSystemConfig",
+  "if (scope === \"system\") return sanitizeSystemConfig(value);",
+  "throw new Error(\"unsupported config scope\")"
 ], "admin config mutation");
+
+for (const [start, end, label] of [
+  ["function sanitizeHomeConfig", "function sanitizePricing", "home config whitelist"],
+  ["function sanitizePricing", "function sanitizeGuideStages", "pricing whitelist"],
+  ["function sanitizeGuideStages", "function sanitizeTemplates", "guide stages whitelist"],
+  ["function sanitizeTemplates", "function sanitizeSystemConfig", "templates whitelist"],
+  ["function sanitizeSystemConfig", "function sanitizeConfigScope", "system config whitelist"]
+]) {
+  requireNotIncludes(sliceBetween(adminRoutes, start, end, label), "...input", label);
+}
 
 const store = read("h5/store.js");
 requireAll(store, [

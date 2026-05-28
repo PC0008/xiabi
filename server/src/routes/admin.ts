@@ -337,7 +337,6 @@ function cleanPrice(value: unknown, fallback: number) {
 function sanitizeHomeConfig(value: unknown) {
   const input = asRecord(value);
   return {
-    ...input,
     brand_name: cleanText(input.brand_name || "下笔有元", 40),
     hero_title: cleanText(input.hero_title || "说出目标，我们帮你写成销售信。", 80),
     hero_subtitle: cleanText(input.hero_subtitle || "", 300),
@@ -356,7 +355,6 @@ function sanitizeHomeConfig(value: unknown) {
 function sanitizePricing(value: unknown) {
   const input = asRecord(value);
   return {
-    ...input,
     single: cleanPrice(input.single, 200),
     annual: cleanPrice(input.annual, 2000),
     payment_mode: cleanText(input.payment_mode || "wechat", 20) === "wechat" ? "wechat" : "wechat",
@@ -380,7 +378,6 @@ function sanitizeGuideStages(value: unknown) {
     if (!question) throw new Error(`第 ${index + 1} 个引导阶段缺少问题文案。`);
     if (!options.length) throw new Error(`第 ${index + 1} 个引导阶段至少需要一个快捷选项。`);
     return {
-      ...input,
       key: cleanText(input.key || `stage_${index + 1}`, 60),
       title: cleanText(input.title || question, 80),
       question,
@@ -406,7 +403,6 @@ function sanitizeTemplates(value: unknown) {
       ? input.structure.map((part) => cleanText(part, 80)).filter(Boolean).slice(0, 12)
       : cleanText(input.structure, 400).split(/\n|->/).map((part) => cleanText(part, 80)).filter(Boolean).slice(0, 12);
     return {
-      ...input,
       key,
       name: cleanText(input.name || key, 80),
       goal: cleanText(input.goal || "", 80),
@@ -422,12 +418,24 @@ function sanitizeTemplates(value: unknown) {
   return templates;
 }
 
+function sanitizeSystemConfig(value: unknown) {
+  const input = asRecord(value);
+  return {
+    generation_enabled: cleanBoolean(input.generation_enabled, true),
+    payment_enabled: cleanBoolean(input.payment_enabled, true),
+    sms_enabled: cleanBoolean(input.sms_enabled, true),
+    voice_enabled: cleanBoolean(input.voice_enabled, true),
+    file_export_enabled: cleanBoolean(input.file_export_enabled, true)
+  };
+}
+
 function sanitizeConfigScope(scope: ConfigScope, value: unknown) {
   if (scope === "home") return sanitizeHomeConfig(value);
   if (scope === "pricing") return sanitizePricing(value);
   if (scope === "guideStages") return sanitizeGuideStages(value);
   if (scope === "templates") return sanitizeTemplates(value);
-  return asRecord(value);
+  if (scope === "system") return sanitizeSystemConfig(value);
+  throw new Error("unsupported config scope");
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
