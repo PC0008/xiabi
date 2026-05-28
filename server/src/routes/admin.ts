@@ -947,6 +947,7 @@ export const adminRoutes = new Hono()
         ready: result.ready,
         certificateMode: result.certificate.mode,
         certificateReady: result.certificate.ready,
+        signatureReady: result.signature.ready,
         oauthConfigured: result.oauth.configured
       });
       return ok(c, { wechatPay: result });

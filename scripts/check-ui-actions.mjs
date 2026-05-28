@@ -330,6 +330,16 @@ const requiredMarkers = [
     message: "admin diagnostics must audit WeChat Pay provider checks"
   },
   {
+    file: "server/src/adapters/payment/wechat.ts",
+    marker: "validateWechatPlatformPublicKey",
+    message: "WeChat Pay diagnostics must validate manual platform public key format"
+  },
+  {
+    file: "server/src/adapters/payment/wechat.ts",
+    marker: "signature.ready = true",
+    message: "WeChat Pay diagnostics must prove the merchant private key can sign locally"
+  },
+  {
     file: "h5/admin.js",
     marker: "check-wechat-pay",
     message: "admin diagnostics UI must expose WeChat Pay provider checks"

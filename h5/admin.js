@@ -1084,6 +1084,7 @@ function renderDiagnostics() {
           </div>
           <div class="diagnostic-items">
             <div class="diagnostic-item"><span>商户配置</span><strong class="${wechatPay.payment?.configured ? "ready" : "missing"}">${wechatPay.payment?.configured ? "已配置" : "缺失"}</strong></div>
+            <div class="diagnostic-item"><span>商户签名</span><strong class="${wechatPay.signature?.ready ? "ready" : "missing"}">${wechatPay.signature?.ready ? "可用" : "未确认"}</strong></div>
             <div class="diagnostic-item"><span>平台证书</span><strong class="${wechatPay.certificate?.ready ? "ready" : "missing"}">${wechatPay.certificate?.ready ? "可用" : "未确认"}</strong></div>
             <div class="diagnostic-item"><span>公众号授权</span><strong class="${wechatPay.oauth?.configured ? "ready" : "optional"}">${wechatPay.oauth?.configured ? "已配置" : "未填"}</strong></div>
           </div>

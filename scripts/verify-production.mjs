@@ -985,6 +985,7 @@ async function verifyWechatProviderConfig() {
     if (!wechatPay.ready) {
       addCheck("wechat provider config", "external_blocked", {
         provider: wechatPay.provider || "wechat",
+        signatureReady: wechatPay.signature?.ready === true,
         certificateMode: wechatPay.certificate?.mode || "",
         certificateReady: wechatPay.certificate?.ready === true,
         next: "check WeChat merchant private key, certificate serial number, APIv3 key, and platform certificate access"
@@ -993,6 +994,7 @@ async function verifyWechatProviderConfig() {
     }
     addCheck("wechat provider config", "ok", {
       provider: wechatPay.provider || "wechat",
+      signatureReady: wechatPay.signature?.ready === true,
       certificateMode: wechatPay.certificate?.mode || "",
       oauthConfigured: wechatPay.oauth?.configured === true
     });

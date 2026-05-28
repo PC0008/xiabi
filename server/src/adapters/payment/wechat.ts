@@ -185,6 +185,17 @@ async function signWithMerchantKey(message: string) {
   return arrayBufferToBase64(await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(message)));
 }
 
+async function validateWechatPlatformPublicKey(pem: string) {
+  await crypto.subtle.importKey(
+    "spki",
+    pemToPublicKeyArrayBuffer(pem),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+  return true;
+}
+
 function buildAuthHeader(input: { mchId: string; serialNo: string; nonce: string; timestamp: string; signature: string }) {
   return `WECHATPAY2-SHA256-RSA2048 mchid="${input.mchId}",nonce_str="${input.nonce}",signature="${input.signature}",timestamp="${input.timestamp}",serial_no="${input.serialNo}"`;
 }
@@ -564,6 +575,10 @@ export async function checkWechatPaymentProviderConfig() {
     mode: payment.items.platformPublicKey ? "manual_public_key" : "auto_fetch",
     count: 0
   };
+  const signature = {
+    configured: payment.items.privateKey && payment.items.certSerialNo && payment.items.mchId,
+    ready: false
+  };
   if (!payment.configured) {
     return {
       provider: "wechat",
@@ -572,10 +587,14 @@ export async function checkWechatPaymentProviderConfig() {
       payment,
       oauth,
       certificate,
+      signature,
       message: payment.message
     };
   }
+  await signWithMerchantKey(`GET\n/v3/certificates\n${Math.floor(Date.now() / 1000)}\n${crypto.randomUUID().replace(/-/g, "")}\n\n`);
+  signature.ready = true;
   if (payment.items.platformPublicKey) {
+    await validateWechatPlatformPublicKey(optionalSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY"));
     certificate.ready = true;
   } else if (payment.items.platformCertificateAutoFetch) {
     const serials = await fetchWechatPlatformCertificates();
@@ -585,9 +604,10 @@ export async function checkWechatPaymentProviderConfig() {
   return {
     provider: "wechat",
     configured: payment.configured,
-    ready: payment.configured && certificate.ready,
+    ready: payment.configured && signature.ready && certificate.ready,
     payment,
     oauth,
+    signature,
     certificate
   };
 }
