@@ -1319,13 +1319,15 @@ export const adminRoutes = new Hono()
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
     const paging = listPaging(c);
+    const status = queryStatus(c, ["open", "resolved"]);
     const rows = await db
       .select()
       .from(auditLogs)
       .where(and(eq(auditLogs.tenantId, TENANT_ID), eq(auditLogs.targetType, "feedback")))
       .orderBy(desc(auditLogs.createdAt))
       .limit(Math.min(Math.max(paging.offset + paging.limit + 1, 200), 1000));
-    const feedback = buildFeedbackRows(rows).slice(paging.offset, paging.offset + paging.limit + 1);
+    const filtered = buildFeedbackRows(rows).filter((item) => !status || item.feedbackStatus === status);
+    const feedback = filtered.slice(paging.offset, paging.offset + paging.limit + 1);
     return ok(c, { feedback: feedback.slice(0, paging.limit), pageInfo: pageInfo({ ...paging, count: feedback.length }) });
   })
   .get("/feedback/:id", async (c) => {

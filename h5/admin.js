@@ -94,7 +94,8 @@ const adminState = {
     tasksStatus: "",
     ordersStatus: "",
     entitlementsStatus: "",
-    paymentEventsStatus: ""
+    paymentEventsStatus: "",
+    feedbackStatus: ""
   },
   pageLimit: 50,
   pages: {
@@ -157,7 +158,7 @@ async function loadAdminLists() {
       window.XiabiStore.adminFetch(listPath("/audit-logs", "", "logs")),
       window.XiabiStore.adminFetch(listPath("/tasks", adminState.filters.tasksStatus, "tasks")),
       window.XiabiStore.adminFetch(listPath("/payment-events", adminState.filters.paymentEventsStatus, "paymentEvents")),
-      window.XiabiStore.adminFetch(listPath("/feedback", "", "feedback")),
+      window.XiabiStore.adminFetch(listPath("/feedback", adminState.filters.feedbackStatus, "feedback")),
       window.XiabiStore.adminFetch("/diagnostics")
     ]);
     adminState.lists = {
@@ -921,7 +922,8 @@ function renderFeedback() {
         : `<button class="mini-action warn-action" data-action="resolve-feedback" data-feedback-id="${h(item.id)}">处理</button>`}
     `)
   ]);
-  return layout(tablePanel("用户反馈", "集中查看用户端提交的问题、建议和异常描述。", ["状态", "类型", "内容", "会话", "时间", "操作"], rows, "", paginationControls("feedback", adminState.lists.feedback?.pageInfo)));
+  const controls = statusFilter("feedbackStatus", adminState.filters.feedbackStatus, [["", "全部状态"], ["open", "待处理"], ["resolved", "已处理"]]);
+  return layout(tablePanel("用户反馈", "集中查看用户端提交的问题、建议和异常描述。", ["状态", "类型", "内容", "会话", "时间", "操作"], rows, controls, paginationControls("feedback", adminState.lists.feedback?.pageInfo)));
 }
 
 function renderSecurity() {
@@ -1573,7 +1575,8 @@ document.addEventListener("change", async (event) => {
       tasksStatus: "tasks",
       ordersStatus: "orders",
       entitlementsStatus: "entitlements",
-      paymentEventsStatus: "paymentEvents"
+      paymentEventsStatus: "paymentEvents",
+      feedbackStatus: "feedback"
     };
     if (pageByFilter[filterName]) adminState.pages[pageByFilter[filterName]] = 1;
     try {

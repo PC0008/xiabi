@@ -120,6 +120,11 @@ const requiredMarkers = [
     message: "user feedback tags must be submitted as backend categories"
   },
   {
+    file: "h5/admin.js",
+    marker: "feedbackStatus",
+    message: "admin feedback list must support open/resolved filtering"
+  },
+  {
     file: "server/src/routes/orders.ts",
     marker: "wechat_pay_external_blocked",
     message: "WeChat product permission errors must be classified as external blockers"
