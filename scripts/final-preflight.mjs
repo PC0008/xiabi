@@ -1,0 +1,88 @@
+import { spawn } from "node:child_process";
+import fs from "node:fs/promises";
+import path from "node:path";
+
+const root = process.cwd();
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+const outputPath = path.join(root, "docs", "final-preflight-latest.md");
+
+const steps = [
+  ["typecheck", ["run", "typecheck"], "服务端与静态前端类型/源码检查"],
+  ["build", ["run", "build"], "静态 Web 构建"],
+  ["check:ui", ["run", "check:ui"], "用户端/后台关键交互覆盖标记"],
+  ["check:admin-permissions", ["run", "check:admin-permissions"], "后台高风险权限边界"],
+  ["check:bind-phone-unique", ["run", "check:bind-phone-unique"], "手机号绑定唯一性与冲突回查"],
+  ["verify:order-payment-switch", ["run", "verify:order-payment-switch"], "支付开关和续付边界"],
+  ["verify:live", ["run", "verify:live"], "线上入口/API 边界/截图巡检"],
+  ["verify:journey", ["run", "verify:journey"], "移动端用户主流程旅程"],
+  ["verify:production", ["run", "verify:production"], "生产基础验收，不触发外部付费调用"],
+  ["delivery:status", ["run", "delivery:status"], "最终交付状态清单生成"]
+];
+
+function runStep(name, args) {
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    const child = spawn([npmCommand, ...args].join(" "), {
+      cwd: root,
+      env: process.env,
+      shell: true
+    });
+    child.stdout.on("data", (chunk) => process.stdout.write(chunk));
+    child.stderr.on("data", (chunk) => process.stderr.write(chunk));
+    child.on("close", (code) => {
+      resolve({
+        name,
+        status: code === 0 ? "passed" : "failed",
+        code,
+        durationMs: Date.now() - startedAt
+      });
+    });
+  });
+}
+
+function renderReport(results) {
+  const failed = results.filter((item) => item.status !== "passed");
+  const lines = [
+    "# 最终无外部费用预检报告",
+    "",
+    `生成时间：${new Date().toISOString()}`,
+    `整体结果：${failed.length ? "失败" : "通过"}`,
+    "",
+    "## 检查项",
+    "",
+    "| 命令 | 状态 | 耗时 | 说明 |",
+    "| --- | --- | --- | --- |"
+  ];
+  for (const result of results) {
+    const step = steps.find(([name]) => name === result.name);
+    lines.push(`| ${result.name} | ${result.status === "passed" ? "通过" : "失败"} | ${(result.durationMs / 1000).toFixed(1)}s | ${step?.[2] || ""} |`);
+  }
+  lines.push(
+    "",
+    "## 口径",
+    "",
+    "- 该预检不会主动设置 DeepSeek、短信、微信支付、MiniMax TTS 或 ASR 的真实调用环境变量。",
+    "- 该预检通过只代表无外部费用的代码、线上基础和用户旅程检查通过；完整真实运行仍以 `npm run verify:production` 返回 `complete=true` 为准。",
+    ""
+  );
+  return lines.join("\n");
+}
+
+async function main() {
+  const results = [];
+  for (const [name, args, description] of steps) {
+    console.log(`\n=== ${name}: ${description} ===`);
+    const result = await runStep(name, args);
+    results.push(result);
+    if (result.status !== "passed") break;
+  }
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  await fs.writeFile(outputPath, renderReport(results), "utf8");
+  console.log(`\nFinal preflight report written to ${path.relative(root, outputPath)}`);
+  if (results.some((item) => item.status !== "passed")) process.exit(1);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
