@@ -58,6 +58,14 @@ async function logVoiceEvent(sessionId: string, action: string, detail: Record<s
   });
 }
 
+function voiceFailureDetail(error: unknown, detail: Record<string, unknown>) {
+  return {
+    ...detail,
+    errorType: error instanceof Error ? error.name : typeof error,
+    reason: "provider_error"
+  };
+}
+
 export const voiceRoutes = new Hono()
   .post("/speak", async (c) => {
     const activeSession = await getActiveSession(c);
@@ -83,6 +91,9 @@ export const voiceRoutes = new Hono()
       return ok(c, result);
     } catch (error) {
       console.error("voice_speak_failed", error);
+      await logVoiceEvent(sessionId, "voice.speak_failed", voiceFailureDetail(error, {
+        textLength: text.length
+      }));
       return fail(c, "voice_speak_failed", "语音播放暂时不可用，请继续按住说话或切换打字模式。", 502);
     }
   })
@@ -130,6 +141,12 @@ export const voiceRoutes = new Hono()
       return ok(c, result);
     } catch (error) {
       console.error("voice_transcribe_failed", error);
+      await logVoiceEvent(sessionId, "voice.transcribe_failed", voiceFailureDetail(error, {
+        inputMode: text ? "text" : "audio",
+        textLength: text.length,
+        audioBytesApprox: audioBase64 ? Math.ceil(audioBase64.length * 0.75) : 0,
+        mimeType: mimeType || rawMimeType || ""
+      }));
       return fail(c, "voice_transcribe_failed", "这次没有听清楚，请再说一遍或切换打字模式。", 502);
     }
   });

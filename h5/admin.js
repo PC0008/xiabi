@@ -942,8 +942,10 @@ function renderLogs() {
             ["sms.send_failed", "短信发送失败"],
             ["voice.speak_attempt", "语音播放尝试"],
             ["voice.speak", "语音播放"],
+            ["voice.speak_failed", "语音播放失败"],
             ["voice.transcribe_attempt", "语音输入尝试"],
             ["voice.transcribe", "语音输入"],
+            ["voice.transcribe_failed", "语音输入失败"],
             ["feedback.submit", "反馈提交"],
             ["feedback.resolve", "反馈处理"],
             ["feedback.reopen", "反馈重开"]

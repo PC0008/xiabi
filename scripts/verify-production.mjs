@@ -565,7 +565,9 @@ async function verifyAdminDiagnostics() {
     ["/api/public/admin/audit-logs?action=order.payment_attempt&targetType=order&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
     ["/api/public/admin/audit-logs?action=order.payment_status_check&targetType=order&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
     ["/api/public/admin/audit-logs?action=sms.send_attempt&targetType=sms&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
-    ["/api/public/admin/audit-logs?action=voice.transcribe_attempt&targetType=voice&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo]
+    ["/api/public/admin/audit-logs?action=voice.transcribe_attempt&targetType=voice&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
+    ["/api/public/admin/audit-logs?action=voice.speak_failed&targetType=voice&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
+    ["/api/public/admin/audit-logs?action=voice.transcribe_failed&targetType=voice&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo]
   ];
   for (const [pathname, validate] of listChecks) {
     const payload = await api(pathname, {}, admin.cookie);

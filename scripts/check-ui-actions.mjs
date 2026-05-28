@@ -141,8 +141,28 @@ const requiredMarkers = [
   },
   {
     file: "server/src/routes/voice.ts",
+    marker: "voice.speak_failed",
+    message: "voice TTS failures must write audit events for production troubleshooting"
+  },
+  {
+    file: "server/src/routes/voice.ts",
     marker: "voice.transcribe_attempt",
     message: "voice transcription attempts must be audited and rate-limited before external provider calls"
+  },
+  {
+    file: "server/src/routes/voice.ts",
+    marker: "voice.transcribe_failed",
+    message: "voice transcription failures must write audit events for production troubleshooting"
+  },
+  {
+    file: "h5/admin.js",
+    marker: "voice.speak_failed",
+    message: "admin audit log filters must expose voice failure events"
+  },
+  {
+    file: "h5/admin.js",
+    marker: "voice.transcribe_failed",
+    message: "admin audit log filters must expose voice transcription failure events"
   },
   {
     file: "h5/app.js",
