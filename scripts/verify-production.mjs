@@ -385,6 +385,7 @@ async function verifyAdminDiagnostics() {
 
   const listChecks = [
     ["/api/public/admin/dashboard", (payload) => !!payload.metrics],
+    ["/api/public/admin/admins", (payload) => Array.isArray(payload.admins) && typeof payload.canCreate === "boolean"],
     ["/api/public/admin/users?limit=2&page=1", (payload) => Array.isArray(payload.users) && Array.isArray(payload.sessions) && !!payload.pageInfo],
     ["/api/public/admin/profiles?limit=2&page=1", (payload) => Array.isArray(payload.profiles) && !!payload.pageInfo],
     ["/api/public/admin/letters?status=ready&limit=2&page=1", (payload) => Array.isArray(payload.letters) && !!payload.pageInfo],

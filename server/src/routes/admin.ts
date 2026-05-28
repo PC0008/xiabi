@@ -30,6 +30,12 @@ type AdminPasswordBody = {
   newPassword?: string;
 };
 
+type AdminCreateBody = {
+  username?: string;
+  displayName?: string;
+  password?: string;
+};
+
 type FeedbackStatusBody = {
   status?: string;
   note?: string;
@@ -589,7 +595,11 @@ function publicAdmin(admin: typeof adminUsers.$inferSelect) {
     id: admin.id,
     username: admin.username,
     displayName: admin.displayName,
-    role: admin.role
+    role: admin.role,
+    status: admin.status,
+    lastLoginAt: admin.lastLoginAt,
+    createdAt: admin.createdAt,
+    updatedAt: admin.updatedAt
   };
 }
 
@@ -790,6 +800,53 @@ export const adminRoutes = new Hono()
     deleteCookie(c, ADMIN_COOKIE, { path: "/" });
     await logAdmin(admin.id, "admin.password_changed", "admin_user", { username: admin.username });
     return ok(c, { changed: true });
+  })
+  .get("/admins", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const rows = await db
+      .select()
+      .from(adminUsers)
+      .where(eq(adminUsers.tenantId, TENANT_ID))
+      .orderBy(desc(adminUsers.createdAt))
+      .limit(100);
+    return ok(c, { admins: rows.map(publicAdmin), canCreate: admin!.role === "owner" });
+  })
+  .post("/admins", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireOwnerOrFail(c, admin);
+    if (denied) return denied;
+    const body = await readJson<AdminCreateBody>(c);
+    const username = String(body.username || "").trim();
+    const displayName = String(body.displayName || username || "运营账号").trim();
+    const password = String(body.password || "");
+    if (!username || !password) return fail(c, "missing_admin_account", "请输入账号和初始密码。", 400);
+    if (!/^[a-zA-Z0-9_.@-]{3,64}$/.test(username)) {
+      return fail(c, "invalid_admin_username", "账号需为 3-64 位字母、数字或 . _ @ -。", 400);
+    }
+    if (displayName.length > 40) return fail(c, "admin_display_name_too_long", "显示名称最多 40 位。", 413);
+    if (password.length < 10) return fail(c, "weak_password", "初始密码至少需要 10 位。", 400);
+    if (password.length > ADMIN_PASSWORD_MAX_LENGTH) return fail(c, "admin_password_too_long", "密码长度超出限制。", 413);
+    const [existing] = await db
+      .select({ id: adminUsers.id })
+      .from(adminUsers)
+      .where(and(eq(adminUsers.tenantId, TENANT_ID), eq(adminUsers.username, username)))
+      .limit(1);
+    if (existing) return fail(c, "admin_username_exists", "这个后台账号已存在。", 409);
+    const pepper = secret.get("ADMIN_PASSWORD_PEPPER");
+    if (!pepper) return fail(c, "admin_pepper_missing", "后台密码安全配置缺失。", 500);
+    const [created] = await db.insert(adminUsers).values({
+      id: crypto.randomUUID(),
+      tenantId: TENANT_ID,
+      username,
+      displayName,
+      role: "viewer",
+      passwordHash: await hashPassword(password, pepper),
+      status: "active"
+    }).returning();
+    await logAdmin(admin!.id, "admin.create", "admin_user", { username, displayName, role: "viewer" }, created.id);
+    return ok(c, { admin: publicAdmin(created) });
   })
   .get("/config", async (c) => {
     const admin = await requireAdmin(c);

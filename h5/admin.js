@@ -74,6 +74,7 @@ const adminState = {
   guideStages: savedAdminConfig.guideStages || defaultGuideStages,
   lists: {
     dashboard: null,
+    admins: null,
     users: null,
     profiles: null,
     letters: null,
@@ -112,6 +113,11 @@ const adminState = {
     newPassword: "",
     confirmPassword: ""
   },
+  adminCreate: {
+    username: "",
+    displayName: "",
+    password: ""
+  },
   feedbackNotes: {},
   detail: null
 };
@@ -139,8 +145,9 @@ function readSavedAdminConfig() {
 async function loadAdminLists() {
   if (!adminState.adminUser) return;
   try {
-    const [dashboard, usersData, profilesData, lettersData, ordersData, entitlementData, logsData, tasksData, paymentEventsData, feedbackData, diagnosticsData] = await Promise.all([
+    const [dashboard, adminsData, usersData, profilesData, lettersData, ordersData, entitlementData, logsData, tasksData, paymentEventsData, feedbackData, diagnosticsData] = await Promise.all([
       window.XiabiStore.adminFetch("/dashboard"),
+      window.XiabiStore.adminFetch("/admins"),
       window.XiabiStore.adminFetch(listPath("/users", "", "users")),
       window.XiabiStore.adminFetch(listPath("/profiles", "", "profiles")),
       window.XiabiStore.adminFetch(listPath("/letters", adminState.filters.lettersStatus, "letters")),
@@ -154,6 +161,7 @@ async function loadAdminLists() {
     ]);
     adminState.lists = {
       dashboard,
+      admins: adminsData,
       users: usersData,
       profiles: profilesData,
       letters: lettersData,
@@ -198,6 +206,7 @@ const navItems = [
   ["guides", "通话引导", "guide"],
   ["templates", "销售信模板", "template"],
   ["pricing", "价格权益", "crown"],
+  ["admins", "管理员账号", "settings"],
   ["users", "用户管理", "user"],
   ["profiles", "产品档案", "archive"],
   ["letters", "销售信管理", "doc"],
@@ -398,6 +407,7 @@ function pageDescription(route) {
     guides: "配置通话页内的追问阶段、快捷选项和写入位置。",
     templates: "控制销售信生成结构、段落要求和模板版本。",
     pricing: "配置单封、年卡、支付模式和 PDF 导出承接。",
+    admins: "管理后台登录账号和运营权限，owner 可创建只读运营账号。",
     users: "查看用户、手机号、权益和使用记录。",
     letters: "排查每一封销售信的状态、模板和任务来源。",
     tasks: "查看生成任务、失败原因和后台重试结果。",
@@ -762,6 +772,38 @@ function renderUsers() {
   return layout(tablePanel("用户列表", "查看用户基础信息和权益状态。", ["主体ID", "用户", "手机号", "状态", "会话", "最近更新", "创建时间", "操作"], rows, "", paginationControls("users", adminState.lists.users?.pageInfo)));
 }
 
+function renderAdmins() {
+  const admins = adminState.lists.admins?.admins || [];
+  const rows = admins.map((item) => [
+    shortId(item.id),
+    item.username,
+    item.displayName || "-",
+    item.role === "owner" ? "owner" : "只读运营",
+    item.status,
+    formatDate(item.lastLoginAt),
+    formatDate(item.createdAt)
+  ]);
+  return layout(`
+    <section class="section split">
+      <div class="panel card">
+        <div class="panel-head"><div><div class="panel-title">管理员列表</div><div class="panel-desc">只读运营账号可以查看数据和处理低风险反馈，不能改配置、查单、补权益或重处理回调。</div></div></div>
+        ${tableOnly(["ID", "账号", "显示名", "角色", "状态", "最近登录", "创建时间"], rows)}
+      </div>
+      <div class="panel card">
+        <div class="panel-head"><div><div class="panel-title">新增只读运营账号</div><div class="panel-desc">新账号创建后可用账号密码登录后台；初始密码请线下交接，后台不会回显。</div></div></div>
+        ${canAdminWrite() ? `
+          <div class="form-grid">
+            <div class="field"><label>账号</label><input data-admin-field="username" value="${h(adminState.adminCreate.username)}" placeholder="ops@example" maxlength="64" /></div>
+            <div class="field"><label>显示名</label><input data-admin-field="displayName" value="${h(adminState.adminCreate.displayName)}" placeholder="运营同事" maxlength="40" /></div>
+            <div class="field full"><label>初始密码</label><input data-admin-field="password" type="password" value="${h(adminState.adminCreate.password)}" placeholder="至少 10 位" maxlength="256" autocomplete="new-password" /></div>
+          </div>
+          <button class="primary" data-action="create-admin">创建只读账号</button>
+        ` : `<div class="empty">当前账号为只读权限，不能创建后台账号。</div>`}
+      </div>
+    </section>
+  `);
+}
+
 function renderProfiles() {
   const rows = (adminState.lists.profiles?.profiles || []).map((item) => [
     shortId(item.id),
@@ -1033,6 +1075,17 @@ function tablePanel(title, desc, heads, rows, controls = "", pagination = "") {
   `;
 }
 
+function tableOnly(heads, rows) {
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>${heads.map((head) => `<th>${h(head)}</th>`).join("")}</tr></thead>
+        <tbody>${rows.length ? rows.map((row) => `<tr>${row.map((cell) => `<td>${cell && typeof cell === "object" && "html" in cell ? cell.html : h(cell)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${heads.length}">暂无数据</td></tr>`}</tbody>
+      </table>
+    </div>
+  `;
+}
+
 function buildDetailHtml(type, data) {
   if (type === "users") {
     const subject = data.user || data.session || {};
@@ -1223,6 +1276,7 @@ function render() {
     guides: renderGuides,
     templates: renderTemplates,
     pricing: renderPricing,
+    admins: renderAdmins,
     users: renderUsers,
     profiles: renderProfiles,
     letters: renderLetters,
@@ -1292,6 +1346,24 @@ document.addEventListener("click", async (event) => {
       showToast("系统自检已刷新");
     } catch (error) {
       showToast(error.message || "系统自检刷新失败");
+    }
+  } else if (action === "create-admin") {
+    if (!canAdminWrite()) {
+      showToast("当前账号没有权限创建后台账号");
+      return;
+    }
+    try {
+      const created = await window.XiabiStore.adminPost("/admins", {
+        username: adminState.adminCreate.username,
+        displayName: adminState.adminCreate.displayName,
+        password: adminState.adminCreate.password
+      });
+      adminState.adminCreate = { username: "", displayName: "", password: "" };
+      adminState.lists.admins = await window.XiabiStore.adminFetch("/admins");
+      showToast(`已创建后台账号：${created.admin?.username || ""}`);
+      render();
+    } catch (error) {
+      showToast(error.message || "后台账号创建失败");
     }
   } else if (action === "close-detail") {
     adminState.detail = null;
@@ -1505,6 +1577,12 @@ document.addEventListener("input", (event) => {
   const feedbackNote = event.target.dataset.feedbackNote;
   if (feedbackNote) {
     adminState.feedbackNotes[feedbackNote] = event.target.value;
+    return;
+  }
+
+  const adminField = event.target.dataset.adminField;
+  if (adminField && adminField in adminState.adminCreate) {
+    adminState.adminCreate[adminField] = event.target.value;
     return;
   }
 

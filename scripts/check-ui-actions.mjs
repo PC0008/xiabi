@@ -125,6 +125,16 @@ const requiredMarkers = [
     message: "high-risk admin mutations must require owner role"
   },
   {
+    file: "server/src/routes/admin.ts",
+    marker: ".post(\"/admins\"",
+    message: "owner admins must be able to create read-only admin accounts"
+  },
+  {
+    file: "h5/admin.js",
+    marker: "data-admin-field",
+    message: "admin UI must expose account creation fields"
+  },
+  {
     file: "h5/admin.js",
     marker: "canAdminWrite",
     message: "admin UI must hide or block owner-only controls for non-owner roles"
