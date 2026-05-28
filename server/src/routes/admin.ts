@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { adminSessions, adminUsers, auditLogs, buckets, entitlementLedger, files, generationTasks, guestSessions, orders, paymentWebhookEvents, productProfiles, salesLetters, users } from "@defs";
 import type { SecretKey, VarKey } from "@defs";
 import { generateSalesLetterWithDeepSeek, SalesLetterContent } from "../adapters/letter/deepseek";
-import { isExpectedWechatAppId, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
+import { assertWechatPaidTransactionMatchesOrder, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
 import { getAdminConfig, upsertConfigScope } from "../domain/config";
 import { ConfigScope, configScopes, TENANT_ID } from "../domain/defaults";
 import { activateOrderEntitlement, markOrderPaidAndGrantEntitlement } from "../domain/entitlements";
@@ -160,18 +160,6 @@ async function decryptStoredWechatResource(resource: NonNullable<StoredWechatNot
     base64ToArrayBuffer(resource.ciphertext)
   );
   return JSON.parse(new TextDecoder().decode(plain)) as StoredWechatTransaction;
-}
-
-function validateStoredWechatTransaction(notification: StoredWechatNotification, transaction: StoredWechatTransaction, order: typeof orders.$inferSelect) {
-  if (notification.event_type !== "TRANSACTION.SUCCESS") throw new Error("unexpected_event_type");
-  if (transaction.trade_state !== "SUCCESS") throw new Error("unexpected_trade_state");
-  if (transaction.out_trade_no !== order.providerOrderNo) throw new Error("out_trade_no_mismatch");
-  if (!transaction.transaction_id) throw new Error("transaction_id_missing");
-  const expectedMchId = vars.get("WECHAT_PAY_MCH_ID");
-  if (!isExpectedWechatAppId(transaction.appid)) throw new Error("appid_mismatch");
-  if (!expectedMchId || transaction.mchid !== expectedMchId) throw new Error("mchid_mismatch");
-  if (Number(transaction.amount?.total) !== Number(order.amountCents)) throw new Error("amount_mismatch");
-  if (transaction.amount?.currency !== order.currency) throw new Error("currency_mismatch");
 }
 
 async function buildDiagnostics() {
@@ -1200,6 +1188,11 @@ export const adminRoutes = new Hono()
     const transaction = query.transaction;
     if (!transaction) return fail(c, "wechat_pay_empty_query", "微信支付查单没有返回交易数据。", 502);
     if (transaction.trade_state === "SUCCESS") {
+      try {
+        assertWechatPaidTransactionMatchesOrder({ transaction, order });
+      } catch (error) {
+        return fail(c, "wechat_transaction_mismatch", "微信查单结果与当前订单不一致，未发放权益。", 409);
+      }
       await markOrderPaidAndGrantEntitlement(order, transaction);
     }
     await logAdmin(admin!.id, "order.reconcile", "order", {
@@ -1311,7 +1304,7 @@ export const adminRoutes = new Hono()
         .where(and(eq(orders.tenantId, TENANT_ID), eq(orders.providerOrderNo, transaction.out_trade_no || "")))
         .limit(1);
       if (!order) throw new Error("order_not_found");
-      validateStoredWechatTransaction(notification, transaction, order);
+      assertWechatPaidTransactionMatchesOrder({ eventType: notification.event_type, transaction, order });
       await markOrderPaidAndGrantEntitlement(order, transaction);
       await db.update(paymentWebhookEvents).set({ orderId: order.id, status: "processed", errorMessage: null }).where(eq(paymentWebhookEvents.id, event.id));
       await logAdmin(admin!.id, "payment_event.reprocess", "payment_webhook_event", { eventId: event.id, orderId: order.id });

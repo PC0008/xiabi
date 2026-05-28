@@ -24,6 +24,24 @@ export type WechatOrderQueryResult = {
   };
 };
 
+export type WechatTransactionForValidation = {
+  appid?: string;
+  mchid?: string;
+  out_trade_no?: string;
+  transaction_id?: string;
+  trade_state?: string;
+  amount?: {
+    total?: number;
+    currency?: string;
+  };
+};
+
+type WechatOrderForValidation = {
+  providerOrderNo?: string | null;
+  amountCents: number;
+  currency: string;
+};
+
 export type NormalizedWechatWebhook = {
   eventId: string;
   providerOrderNo: string;
@@ -237,6 +255,32 @@ export function getWechatMpAppId() {
 export function isExpectedWechatAppId(appId?: string) {
   const candidates = [getWechatPayAppId(), getWechatMpAppId()].filter(Boolean);
   return !!appId && candidates.includes(appId);
+}
+
+export function assertWechatPaidTransactionMatchesOrder(input: {
+  eventType?: string;
+  transaction: WechatTransactionForValidation;
+  order: WechatOrderForValidation;
+}) {
+  const { eventType, transaction, order } = input;
+  if (eventType && eventType !== "TRANSACTION.SUCCESS") throw new Error("unexpected_event_type");
+  if (transaction.trade_state !== "SUCCESS") throw new Error("unexpected_trade_state");
+  if (!order.providerOrderNo || transaction.out_trade_no !== order.providerOrderNo) throw new Error("out_trade_no_mismatch");
+  if (!transaction.transaction_id) throw new Error("transaction_id_missing");
+  const expectedMchId = vars.get("WECHAT_PAY_MCH_ID");
+  if (!isExpectedWechatAppId(transaction.appid)) throw new Error("appid_mismatch");
+  if (!expectedMchId || transaction.mchid !== expectedMchId) throw new Error("mchid_mismatch");
+  if (Number(transaction.amount?.total) !== Number(order.amountCents)) throw new Error("amount_mismatch");
+  if (transaction.amount?.currency !== order.currency) throw new Error("currency_mismatch");
+}
+
+export function wechatPaidTransactionMatchesOrder(order: WechatOrderForValidation, transaction: WechatTransactionForValidation) {
+  try {
+    assertWechatPaidTransactionMatchesOrder({ transaction, order });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function getWechatOAuthReadiness() {

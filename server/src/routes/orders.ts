@@ -3,7 +3,7 @@ import { and, desc, eq, or } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { guestSessions, orders, salesLetters } from "@defs";
-import { buildWechatOAuthUrl, createWechatJsapiPayment, createWechatPayment, getWechatOAuthReadiness, getWechatPaymentReadiness, isExpectedWechatAppId, isWechatPaymentExternalBlock, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
+import { buildWechatOAuthUrl, createWechatJsapiPayment, createWechatPayment, getWechatOAuthReadiness, getWechatPaymentReadiness, isWechatPaymentExternalBlock, queryWechatPaymentByOutTradeNo, wechatPaidTransactionMatchesOrder } from "../adapters/payment/wechat";
 import { getConfigScope } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { markOrderPaidAndGrantEntitlement } from "../domain/entitlements";
@@ -59,25 +59,6 @@ async function wechatAuthResponse(c: any, sessionId: string, returnUrl = getRetu
 
 function createProviderOrderNo() {
   return `xiabi${Date.now().toString(36)}${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
-}
-
-function paymentMatchesOrder(order: typeof orders.$inferSelect, transaction: {
-  appid?: string;
-  mchid?: string;
-  out_trade_no?: string;
-  transaction_id?: string;
-  trade_state?: string;
-  amount?: { total?: number; currency?: string };
-}) {
-  if (transaction.trade_state !== "SUCCESS") return false;
-  if (!transaction.out_trade_no || transaction.out_trade_no !== order.providerOrderNo) return false;
-  if (!transaction.transaction_id) return false;
-  const expectedMchId = vars.get("WECHAT_PAY_MCH_ID");
-  if (!isExpectedWechatAppId(transaction.appid)) return false;
-  if (!expectedMchId || transaction.mchid !== expectedMchId) return false;
-  if (Number(transaction.amount?.total) !== Number(order.amountCents)) return false;
-  if (transaction.amount?.currency !== order.currency) return false;
-  return true;
 }
 
 type GuestSession = typeof guestSessions.$inferSelect;
@@ -214,7 +195,7 @@ export const orderRoutes = new Hono()
     if (!order) return fail(c, "order_not_found", "没有找到订单。", 404);
     if (order.status === "pending" && order.providerOrderNo) {
       const query = await queryWechatPaymentByOutTradeNo(order.providerOrderNo).catch(() => null);
-      if (query?.configured && query.transaction && paymentMatchesOrder(order, query.transaction)) {
+      if (query?.configured && query.transaction && wechatPaidTransactionMatchesOrder(order, query.transaction)) {
         const updated = await markOrderPaidAndGrantEntitlement(order, query.transaction);
         return ok(c, { orderId: updated.id, status: updated.status, paidAt: updated.paidAt });
       }

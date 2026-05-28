@@ -220,6 +220,16 @@ const requiredMarkers = [
     message: "payment closure must update paid order and grant entitlement in one batched operation"
   },
   {
+    file: "server/src/adapters/payment/wechat.ts",
+    marker: "assertWechatPaidTransactionMatchesOrder",
+    message: "WeChat paid transaction validation must be centralized across callbacks and reconciliation"
+  },
+  {
+    file: "server/src/routes/admin.ts",
+    marker: "wechat_transaction_mismatch",
+    message: "admin order reconciliation must not grant entitlement when WeChat transaction fields mismatch"
+  },
+  {
     file: "server/src/routes/users.ts",
     marker: "ownershipUpdates",
     message: "phone binding must migrate session assets in a single batched ownership update"

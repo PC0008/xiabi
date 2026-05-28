@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 微信查单补偿安全收紧：微信支付成功交易校验已集中到 `assertWechatPaidTransactionMatchesOrder`，用户侧查单、微信回调、后台回调重处理和后台订单“查单”共用同一套 appid/mchid/out_trade_no/transaction_id/金额/币种校验；后台查单遇到 SUCCESS 但字段不匹配时会返回 `wechat_transaction_mismatch`，不会补发权益。
+
 - 生产运行时配置契约补强：`WECHAT_MP_APP_ID` 已加入服务端必填 runtime 类型；`VOICE_ASR_*`、`VOICE_INPUT_MODE`、`WECHAT_MP_APP_SECRET`、微信平台验签公钥/序列号改为集中式 optional runtime 读取，避免这些待最终配置的外部接入位变成 Edgespark 部署硬阻塞；`check:ui` 新增回归标记避免后续可选配置读取再次散落。
 
 - 后台反馈筛选补强：用户反馈列表新增“全部/待处理/已处理”状态筛选，服务端 `/admin/feedback` 支持 `status=open|resolved` 真实过滤，生产验收脚本会同时校验两种状态筛选返回结构。

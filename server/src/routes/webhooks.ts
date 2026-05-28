@@ -1,8 +1,8 @@
-import { db, secret, vars } from "edgespark";
+import { db, secret } from "edgespark";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { orders, paymentWebhookEvents } from "@defs";
-import { isExpectedWechatAppId, verifyWechatWebhook } from "../adapters/payment/wechat";
+import { assertWechatPaidTransactionMatchesOrder, verifyWechatWebhook } from "../adapters/payment/wechat";
 import { TENANT_ID } from "../domain/defaults";
 import { markOrderPaidAndGrantEntitlement } from "../domain/entitlements";
 import { fail, ok } from "../domain/http";
@@ -53,18 +53,6 @@ async function decryptWechatResource(resource: NonNullable<WechatNotification["r
   return JSON.parse(new TextDecoder().decode(plain)) as WechatTransaction;
 }
 
-function validateWechatTransaction(notification: WechatNotification, transaction: WechatTransaction, order: typeof orders.$inferSelect) {
-  if (notification.event_type !== "TRANSACTION.SUCCESS") throw new Error("unexpected_event_type");
-  if (transaction.trade_state !== "SUCCESS") throw new Error("unexpected_trade_state");
-  if (transaction.out_trade_no !== order.providerOrderNo) throw new Error("out_trade_no_mismatch");
-  if (!transaction.transaction_id) throw new Error("transaction_id_missing");
-  const expectedMchId = vars.get("WECHAT_PAY_MCH_ID");
-  if (!isExpectedWechatAppId(transaction.appid)) throw new Error("appid_mismatch");
-  if (!expectedMchId || transaction.mchid !== expectedMchId) throw new Error("mchid_mismatch");
-  if (Number(transaction.amount?.total) !== Number(order.amountCents)) throw new Error("amount_mismatch");
-  if (transaction.amount?.currency !== order.currency) throw new Error("currency_mismatch");
-}
-
 export const webhookRoutes = new Hono()
   .post("/wechat-pay", async (c) => {
     const payload = await c.req.text();
@@ -107,7 +95,7 @@ export const webhookRoutes = new Hono()
         .where(and(eq(orders.tenantId, TENANT_ID), eq(orders.providerOrderNo, transaction.out_trade_no || "")))
         .limit(1);
       if (!order) throw new Error("order_not_found");
-      validateWechatTransaction(notification, transaction, order);
+      assertWechatPaidTransactionMatchesOrder({ eventType: notification.event_type, transaction, order });
       await markOrderPaidAndGrantEntitlement(order, transaction);
       await db.update(paymentWebhookEvents).set({ orderId: order.id, status: "processed" }).where(eq(paymentWebhookEvents.id, event.id));
       return ok(c, { received: true });
