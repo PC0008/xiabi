@@ -38,8 +38,8 @@ function buildReadinessReport() {
     },
     {
       requirement: "管理后台登录与运营接口",
-      status: readinessStatus(["admin diagnostics", "admin read operations", "admin config propagation", "admin config audit diff"]),
-      evidence: ["admin diagnostics", "admin read operations", "admin config propagation", "admin config audit diff"],
+      status: readinessStatus(["admin diagnostics", "admin read operations", "admin account controls", "admin config propagation", "admin config audit diff"]),
+      evidence: ["admin diagnostics", "admin read operations", "admin account controls", "admin config propagation", "admin config audit diff"],
       next: "设置 XIABI_VERIFY_ADMIN_USERNAME / XIABI_VERIFY_ADMIN_PASSWORD 后复验。"
     },
     {
@@ -261,6 +261,25 @@ async function expectApiError(pathname, init = {}, cookie = "", expectedStatus, 
   return payload;
 }
 
+async function expectAdminLoginFailure(username, password, expectedCode = "invalid_credentials") {
+  const response = await fetch(`${baseUrl}/api/public/admin/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username, password })
+  });
+  const text = await response.text();
+  let payload = {};
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`admin login failure check returned non-JSON: ${text.slice(0, 160)}`);
+  }
+  if (response.status !== 401 || payload?.error?.code !== expectedCode) {
+    throw new Error(`admin login failure check expected 401/${expectedCode}, got ${response.status}/${payload?.error?.code || ""}`);
+  }
+  return payload;
+}
+
 async function createGuestSession() {
   const response = await fetch(`${baseUrl}/api/public/session/guest`, { method: "POST" });
   await readJsonResponse(response, "guest session");
@@ -347,22 +366,27 @@ async function adminLogin() {
   const username = process.env.XIABI_VERIFY_ADMIN_USERNAME;
   const password = process.env.XIABI_VERIFY_ADMIN_PASSWORD;
   if (!username || !password) return null;
+  const cookie = await adminLoginWithCredentials(username, password, "admin login");
+  return { cookie, username, password };
+}
 
+async function adminLoginWithCredentials(username, password, label = "admin login") {
   const response = await fetch(`${baseUrl}/api/public/admin/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ username, password })
   });
-  await readJsonResponse(response, "admin login");
+  await readJsonResponse(response, label);
   const cookie = getCookie(response.headers);
-  if (!cookie) throw new Error("admin login did not set a cookie");
-  return { cookie, password };
+  if (!cookie) throw new Error(`${label} did not set a cookie`);
+  return cookie;
 }
 
 async function verifyAdminDiagnostics() {
   const admin = await adminLogin();
   if (!admin) {
     skipOrStrict("admin diagnostics", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD");
+    skipOrStrict("admin account controls", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to verify owner can manage admin accounts");
     skipOrStrict("admin config propagation", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to verify admin config controls public config");
     skipOrStrict("admin config audit diff", "set XIABI_VERIFY_ADMIN_USERNAME and XIABI_VERIFY_ADMIN_PASSWORD to verify config update audit details");
     return;
@@ -402,6 +426,7 @@ async function verifyAdminDiagnostics() {
     if (JSON.stringify(payload).includes(admin.password)) throw new Error(`${pathname} leaked the admin password`);
   }
   addCheck("admin read operations", "ok", { routes: listChecks.length });
+  await verifyAdminAccountControls(admin);
 
   const config = await api("/api/public/admin/config", {}, admin.cookie);
   const saved = await api("/api/public/admin/config", {
@@ -452,6 +477,73 @@ async function verifyAdminDiagnostics() {
     truncated: configAudit.detail.truncated,
     scopeCount: (configAudit.detail.scopes || []).length
   });
+}
+
+async function verifyAdminAccountControls(ownerAdmin) {
+  const adminsPayload = await api("/api/public/admin/admins", {}, ownerAdmin.cookie);
+  if (!adminsPayload.canCreate) {
+    skipOrStrict("admin account controls", "admin verifier account must be owner to create, reset, and disable read-only admin accounts");
+    return;
+  }
+
+  const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+  const username = `verify_ops_${suffix}`.slice(0, 48);
+  const initialPassword = `Verify-${suffix}-Aa1`;
+  const resetPassword = `Verify-${suffix}-Bb2`;
+  let createdId = "";
+  let disabled = false;
+
+  try {
+    const created = await api("/api/public/admin/admins", {
+      method: "POST",
+      body: JSON.stringify({
+        username,
+        displayName: "Production verifier",
+        password: initialPassword
+      })
+    }, ownerAdmin.cookie);
+    createdId = created.admin?.id || "";
+    if (!createdId || created.admin?.role !== "viewer" || created.admin?.status !== "active") {
+      throw new Error("admin account creation returned unexpected payload");
+    }
+
+    const viewerCookie = await adminLoginWithCredentials(username, initialPassword, "created viewer admin login");
+    const viewerMe = await api("/api/public/admin/me", {}, viewerCookie);
+    if (viewerMe.admin?.role !== "viewer") throw new Error("created admin did not log in as viewer");
+
+    await api(`/api/public/admin/admins/${createdId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ password: resetPassword })
+    }, ownerAdmin.cookie);
+    await expectApiError("/api/public/admin/me", {}, viewerCookie, 401, "not_authenticated");
+    await expectAdminLoginFailure(username, initialPassword);
+
+    const resetCookie = await adminLoginWithCredentials(username, resetPassword, "reset viewer admin login");
+    await api(`/api/public/admin/admins/${createdId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "disabled" })
+    }, ownerAdmin.cookie);
+    disabled = true;
+    await expectApiError("/api/public/admin/me", {}, resetCookie, 401, "not_authenticated");
+    await expectAdminLoginFailure(username, resetPassword);
+
+    const finalAdmins = await api("/api/public/admin/admins", {}, ownerAdmin.cookie);
+    const finalRecord = (finalAdmins.admins || []).find((item) => item.id === createdId);
+    if (finalRecord?.status !== "disabled") throw new Error("disabled admin account did not stay disabled");
+    addCheck("admin account controls", "ok", {
+      createdAdminId: createdId,
+      finalStatus: finalRecord.status,
+      passwordResetInvalidatedSession: true,
+      disabledInvalidatedSession: true
+    });
+  } finally {
+    if (createdId && !disabled) {
+      await api(`/api/public/admin/admins/${createdId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "disabled" })
+      }, ownerAdmin.cookie).catch(() => {});
+    }
+  }
 }
 
 async function verifyDeepSeek() {
