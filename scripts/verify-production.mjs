@@ -588,6 +588,22 @@ async function verifyAdminDiagnostics() {
 
   const diagnostics = await api("/api/public/admin/diagnostics", {}, admin.cookie);
   const groups = diagnostics.groups || [];
+  const requiredDiagnosticGroups = [
+    "deepseek",
+    "wechat_pay",
+    "sms",
+    "voice_tts",
+    "voice_asr",
+    "wechat_jssdk_voice",
+    "admin",
+    "runtime",
+    "business_closure"
+  ];
+  const diagnosticGroupKeys = new Set(groups.map((group) => group.key));
+  const missingDiagnosticGroups = requiredDiagnosticGroups.filter((key) => !diagnosticGroupKeys.has(key));
+  if (missingDiagnosticGroups.length) {
+    throw new Error(`admin diagnostics missing groups: ${missingDiagnosticGroups.join(", ")}`);
+  }
   const missingRequired = groups.flatMap((group) =>
     (group.items || [])
       .filter((item) => item.required !== false && !item.configured)
@@ -595,6 +611,7 @@ async function verifyAdminDiagnostics() {
   );
   addCheck("admin diagnostics", missingRequired.length ? "missing" : "ok", {
     summary: diagnostics.summary,
+    groups: requiredDiagnosticGroups.length,
     missingRequired
   });
   if (strict && missingRequired.length) {

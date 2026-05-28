@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 后台自检验收契约补强：`verify:production` 在提供后台账号后，会强制确认后台诊断响应包含 DeepSeek、微信支付、短信、MiniMax 说话、服务端 ASR、微信内语音、管理员安全、运行地址和业务闭环 9 个诊断组；避免最终验收只验证“能打开后台”，却漏掉新接入能力在后台不可诊断的问题。
 - 交付状态可追溯性再补强：`docs/delivery-status-latest.md` 现在会在正式真实联调结论下方附加“当前代码预检快照”，指向 `docs/final-preflight-latest.md`、`docs/production-readiness-preflight-latest.md` 和 `docs/delivery-status-preflight-latest.md`，明确区分“真实外部联调证据”和“当前代码无费用预检通过”，避免最后交付时把旧真实联调报告或基础预检报告互相误读。
 - 后台微信内语音自检补强：系统自检新增“微信内语音输入”诊断组，展示 `WECHAT_MP_APP_ID`/`WECHAT_PAY_APP_ID`、`WECHAT_MP_APP_SECRET`、`PUBLIC_BASE_URL` 是否具备 JS-SDK 签名条件，并明确还需要在微信公众平台配置 JS 接口安全域名；该组只返回布尔状态，不请求微信、不暴露公众号 secret。
 - 微信内 H5 语音输入补强：新增 `/api/public/wechat/jssdk-config` 服务端签名接口和用户端微信 JS-SDK 录音识别通道；在微信内打开且 `WECHAT_MP_APP_SECRET`、`PUBLIC_BASE_URL`、JS 接口安全域名配置齐全时，按住说话会优先走微信 `startRecord` / `stopRecord` / `translateVoice`，普通浏览器仍保留 Web Speech 与服务端 ASR 接入槽；`verify:journey` 新增微信语音用例并已通过 11 条移动端旅程。
