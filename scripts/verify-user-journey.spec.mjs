@@ -92,6 +92,7 @@ test("feedback category and content are submitted to the backend", async ({ page
   await page.locator('[data-action="submit-feedback"]').click();
 
   await expect(page.locator(".success-title", { hasText: "反馈已收到" })).toBeVisible();
+  await expect(page.locator("#feedbackText")).toHaveValue("");
   expect(requestBody).toMatchObject({
     category: "支付或订单问题",
     content: "付款后没有看到权益到账"

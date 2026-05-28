@@ -2195,6 +2195,8 @@ document.addEventListener("click", async (event) => {
     try {
       await window.XiabiStore.submitFeedback(state.feedbackText, state.feedbackCategory);
       state.feedbackSent = true;
+      state.feedbackCategory = "用户反馈";
+      state.feedbackText = "";
       render();
     } catch (error) {
       state.feedbackText = error.message || state.feedbackText;
