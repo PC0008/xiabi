@@ -24,6 +24,7 @@ npm run verify:production
 npm run verify:preflight
 npm run acceptance:inputs
 npm run delivery:status
+npm run delivery:final
 ```
 
 ## 验收分级
@@ -35,7 +36,7 @@ npm run delivery:status
 - 生产状态报告：`npm run verify:production:report` 会刷新 `docs/production-readiness-latest.md`，并输出最后人工验证批次；其中 `ok=true` 只表示本次已执行项目没有失败，`complete=true` 才表示所有生产链路已经完整验收。
 - 最终无外部费用预检：`npm run verify:preflight` 会串行运行类型检查、构建、静态回归、环境变量契约、后台配置控制链路、公开接口会话边界、支付权益安全门、线上巡检、移动端旅程、生产基础验收、最终验收输入检查和交付状态生成，并写入 `docs/final-preflight-latest.md`、`docs/production-readiness-preflight-latest.md`、`docs/final-acceptance-inputs-latest.md` 和 `docs/delivery-status-preflight-latest.md`；它不会主动触发 DeepSeek、短信、微信支付、MiniMax TTS 或 ASR 的真实调用。
 - 最终验收输入检查：`npm run acceptance:inputs` 只检查本机是否已准备后台账号、手机号、已支付订单号、ASR 音频样本等 verifier 输入，并写入 `docs/final-acceptance-inputs-latest.md`；它不会打印真实值，也不会调用外部服务。
-- 最终交付状态：先用 `npm run verify:production:report` 刷新生产状态报告，再执行 `npm run delivery:status` 生成 `docs/delivery-status-latest.md`；后者不触发外部付费调用，只汇总人工验收顺序、责任方和剩余阻塞。
+- 最终交付状态：`npm run delivery:final` 会先运行 `npm run verify:production:report`，再刷新 `docs/delivery-status-latest.md` 和 `docs/final-acceptance-inputs-latest.md`；为避免基础巡检覆盖正式真实联调证据，该命令在没有任何 `XIABI_VERIFY_*` 验收输入时会拒绝刷新。只想汇总已有生产报告时，可单独执行 `npm run delivery:status`，它不触发外部付费调用。
 
 ## 当前真实状态
 

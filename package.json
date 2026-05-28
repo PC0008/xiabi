@@ -24,6 +24,7 @@
     "verify:preflight": "node scripts/final-preflight.mjs",
     "acceptance:inputs": "node scripts/final-acceptance-inputs.mjs",
     "delivery:status": "node scripts/delivery-status.mjs",
+    "delivery:final": "node scripts/final-delivery-report.mjs",
     "deploy:dry": "edgespark deploy --dry-run",
     "deploy": "edgespark deploy",
     "logs": "edgespark log tail"
