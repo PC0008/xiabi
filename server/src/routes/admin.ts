@@ -20,6 +20,7 @@ const ADMIN_LOGIN_FAILURE_LIMIT = 8;
 const ADMIN_LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 const ADMIN_USERNAME_MAX_LENGTH = 64;
 const ADMIN_PASSWORD_MAX_LENGTH = 256;
+const PUBLIC_GENERATION_FAILED_MESSAGE = "写信服务暂时没有完成，请稍后再试。";
 const MAX_CONFIG_AUDIT_CHANGES = 80;
 
 type AdminLoginBody = {
@@ -1125,11 +1126,12 @@ export const adminRoutes = new Hono()
       content = await generateSalesLetterWithDeepSeek({ answers, input, templates });
       if (!content) throw new Error("DeepSeek provider is not configured.");
     } catch (error) {
+      console.error("admin_task_retry_generation_failed", error);
       await db.update(generationTasks).set({
         status: "failed",
         progressJson: JSON.stringify({ percent: 0, stage: "failed", provider: "deepseek" }),
         errorCode: "deepseek_generation_failed",
-        errorMessage: error instanceof Error ? error.message.slice(0, 500) : "DeepSeek generation failed.",
+        errorMessage: PUBLIC_GENERATION_FAILED_MESSAGE,
         updatedAt: new Date().toISOString()
       }).where(eq(generationTasks.id, id));
       await logAdmin(admin!.id, "task.retry_failed", "generation_task", { taskId: id });

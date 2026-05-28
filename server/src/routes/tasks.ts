@@ -17,6 +17,7 @@ const MAX_DESC_LENGTH = 400;
 const MAX_INPUT_JSON_LENGTH = 12_000;
 const HOURLY_GENERATION_LIMIT = 6;
 const ONE_HOUR_MS = 60 * 60 * 1000;
+const PUBLIC_GENERATION_FAILED_MESSAGE = "写信服务暂时没有完成，请稍后再试。";
 
 type CreateTaskBody = {
   answers?: string[];
@@ -136,11 +137,12 @@ async function processGenerationTask(task: typeof generationTasks.$inferSelect) 
     content = await generateSalesLetterWithDeepSeek({ answers, input, templates });
     if (!content) throw new Error("DeepSeek provider is not configured.");
   } catch (error) {
+    console.error("deepseek_generation_failed", error);
     await db.update(generationTasks).set({
       status: "failed",
       progressJson: JSON.stringify({ percent: 0, stage: "failed", provider: "deepseek" }),
       errorCode: "deepseek_generation_failed",
-      errorMessage: error instanceof Error ? error.message.slice(0, 500) : "DeepSeek generation failed.",
+      errorMessage: PUBLIC_GENERATION_FAILED_MESSAGE,
       updatedAt: new Date().toISOString()
     }).where(eq(generationTasks.id, task.id));
     const [failedTask] = await db.select().from(generationTasks).where(eq(generationTasks.id, task.id)).limit(1);
@@ -178,11 +180,12 @@ async function runGenerationTaskInBackground(taskId: string) {
     const [task] = await db.select().from(generationTasks).where(eq(generationTasks.id, taskId)).limit(1);
     if (task) await processGenerationTask(task);
   } catch (error) {
+    console.error("background_generation_failed", error);
     await db.update(generationTasks).set({
       status: "failed",
       progressJson: JSON.stringify({ percent: 0, stage: "failed", provider: "deepseek" }),
       errorCode: "background_generation_failed",
-      errorMessage: error instanceof Error ? error.message.slice(0, 500) : "Background generation failed.",
+      errorMessage: PUBLIC_GENERATION_FAILED_MESSAGE,
       updatedAt: new Date().toISOString()
     }).where(eq(generationTasks.id, taskId));
   }

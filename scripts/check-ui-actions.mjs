@@ -206,8 +206,23 @@ const requiredMarkers = [
   },
   {
     file: "server/src/routes/orders.ts",
+    marker: "PAYMENT_CREATE_FAILED_MESSAGE",
+    message: "payment provider errors must not leak raw external messages to users"
+  },
+  {
+    file: "h5/app.js",
+    marker: "payment_create_failed",
+    message: "user payment flow must map payment creation failures to recovery copy"
+  },
+  {
+    file: "server/src/routes/orders.ts",
     marker: "order.payment_failed",
     message: "public payment failures must write order audit events"
+  },
+  {
+    file: "server/src/routes/tasks.ts",
+    marker: "PUBLIC_GENERATION_FAILED_MESSAGE",
+    message: "public generation failures must not leak raw provider errors to users"
   },
   {
     file: "h5/admin.js",

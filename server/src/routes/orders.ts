@@ -12,6 +12,7 @@ import { fail, ok, readJson } from "../domain/http";
 const SESSION_COOKIE = "xiabi_session";
 const WECHAT_OPENID_COOKIE = "xiabi_wechat_openid";
 const WECHAT_PAY_EXTERNAL_BLOCKED_MESSAGE = "微信支付商户号缺少当前支付产品权限，请到微信支付商户平台产品中心开通 H5 支付或 JSAPI 支付后再试。";
+const PAYMENT_CREATE_FAILED_MESSAGE = "微信支付暂时拉起失败，这封信和订单已经保留，请稍后再试。";
 const PAYMENT_ATTEMPT_HOURLY_LIMIT = 20;
 const PAYMENT_STATUS_CHECK_HOURLY_LIMIT = 60;
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -224,7 +225,7 @@ export const orderRoutes = new Hono()
       if (isWechatPaymentExternalBlock(error)) {
         return fail(c, "wechat_pay_external_blocked", WECHAT_PAY_EXTERNAL_BLOCKED_MESSAGE, 424, { orderId, providerOrderNo });
       }
-      return fail(c, "payment_create_failed", error instanceof Error ? error.message : "微信支付拉起失败。", 502, { orderId, providerOrderNo });
+      return fail(c, "payment_create_failed", PAYMENT_CREATE_FAILED_MESSAGE, 502, { orderId, providerOrderNo });
     }
     if (!payment.configured) {
       await db.update(orders).set({ status: "payment_failed", updatedAt: new Date().toISOString() }).where(eq(orders.id, orderId));
@@ -359,7 +360,7 @@ export const orderRoutes = new Hono()
       if (isWechatPaymentExternalBlock(error)) {
         return fail(c, "wechat_pay_external_blocked", WECHAT_PAY_EXTERNAL_BLOCKED_MESSAGE, 424, { orderId: order.id, providerOrderNo: order.providerOrderNo });
       }
-      return fail(c, "payment_create_failed", error instanceof Error ? error.message : "微信支付拉起失败。", 502, { orderId: order.id, providerOrderNo: order.providerOrderNo });
+      return fail(c, "payment_create_failed", PAYMENT_CREATE_FAILED_MESSAGE, 502, { orderId: order.id, providerOrderNo: order.providerOrderNo });
     }
     if (!payment.configured) {
       await db.update(orders).set({ status: "payment_failed", updatedAt: new Date().toISOString() }).where(eq(orders.id, order.id));

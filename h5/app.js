@@ -250,6 +250,9 @@ function userPaymentErrorMessage(error, fallback) {
   if (error?.code === "payment_rate_limited") {
     return "支付拉起太频繁了，请稍后再试。这封信和订单会继续保留。";
   }
+  if (error?.code === "payment_create_failed") {
+    return "微信支付暂时拉起失败，这封信和订单已经保留，请稍后再试。";
+  }
   if (["payment_disabled", "annual_disabled", "single_disabled"].includes(error?.code)) {
     return error.message || "支付入口暂未开放。";
   }
