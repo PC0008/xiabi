@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- MiniMax ASR 官方口径复核：2026-05-28 再次读取 MiniMax 官方文档索引 `https://platform.minimax.io/docs/llms.txt`，Speech API 仍只列 T2A HTTP/WebSocket/Async、Voice Cloning、Voice Design、Voice Management，未列 ASR/STT/Transcription；交付文档已补充来源说明，项目继续保留服务端 ASR 接入槽，不硬编码未公开 MiniMax 转写 URL。
 - 生产验收报告证据留存补强：`verify:production:report` 现在会输出“历史联调证据”区，保留此前 DeepSeek、首次免费/导出、MiniMax TTS、微信支付权限阻塞等真实联调痕迹；基础巡检不会再把这些证据从交付报告里冲掉，同时报告仍明确这些历史记录不能替代最终当前配置复验。
 - 生产验收脚本补强：`verify:production` 在提供 owner 后台账号时，会真实创建临时只读运营账号，验证登录、重置密码、旧会话失效、旧密码失效、停用账号、新会话失效和停用后不能登录，并把 `admin account controls` 纳入管理后台验收矩阵。
 - 管理后台账号收口补强：owner 现在可以在“管理员账号”页停用/启用只读运营账号、重置只读账号密码；停用或重置后服务端会清理该账号已有后台会话，避免人员变动或密码泄露后旧登录态继续可用。owner 账号本身在该入口受保护，不能被误停用。
