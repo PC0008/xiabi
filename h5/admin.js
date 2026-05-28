@@ -1049,8 +1049,10 @@ function statusClass(status) {
 
 function renderDiagnostics() {
   const diagnostics = adminState.lists.diagnostics || {};
+  const smsProvider = diagnostics.smsProviderCheck || null;
   const summary = diagnostics.summary || {};
   const groups = diagnostics.groups || [];
+  const smsProviderClass = smsProvider ? statusClass(smsProvider.ready ? "ok" : "missing") : "";
   return layout(`
     <section class="section grid cols-3">
       ${metric("已就绪", summary.ok ?? 0, "可直接运行")}
@@ -1063,8 +1065,27 @@ function renderDiagnostics() {
           <div class="panel-title">生产配置自检</div>
           <div class="panel-desc">最后检查：${h(formatDate(diagnostics.generatedAt))}</div>
         </div>
-        <button class="secondary" data-action="refresh-diagnostics">刷新自检</button>
+        <div class="inline-actions">
+          <button class="secondary" data-action="check-sms-provider">短信供应商自检</button>
+          <button class="secondary" data-action="refresh-diagnostics">刷新自检</button>
+        </div>
       </div>
+      ${smsProvider ? `
+        <article class="diagnostic-card ${smsProviderClass} sms-provider-result">
+          <div class="diagnostic-head">
+            <div>
+              <div class="diagnostic-title">短信供应商实时结果</div>
+              <div class="diagnostic-note">只查询阿里云签名和模板审核状态，不发送验证码。</div>
+            </div>
+            <span class="tag ${smsProviderClass}">${smsProvider.ready ? "可发送" : "需处理"}</span>
+          </div>
+          <div class="diagnostic-items">
+            <div class="diagnostic-item"><span>签名状态</span><strong class="${smsProvider.sign?.ready ? "ready" : "missing"}">${h(String(smsProvider.sign?.status ?? "未确认"))}</strong></div>
+            <div class="diagnostic-item"><span>模板状态</span><strong class="${smsProvider.template?.ready ? "ready" : "missing"}">${h(String(smsProvider.template?.status ?? "未确认"))}</strong></div>
+            <div class="diagnostic-item"><span>关联签名</span><strong class="optional">${h(smsProvider.template?.relatedSignName || smsProvider.sign?.signName || "未返回")}</strong></div>
+          </div>
+        </article>
+      ` : ""}
       <div class="diagnostic-grid">
         ${groups.length ? groups.map((group) => `
           <article class="diagnostic-card ${statusClass(group.status)}">
@@ -1426,6 +1447,17 @@ document.addEventListener("click", async (event) => {
       showToast("系统自检已刷新");
     } catch (error) {
       showToast(error.message || "系统自检刷新失败");
+    }
+  } else if (action === "check-sms-provider") {
+    try {
+      const result = await window.XiabiStore.adminPost("/diagnostics/sms-provider");
+      const diagnostics = adminState.lists.diagnostics || {};
+      adminState.lists.diagnostics = Object.assign({}, diagnostics, {
+        smsProviderCheck: result.smsProvider || result
+      });
+      showToast("短信供应商自检已完成");
+    } catch (error) {
+      showToast(error.message || "短信供应商自检失败");
     }
   } else if (action === "create-admin") {
     if (!canAdminWrite()) {

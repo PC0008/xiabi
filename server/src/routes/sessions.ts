@@ -7,14 +7,33 @@ import { TENANT_ID } from "../domain/defaults";
 import { ok } from "../domain/http";
 
 const SESSION_COOKIE = "xiabi_session";
+const GUEST_SESSION_INSERT_ATTEMPTS = 3;
+
+function transientDbError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return message.includes("D1_ERROR") && /timeout|reset|temporar/i.test(message);
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function createGuest(c: any) {
   const sessionId = crypto.randomUUID();
-  await db.insert(guestSessions).values({
-    id: sessionId,
-    tenantId: TENANT_ID,
-    status: "active"
-  });
+  for (let attempt = 1; attempt <= GUEST_SESSION_INSERT_ATTEMPTS; attempt += 1) {
+    try {
+      await db.insert(guestSessions).values({
+        id: sessionId,
+        tenantId: TENANT_ID,
+        status: "active"
+      });
+      break;
+    } catch (error) {
+      if (attempt >= GUEST_SESSION_INSERT_ATTEMPTS || !transientDbError(error)) throw error;
+      console.warn("guest_session_insert_retry", { attempt, reason: "transient_db_error" });
+      await delay(150 * attempt);
+    }
+  }
   setCookie(c, SESSION_COOKIE, sessionId, {
     httpOnly: true,
     sameSite: "Lax",

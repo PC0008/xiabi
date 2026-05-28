@@ -300,6 +300,21 @@ const requiredMarkers = [
     message: "production verification must prove SMS sends are visible in audit logs"
   },
   {
+    file: "server/src/adapters/sms/index.ts",
+    marker: "GetSmsTemplate",
+    message: "SMS provider diagnostics must verify Aliyun template approval without sending a code"
+  },
+  {
+    file: "server/src/routes/admin.ts",
+    marker: "diagnostics.sms_provider_check",
+    message: "admin diagnostics must audit SMS provider live checks"
+  },
+  {
+    file: "h5/admin.js",
+    marker: "check-sms-provider",
+    message: "admin diagnostics UI must expose SMS provider live checks"
+  },
+  {
     file: "scripts/verify-production.mjs",
     marker: "wechat payment audit trail",
     message: "production verification must prove payment attempts are visible in audit logs"

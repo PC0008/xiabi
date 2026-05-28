@@ -6,6 +6,7 @@ import { adminSessions, adminUsers, auditLogs, buckets, entitlementLedger, files
 import type { SecretKey, VarKey } from "@defs";
 import { generateSalesLetterWithDeepSeek, SalesLetterContent } from "../adapters/letter/deepseek";
 import { assertWechatPaidTransactionMatchesOrder, queryWechatPaymentByOutTradeNo } from "../adapters/payment/wechat";
+import { checkSmsProviderConfig, SmsProviderError } from "../adapters/sms";
 import { getAdminConfig, upsertConfigScope } from "../domain/config";
 import { ConfigScope, configScopes, TENANT_ID } from "../domain/defaults";
 import { activateOrderEntitlement, markOrderPaidAndGrantEntitlement } from "../domain/entitlements";
@@ -912,6 +913,28 @@ export const adminRoutes = new Hono()
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
     return ok(c, await buildDiagnostics());
+  })
+  .post("/diagnostics/sms-provider", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    try {
+      const result = await checkSmsProviderConfig();
+      await logAdmin(admin!.id, "diagnostics.sms_provider_check", "sms", {
+        configured: result.configured,
+        ready: result.ready,
+        signStatus: result.sign.status ?? null,
+        templateStatus: result.template.status ?? ""
+      });
+      return ok(c, { smsProvider: result });
+    } catch (error) {
+      await logAdmin(admin!.id, "diagnostics.sms_provider_check_failed", "sms", {
+        providerCode: error instanceof SmsProviderError ? error.providerCode || "" : "",
+        httpStatus: error instanceof SmsProviderError ? error.httpStatus || null : null,
+        reason: "provider_error"
+      });
+      return fail(c, "sms_provider_check_failed", "短信供应商自检失败，请检查 AccessKey、签名、模板和短信服务开通状态。", 502);
+    }
   })
   .patch("/config", async (c) => {
     const admin = await requireAdmin(c);
