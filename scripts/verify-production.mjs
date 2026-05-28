@@ -272,7 +272,7 @@ function manualVerificationBatches() {
     },
     {
       title: "6. 语音输入 ASR 样本",
-      proves: "服务端 ASR 接入位能识别真实音频；通过后才应把 VOICE_ASR_VERIFIED 设为 1 并重新部署。",
+      proves: "服务端 ASR 接入位能识别真实音频；微信内 H5 另需在公众号 JS 接口安全域名配置完成后，用手机在微信里按住说话确认 translateVoice 返回真实文本；服务端 ASR 通过后才应把 VOICE_ASR_VERIFIED 设为 1 并重新部署。",
       commands: [
         '$env:XIABI_VERIFY_ASR_AUDIO="D:\\path\\to\\sample.wav"',
         '$env:XIABI_VERIFY_ASR_EXPECTED_TEXT="样本音频里应出现的关键句"',
@@ -1315,6 +1315,7 @@ if (
   typeof publicConfig?.capabilities?.voice?.ttsConfigured !== "boolean" ||
   typeof publicConfig?.capabilities?.voice?.asrConfigured !== "boolean" ||
   typeof publicConfig?.capabilities?.voice?.asrVerified !== "boolean" ||
+  typeof publicConfig?.capabilities?.voice?.wechatJssdkConfigured !== "boolean" ||
   typeof publicConfig?.capabilities?.voice?.asrPreferred !== "boolean"
 ) {
   throw new Error("public config did not expose voice capability booleans");

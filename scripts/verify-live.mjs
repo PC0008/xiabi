@@ -276,6 +276,18 @@ checks.push(await assertJson(
   (payload) => payload?.error?.code === "missing_session"
 ));
 checks.push(await assertJson(
+  "/api/public/wechat/jssdk-config",
+  { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: `${baseUrl}/index.html` }) },
+  401,
+  (payload) => payload?.error?.code === "missing_session"
+));
+checks.push(await assertJson(
+  "/api/public/wechat/jssdk-config",
+  { method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ url: `${baseUrl}/index.html` }) },
+  [200, 502, 503],
+  (payload) => payload?.data?.config?.configured === true || ["wechat_jssdk_config_failed", "wechat_jssdk_not_configured"].includes(payload?.error?.code)
+));
+checks.push(await assertJson(
   "/api/public/wechat/oauth/start?returnUrl=%2Findex.html%23orders",
   { headers: { cookie } },
   [200, 503],

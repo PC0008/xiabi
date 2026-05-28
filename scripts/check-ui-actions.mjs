@@ -370,6 +370,16 @@ const requiredMarkers = [
     message: "admin diagnostics UI must expose voice ASR readiness checks"
   },
   {
+    file: "server/src/routes/wechat.ts",
+    marker: "/jssdk-config",
+    message: "WeChat in-H5 voice input must have a signed JS-SDK config route"
+  },
+  {
+    file: "h5/app.js",
+    marker: "translateVoice",
+    message: "user H5 voice input must support WeChat JS-SDK speech translation"
+  },
+  {
     file: "scripts/verify-production.mjs",
     marker: "wechat provider config",
     message: "production verification must run the no-order WeChat Pay provider check"

@@ -70,6 +70,7 @@ const feedback = read("server/src/routes/feedback.ts");
 requireActiveSessionInSegment(feedback, ".post(\"/\"", "\n  });", "feedback submit route");
 
 const wechat = read("server/src/routes/wechat.ts");
+requireActiveSessionInSegment(wechat, ".post(\"/jssdk-config\"", "\n  .get(\"/oauth/start\"", "WeChat JS-SDK config route");
 requireActiveSessionInSegment(wechat, ".get(\"/oauth/start\"", "\n  .get(\"/oauth/callback\"", "WeChat OAuth start route");
 requireActiveSessionInSegment(wechat, ".get(\"/oauth/callback\"", "\n  });", "WeChat OAuth callback route");
 

@@ -88,7 +88,10 @@ test("feedback category and content are submitted to the backend", async ({ page
   await page.goto(`${baseUrl}/index.html#feedback`, { waitUntil: "domcontentloaded" });
   await page.locator('[data-feedback-tag="支付或订单问题"]').click();
   await expect(page.locator('[data-feedback-tag="支付或订单问题"]')).toHaveClass(/active/);
-  await page.locator("#feedbackText").fill("付款后没有看到权益到账");
+  const feedbackInput = page.locator("#feedbackText");
+  await expect(feedbackInput).toBeVisible();
+  await feedbackInput.fill("付款后没有看到权益到账");
+  await expect(feedbackInput).toHaveValue("付款后没有看到权益到账");
   await page.locator('[data-action="submit-feedback"]').click();
 
   await expect(page.locator(".success-title", { hasText: "反馈已收到" })).toBeVisible();
@@ -295,6 +298,103 @@ test("call page records to server ASR when browser speech start fails", async ({
   await page.waitForTimeout(50);
   await voiceButton.dispatchEvent("pointerup", { pointerType: "touch" });
   await expect.poll(() => transcribeCalled).toBe(true);
+});
+
+test("call page can use WeChat JS-SDK voice translation in WeChat browser", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "userAgent", {
+      value: "Mozilla/5.0 MicroMessenger",
+      configurable: true
+    });
+    Object.defineProperty(window, "SpeechRecognition", { value: undefined, configurable: true });
+    Object.defineProperty(window, "webkitSpeechRecognition", { value: undefined, configurable: true });
+    Object.defineProperty(navigator, "mediaDevices", { value: undefined, configurable: true });
+    window.__wechatVoice = { started: false, translatedLocalId: "" };
+    window.wx = {
+      config() {
+        setTimeout(() => this._ready?.(), 0);
+      },
+      ready(callback) {
+        this._ready = callback;
+      },
+      error(callback) {
+        this._error = callback;
+      },
+      onVoiceRecordEnd() {},
+      startRecord(options) {
+        window.__wechatVoice.started = true;
+        options.success?.({});
+      },
+      stopRecord(options) {
+        options.success?.({ localId: "local-voice-1" });
+      },
+      translateVoice(options) {
+        window.__wechatVoice.translatedLocalId = options.localId;
+        options.success?.({ translateResult: "微信语音回答" });
+      }
+    };
+  });
+  await page.route("**/api/public/config", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          homeConfig: {},
+          pricing: {},
+          guideStages: [],
+          system: { voice_enabled: true, sms_enabled: true, file_export_enabled: true, generation_enabled: true },
+          capabilities: {
+            voice: {
+              ttsConfigured: true,
+              asrConfigured: false,
+              asrVerified: false,
+              wechatJssdkConfigured: true,
+              asrPreferred: false
+            }
+          },
+          versions: {}
+        }
+      })
+    });
+  });
+  await page.route("**/api/public/wechat/jssdk-config", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          config: {
+            configured: true,
+            appId: "wx-test",
+            timestamp: "1779950000",
+            nonceStr: "nonce",
+            signature: "signature",
+            jsApiList: ["startRecord", "stopRecord", "onVoiceRecordEnd", "translateVoice"]
+          }
+        }
+      })
+    });
+  });
+
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+
+  await page.locator('[data-action="auth"]').click();
+  await page.locator('[data-action="start-call"]').click();
+  const voiceButton = page.locator('[data-action="voice-answer"]');
+  await expect(voiceButton).toBeVisible();
+  await voiceButton.dispatchEvent("pointerdown", { pointerType: "touch" });
+  await expect.poll(() => page.evaluate(() => window.__wechatVoice.started)).toBe(true);
+  await voiceButton.dispatchEvent("pointerup", { pointerType: "touch" });
+  await expect.poll(() => page.evaluate(() => window.__wechatVoice.translatedLocalId)).toBe("local-voice-1");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("h5Answers") || "[]")[0])).toBe("微信语音回答");
 });
 
 test("call page auto plays assistant prompt when TTS is configured", async ({ page }) => {

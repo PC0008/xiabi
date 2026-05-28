@@ -1,6 +1,6 @@
 # 生产验收状态报告
 
-生成时间：2026-05-28T07:40:06.675Z
+生成时间：2026-05-28T07:56:29.742Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 整体结果：基础通过：仍有真实外部链路等待输入或付费验收。
 完整可用：否
@@ -97,7 +97,7 @@ npm run verify:production:report
 
 ### 6. 语音输入 ASR 样本
 
-证明：服务端 ASR 接入位能识别真实音频；通过后才应把 VOICE_ASR_VERIFIED 设为 1 并重新部署。
+证明：服务端 ASR 接入位能识别真实音频；微信内 H5 另需在公众号 JS 接口安全域名配置完成后，用手机在微信里按住说话确认 translateVoice 返回真实文本；服务端 ASR 通过后才应把 VOICE_ASR_VERIFIED 设为 1 并重新部署。
 
 ```powershell
 $env:XIABI_VERIFY_ASR_AUDIO="D:\path\to\sample.wav"

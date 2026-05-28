@@ -81,7 +81,7 @@ const manualBatches = [
   {
     title: "语音输入 ASR 样本",
     owner: "语音供应商/项目管理员",
-    needs: "可用 VOICE_ASR_ENDPOINT、真实音频样本、预期关键句",
+    needs: "可用 VOICE_ASR_ENDPOINT、真实音频样本、预期关键句；微信内 H5 还需要公众号 JS 接口安全域名已配置，并在微信里按住说话确认能返回文本",
     command: [
       '$env:XIABI_VERIFY_ASR_AUDIO="D:\\path\\to\\sample.wav"',
       '$env:XIABI_VERIFY_ASR_EXPECTED_TEXT="样本音频里应出现的关键句"',

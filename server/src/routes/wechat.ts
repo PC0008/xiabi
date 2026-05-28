@@ -1,12 +1,26 @@
 import { setCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { buildWechatOAuthUrl, exchangeWechatOAuthCode, verifyWechatOAuthState } from "../adapters/payment/wechat";
+import { buildWechatJssdkConfig, buildWechatOAuthUrl, exchangeWechatOAuthCode, verifyWechatOAuthState } from "../adapters/payment/wechat";
 import { fail, ok } from "../domain/http";
 import { getActiveSession } from "../domain/session";
 
 const WECHAT_OPENID_COOKIE = "xiabi_wechat_openid";
 
 export const wechatRoutes = new Hono()
+  .post("/jssdk-config", async (c) => {
+    const activeSession = await getActiveSession(c);
+    if (!activeSession) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const body = await c.req.json().catch(() => ({})) as { url?: string };
+    const url = String(body.url || "").trim();
+    if (!url) return fail(c, "missing_wechat_jssdk_url", "缺少当前页面地址。", 400);
+    try {
+      const result = await buildWechatJssdkConfig(url);
+      if (!result.configured) return fail(c, "wechat_jssdk_not_configured", result.message || "微信公众号 JS-SDK 配置还没有完成。", 503);
+      return ok(c, { config: result });
+    } catch (error) {
+      return fail(c, "wechat_jssdk_config_failed", "微信语音输入暂时不可用，请先切换打字模式。", 502);
+    }
+  })
   .get("/oauth/start", async (c) => {
     const activeSession = await getActiveSession(c);
     if (!activeSession) return fail(c, "missing_session", "请先开始一次会话。", 401);

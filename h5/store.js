@@ -266,6 +266,14 @@
     });
   }
 
+  async function wechatJssdkConfig(url) {
+    await ensureGuestSession();
+    return apiFetch("/wechat/jssdk-config", {
+      method: "POST",
+      body: JSON.stringify({ url })
+    });
+  }
+
   async function exportLetter(letterId) {
     return apiFetch(`/exports/letters/${letterId}`, { method: "POST" });
   }
@@ -403,6 +411,7 @@
     deleteProductProfile,
     speak,
     transcribeVoice,
+    wechatJssdkConfig,
     exportLetter,
     submitFeedback,
     adminFetch,

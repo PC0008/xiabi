@@ -78,6 +78,8 @@ type WechatCertificateResponse = {
 };
 
 const platformCertificateCache = new Map<string, string>();
+let wechatAccessTokenCache: { value: string; expiresAt: number } | null = null;
+let wechatJsapiTicketCache: { value: string; expiresAt: number } | null = null;
 
 export function isWechatPaymentExternalBlock(error: unknown) {
   const code = error instanceof WechatPayApiError ? error.wechatCode : "";
@@ -226,6 +228,28 @@ function getWechatOAuthConfig() {
   return { appId, appSecret, baseUrl };
 }
 
+function randomNonce() {
+  return crypto.randomUUID().replace(/-/g, "");
+}
+
+function toHex(buffer: ArrayBuffer) {
+  return Array.from(new Uint8Array(buffer))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function sha1Hex(value: string) {
+  return toHex(await crypto.subtle.digest("SHA-1", new TextEncoder().encode(value)));
+}
+
+function sanitizeJssdkUrl(rawUrl: string, baseUrl: string) {
+  const configured = new URL(baseUrl);
+  const parsed = new URL(rawUrl);
+  if (parsed.origin !== configured.origin) throw new Error("wechat_jssdk_url_origin_mismatch");
+  parsed.hash = "";
+  return parsed.toString();
+}
+
 async function signOAuthState(payload: string, appSecret: string) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(appSecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return base64UrlEncode(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload)));
@@ -307,6 +331,66 @@ export function getWechatOAuthReadiness() {
     configured: items.appId && items.appSecret && items.publicBaseUrl,
     items,
     message: "微信公众号授权配置还不完整。"
+  };
+}
+
+export function getWechatJssdkReadiness() {
+  const oauth = getWechatOAuthReadiness();
+  return {
+    configured: oauth.configured,
+    items: oauth.items,
+    message: "微信公众号 JS-SDK 配置还不完整。"
+  };
+}
+
+async function fetchWechatAccessToken() {
+  const config = getWechatOAuthConfig();
+  if (!config) throw new Error("wechat_jssdk_not_configured");
+  if (wechatAccessTokenCache && wechatAccessTokenCache.expiresAt > Date.now() + 60_000) return wechatAccessTokenCache.value;
+  const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(config.appId)}&secret=${encodeURIComponent(config.appSecret)}`;
+  const response = await fetchWithTimeout(url, { timeoutMs: 10_000 });
+  const payload = await response.json().catch(() => ({})) as { access_token?: string; expires_in?: number; errmsg?: string; errcode?: number };
+  if (!response.ok || !payload.access_token) {
+    throw new Error(payload.errmsg || `WeChat access token request failed: ${response.status}`);
+  }
+  wechatAccessTokenCache = {
+    value: payload.access_token,
+    expiresAt: Date.now() + Math.max(60, Number(payload.expires_in || 7200) - 120) * 1000
+  };
+  return wechatAccessTokenCache.value;
+}
+
+async function fetchWechatJsapiTicket() {
+  if (wechatJsapiTicketCache && wechatJsapiTicketCache.expiresAt > Date.now() + 60_000) return wechatJsapiTicketCache.value;
+  const accessToken = await fetchWechatAccessToken();
+  const url = `https://api.weixin.qq.com/cgi-bin/ticket/getticket?access_token=${encodeURIComponent(accessToken)}&type=jsapi`;
+  const response = await fetchWithTimeout(url, { timeoutMs: 10_000 });
+  const payload = await response.json().catch(() => ({})) as { ticket?: string; expires_in?: number; errmsg?: string; errcode?: number };
+  if (!response.ok || !payload.ticket || Number(payload.errcode || 0) !== 0) {
+    throw new Error(payload.errmsg || `WeChat JS-SDK ticket request failed: ${response.status}`);
+  }
+  wechatJsapiTicketCache = {
+    value: payload.ticket,
+    expiresAt: Date.now() + Math.max(60, Number(payload.expires_in || 7200) - 120) * 1000
+  };
+  return wechatJsapiTicketCache.value;
+}
+
+export async function buildWechatJssdkConfig(rawUrl: string) {
+  const config = getWechatOAuthConfig();
+  if (!config) return { configured: false, message: "微信公众号 JS-SDK 配置还不完整。" };
+  const url = sanitizeJssdkUrl(rawUrl, config.baseUrl);
+  const ticket = await fetchWechatJsapiTicket();
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const nonceStr = randomNonce();
+  const signature = await sha1Hex(`jsapi_ticket=${ticket}&noncestr=${nonceStr}&timestamp=${timestamp}&url=${url}`);
+  return {
+    configured: true,
+    appId: config.appId,
+    timestamp,
+    nonceStr,
+    signature,
+    jsApiList: ["startRecord", "stopRecord", "onVoiceRecordEnd", "translateVoice"]
   };
 }
 

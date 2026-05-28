@@ -208,6 +208,9 @@ let voiceStream = null;
 let voiceChunks = [];
 let voiceRecordingRequested = false;
 let voiceRecordingTimer = null;
+let wechatJssdkPromise = null;
+let wechatVoiceRecording = false;
+let wechatVoiceFinishing = false;
 const MAX_RECORDING_MS = 15000;
 let lastAutoPromptKey = "";
 
@@ -536,6 +539,82 @@ function speechSupported() {
   return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 }
 
+function wechatBrowser() {
+  return /MicroMessenger/i.test(navigator.userAgent || "");
+}
+
+function wechatVoiceConfigured() {
+  return runtimeCapabilities.voice?.wechatJssdkConfigured === true;
+}
+
+function wechatVoiceAvailable() {
+  return wechatBrowser() && wechatVoiceConfigured();
+}
+
+function loadWechatJssdk() {
+  if (window.wx?.config) return Promise.resolve(window.wx);
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-xiabi-wechat-jssdk="true"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.wx), { once: true });
+      existing.addEventListener("error", () => reject(new Error("微信语音组件加载失败。")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://res.wx.qq.com/open/js/jweixin-1.6.0.js";
+    script.async = true;
+    script.dataset.xiabiWechatJssdk = "true";
+    script.onload = () => resolve(window.wx);
+    script.onerror = () => reject(new Error("微信语音组件加载失败。"));
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureWechatJssdk() {
+  if (!wechatJssdkPromise) {
+    wechatJssdkPromise = (async () => {
+      const wx = await loadWechatJssdk();
+      if (!wx?.config) throw new Error("微信语音组件暂时不可用。");
+      const url = window.location.href.split("#")[0];
+      const result = await window.XiabiStore.wechatJssdkConfig(url);
+      const config = result.config || result;
+      if (!config.configured) throw new Error(config.message || "微信语音输入还没有配置完成。");
+      await new Promise((resolve, reject) => {
+        wx.ready(resolve);
+        wx.error(() => reject(new Error("微信语音授权失败，请检查公众号 JS 接口安全域名。")));
+        wx.config({
+          debug: false,
+          appId: config.appId,
+          timestamp: config.timestamp,
+          nonceStr: config.nonceStr,
+          signature: config.signature,
+          jsApiList: config.jsApiList || ["startRecord", "stopRecord", "onVoiceRecordEnd", "translateVoice"]
+        });
+      });
+      return wx;
+    })().catch((error) => {
+      wechatJssdkPromise = null;
+      throw error;
+    });
+  }
+  return wechatJssdkPromise;
+}
+
+function wechatInvoke(method, options = {}) {
+  return new Promise((resolve, reject) => {
+    const wx = window.wx;
+    if (!wx?.[method]) {
+      reject(new Error("微信语音组件暂时不可用。"));
+      return;
+    }
+    wx[method](Object.assign({}, options, {
+      success: resolve,
+      fail: (error) => reject(error instanceof Error ? error : new Error("微信语音调用失败。")),
+      complete: options.complete
+    }));
+  });
+}
+
 function recordingSupported() {
   return !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
 }
@@ -554,6 +633,7 @@ function serverAsrPreferred() {
 
 function voiceInputAvailable() {
   if (!voiceEnabled()) return false;
+  if (wechatVoiceAvailable()) return true;
   if (speechSupported()) return true;
   return recordingSupported() && serverAsrReady();
 }
@@ -1473,6 +1553,82 @@ function addAnswer(value) {
   maybeAutoSpeakCurrentPrompt();
 }
 
+async function finishWechatVoiceInput(localId) {
+  if (!localId || wechatVoiceFinishing) return;
+  wechatVoiceFinishing = true;
+  wechatVoiceRecording = false;
+  state.holding = false;
+  state.voiceTranscript = "正在识别语音...";
+  render();
+  try {
+    const result = await wechatInvoke("translateVoice", {
+      localId,
+      isShowProgressTips: 0
+    });
+    const transcript = String(result.translateResult || "").trim();
+    if (!transcript) throw new Error("没有识别到内容，可以再按住说一遍。");
+    state.voiceTranscript = "";
+    addAnswer(transcript);
+  } catch (error) {
+    state.voiceTranscript = "";
+    state.voiceError = error.message || "微信语音识别失败，请再试一次或切换打字模式。";
+    render();
+  } finally {
+    wechatVoiceFinishing = false;
+  }
+}
+
+async function startWechatVoiceInput() {
+  voiceRecordingRequested = true;
+  wechatVoiceRecording = false;
+  state.holding = true;
+  state.voiceError = "";
+  state.voiceTranscript = "正在准备微信语音...";
+  render();
+  try {
+    const wx = await ensureWechatJssdk();
+    if (!voiceRecordingRequested) {
+      state.holding = false;
+      state.voiceTranscript = "";
+      render();
+      return;
+    }
+    wx.onVoiceRecordEnd?.({
+      complete: (result) => finishWechatVoiceInput(result.localId)
+    });
+    await wechatInvoke("startRecord");
+    wechatVoiceRecording = true;
+    state.voiceTranscript = "正在录音，松开发送";
+    render();
+  } catch (error) {
+    voiceRecordingRequested = false;
+    wechatVoiceRecording = false;
+    state.holding = false;
+    state.voiceTranscript = "";
+    state.voiceError = error.message || "微信语音输入暂时不可用，请切换打字模式。";
+    render();
+  }
+}
+
+async function stopWechatVoiceInput() {
+  voiceRecordingRequested = false;
+  if (!wechatVoiceRecording || wechatVoiceFinishing) {
+    state.holding = false;
+    if (state.route === "call") render();
+    return;
+  }
+  try {
+    const result = await wechatInvoke("stopRecord");
+    await finishWechatVoiceInput(result.localId);
+  } catch (error) {
+    wechatVoiceRecording = false;
+    state.holding = false;
+    state.voiceTranscript = "";
+    state.voiceError = error.message || "微信录音发送失败，请再试一次或切换打字模式。";
+    render();
+  }
+}
+
 function startVoiceInput() {
   if (state.holding) return;
   state.voiceError = "";
@@ -1486,6 +1642,10 @@ function startVoiceInput() {
   }
   if (shouldUseServerAsrFirst()) {
     startRecordedVoiceInput();
+    return;
+  }
+  if (wechatVoiceAvailable()) {
+    startWechatVoiceInput();
     return;
   }
   const recognition = getSpeechRecognition();
@@ -1552,6 +1712,10 @@ function startVoiceInput() {
 }
 
 function stopVoiceInput() {
+  if (wechatVoiceRecording || wechatVoiceFinishing || (wechatVoiceAvailable() && voiceRecordingRequested)) {
+    stopWechatVoiceInput();
+    return;
+  }
   voiceRecordingRequested = false;
   if (voiceRecordingTimer) {
     clearTimeout(voiceRecordingTimer);

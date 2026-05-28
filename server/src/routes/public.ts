@@ -1,5 +1,6 @@
 import { db, secret, vars } from "edgespark";
 import { Hono } from "hono";
+import { getWechatJssdkReadiness } from "../adapters/payment/wechat";
 import { getPublicConfig } from "../domain/config";
 import { ok } from "../domain/http";
 import { optionalSecret, optionalVar } from "../domain/runtime";
@@ -18,6 +19,7 @@ export const publicRoutes = new Hono()
       String(secret.get("VOICE_API_KEY") || "").trim()
     );
     const asrVerified = asrConfigured && optionalVar("VOICE_ASR_VERIFIED") === "1";
+    const wechatJssdk = getWechatJssdkReadiness();
     return ok(c, {
       ...(await getPublicConfig(db)),
       capabilities: {
@@ -25,6 +27,7 @@ export const publicRoutes = new Hono()
           ttsConfigured: !!String(secret.get("VOICE_API_KEY") || "").trim() && !!String(vars.get("MINIMAX_VOICE_ID") || "").trim(),
           asrConfigured,
           asrVerified,
+          wechatJssdkConfigured: wechatJssdk.configured,
           asrPreferred: optionalVar("VOICE_INPUT_MODE").toLowerCase() === "server" ||
             optionalVar("VOICE_ASR_PROVIDER").toLowerCase() === "minimax"
         }
