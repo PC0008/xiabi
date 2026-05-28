@@ -12,7 +12,7 @@ const historicalEvidence = [
   {
     capability: "DOCX 文档版导出",
     status: "当前配置已跑通，最终交付前可按需复验",
-    evidence: "2026-05-28 生产验收：任务 3428283b-cb57-4e71-a197-e5b8698b0d79 / 信件 366369c4-60d3-4afd-ac6a-2047de0a9639 / DOCX exports/a4ea33f1-bb26-4602-8b4c-e63083bbddda/366369c4-60d3-4afd-ac6a-2047de0a9639.docx"
+    evidence: "2026-05-28 生产验收：任务 ed9aecec-d3f1-43e2-a72d-0ab0f6c51845 / 信件 e0bb86cc-5d27-43f8-9fbe-bf256a26e913 / DOCX exports/3cf59eb0-1591-47cb-a694-d9e1091b83fe/e0bb86cc-5d27-43f8-9fbe-bf256a26e913.docx"
   },
   {
     capability: "DeepSeek 写信",

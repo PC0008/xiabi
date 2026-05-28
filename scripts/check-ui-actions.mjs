@@ -120,6 +120,16 @@ const requiredMarkers = [
     message: "letter exports must include a DOCX file for editable customer documents"
   },
   {
+    file: "server/src/routes/exports.ts",
+    marker: "export_rate_limited",
+    message: "letter exports must rate-limit repeated download generation"
+  },
+  {
+    file: "server/src/routes/exports.ts",
+    marker: "letter.export",
+    message: "letter exports must write audit events for operations traceability"
+  },
+  {
     file: "h5/app.js",
     marker: "export-text",
     message: "user export page must expose the plain text download action"

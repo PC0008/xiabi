@@ -1,14 +1,15 @@
 import { db, storage } from "edgespark";
-import { and, eq, or } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { getCookie } from "hono/cookie";
 import { Hono } from "hono";
 import JSZip from "jszip";
-import { buckets, entitlementLedger, files, guestSessions, salesLetters } from "@defs";
+import { auditLogs, buckets, entitlementLedger, files, guestSessions, salesLetters } from "@defs";
 import { getAdminConfig } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
 import { fail, ok, parseJson } from "../domain/http";
 
 const SESSION_COOKIE = "xiabi_session";
+const EXPORT_HOURLY_LIMIT = 20;
 
 function escapeHtml(value: unknown) {
   return String(value ?? "")
@@ -174,6 +175,17 @@ async function hasExportAccess(session: GuestSession, letter: typeof salesLetter
   });
 }
 
+async function exportRateLimited(session: GuestSession) {
+  const recent = await db
+    .select({ createdAt: auditLogs.createdAt })
+    .from(auditLogs)
+    .where(and(eq(auditLogs.tenantId, TENANT_ID), eq(auditLogs.actorId, session.id), eq(auditLogs.action, "letter.export")))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(EXPORT_HOURLY_LIMIT);
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  return recent.filter((row) => new Date(row.createdAt).getTime() >= cutoff).length >= EXPORT_HOURLY_LIMIT;
+}
+
 export const exportRoutes = new Hono()
   .post("/letters/:id", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
@@ -193,6 +205,9 @@ export const exportRoutes = new Hono()
     if (!letter) return fail(c, "letter_not_found", "没有找到这封销售信。", 404);
     if (!(await hasExportAccess(session, letter))) {
       return fail(c, "letter_locked", "请先领取或解锁这封销售信，再打开打印版。", 403);
+    }
+    if (await exportRateLimited(session)) {
+      return fail(c, "export_rate_limited", "导出太频繁了，请稍后再试。", 429);
     }
     const content = parseJson<{ paragraphs?: string[] }>(letter.contentJson, {});
     const paragraphs = Array.isArray(content.paragraphs) ? content.paragraphs.map(String).filter(Boolean) : [];
@@ -273,6 +288,21 @@ export const exportRoutes = new Hono()
       }
     });
     await db.update(salesLetters).set({ exportedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }).where(eq(salesLetters.id, letter.id));
+    await db.insert(auditLogs).values({
+      id: crypto.randomUUID(),
+      tenantId: TENANT_ID,
+      actorId: session.id,
+      actorType: session.userId ? "user_session" : "guest_session",
+      action: "letter.export",
+      targetType: "sales_letter",
+      targetId: letter.id,
+      detailJson: JSON.stringify({
+        formats: ["print_html", "plain_text", "docx"],
+        objectKey,
+        textObjectKey,
+        docxObjectKey
+      })
+    });
     const { downloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(objectKey, 3600);
     const { downloadUrl: textDownloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(textObjectKey, 3600);
     const { downloadUrl: docxDownloadUrl } = await storage.from(buckets.xiabiFiles).createPresignedGetUrl(docxObjectKey, 3600);

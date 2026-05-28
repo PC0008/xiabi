@@ -1,6 +1,6 @@
 # 生产验收状态报告
 
-生成时间：2026-05-28T02:55:16.511Z
+生成时间：2026-05-28T03:01:44.785Z
 线上地址：https://immortal-sponge-1728.edgespark.app
 整体结果：基础通过：仍有真实外部链路等待输入或付费验收。
 完整可用：否
@@ -105,7 +105,7 @@ npm run verify:production:report
 
 | 能力 | 状态 | 证据 |
 | --- | --- | --- |
-| DOCX 文档版导出 | 当前配置已跑通，最终交付前可按需复验 | 2026-05-28 生产验收：任务 3428283b-cb57-4e71-a197-e5b8698b0d79 / 信件 366369c4-60d3-4afd-ac6a-2047de0a9639 / DOCX exports/a4ea33f1-bb26-4602-8b4c-e63083bbddda/366369c4-60d3-4afd-ac6a-2047de0a9639.docx |
+| DOCX 文档版导出 | 当前配置已跑通，最终交付前可按需复验 | 2026-05-28 生产验收：任务 ed9aecec-d3f1-43e2-a72d-0ab0f6c51845 / 信件 e0bb86cc-5d27-43f8-9fbe-bf256a26e913 / DOCX exports/3cf59eb0-1591-47cb-a694-d9e1091b83fe/e0bb86cc-5d27-43f8-9fbe-bf256a26e913.docx |
 | DeepSeek 写信 | 历史已跑通，最终交付前需按当前配置复验 | 任务 9b8d26e3-7693-4fea-9bff-519a73294201 / 信件 60ca6afd-e328-4a0b-b88f-e293a8c52848；任务 98055e89-2479-4168-8dbe-330bc3996f3d / 信件 7eb8602f-ee74-4942-b86a-1ad18f4ebb78 |
 | 首次免费权益、重复领取限制、打印版导出 | 历史已跑通，最终交付前需按当前配置复验 | 已通过 XIABI_VERIFY_DEEPSEEK=1、XIABI_VERIFY_REPEAT_FREE=1 的生产验收路径 |
 | MiniMax TTS 说话播放 | 历史已跑通，最终交付前需按当前配置复验 | speech-2.8-hd + hex 输出返回 audio/mp3，traceId 06665fa1c520e487c74987a4296b424a |
