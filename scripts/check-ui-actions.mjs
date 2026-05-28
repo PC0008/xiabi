@@ -110,6 +110,11 @@ const requiredMarkers = [
     message: "user export page must expose the plain text download action"
   },
   {
+    file: "h5/app.js",
+    marker: "copy-letter",
+    message: "claimed letters must support direct copy for real customer messaging"
+  },
+  {
     file: "server/src/routes/orders.ts",
     marker: "wechat_pay_external_blocked",
     message: "WeChat product permission errors must be classified as external blockers"

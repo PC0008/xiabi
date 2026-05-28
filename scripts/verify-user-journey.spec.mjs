@@ -74,6 +74,33 @@ test("product archive can be created, edited, and deleted", async ({ page }) => 
   await expect(page.locator(".empty-title", { hasText: "还没有产品档案" })).toBeVisible();
 });
 
+test("claimed letter can be copied from the letter page", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async (text) => { window.__copiedLetterText = text; } }
+    });
+  });
+  await page.goto(`${baseUrl}/index.html`, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => {
+    localStorage.clear();
+    localStorage.setItem("h5Authed", "1");
+    localStorage.setItem("h5Letter", JSON.stringify({
+      id: "letter-copy-verification",
+      title: "给潜在客户的一封销售信",
+      scene: "成交邀约",
+      version: 1,
+      claimed: true,
+      paragraphs: ["第一段正文", "第二段正文", "第三段正文"]
+    }));
+  });
+  await page.goto(`${baseUrl}/index.html#letter`, { waitUntil: "domcontentloaded" });
+  await expect(page.locator('[data-action="copy-letter"]')).toBeVisible();
+  await page.locator('[data-action="copy-letter"]').click();
+  await expect(page.locator(".contact-note", { hasText: "全文已复制" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__copiedLetterText || "")).toContain("第三段正文");
+});
+
 test("call page falls back to typing when browser speech and server ASR are unavailable", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, "SpeechRecognition", { value: undefined, configurable: true });

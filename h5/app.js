@@ -187,6 +187,7 @@ const state = {
   generationError: "",
   accountLoadError: "",
   exportNotice: "",
+  copyNotice: "",
   paymentNotice: "",
   paymentRefreshing: false,
   phoneInput: "",
@@ -589,6 +590,32 @@ function h(value) {
     .replace(/'/g, "&#39;");
 }
 
+function letterPlainText(letter) {
+  if (!letter) return "";
+  return [
+    letter.title,
+    `智多星整理 · ${letter.scene}场景`,
+    "",
+    ...(Array.isArray(letter.paragraphs) ? letter.paragraphs : [])
+  ].filter((item) => String(item || "").trim()).join("\n\n");
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
 function money(value) {
   return `¥${Number(value || 0)}`;
 }
@@ -946,7 +973,9 @@ function renderLetter(claimedOverride) {
       `}
     </article>
     ${claimed ? `
+      ${state.copyNotice ? `<div class="contact-note">${h(state.copyNotice)}</div>` : ""}
       <div class="letter-actions">
+        <button class="secondary-btn" data-action="copy-letter">${uiIcon("doc", "btn-svg")}复制全文</button>
         <button class="primary-btn" data-action="save-letter">${uiIcon("download", "btn-svg")}${canExport ? "保存并带走" : "保存到我的销售信"}</button>
         <div class="rewrite-link" data-go="paywall">${uiIcon("refresh", "link-svg")}让智多星再写一版</div>
       </div>
@@ -1615,6 +1644,7 @@ function applyRemoteLetter(remoteLetter) {
     paragraphs: Array.isArray(content.paragraphs) ? content.paragraphs : []
   };
   state.pendingLetter = !state.letter.claimed;
+  state.copyNotice = "";
   persist();
 }
 
@@ -2056,6 +2086,20 @@ document.addEventListener("click", async (event) => {
       state.exportNotice = "";
     }
     go("export");
+  } else if (action === "copy-letter") {
+    const text = letterPlainText(state.letter);
+    if (!text || !isLetterComplete(state.letter)) {
+      state.copyNotice = "请先领取完整销售信，再复制全文。";
+      render();
+      return;
+    }
+    try {
+      await copyTextToClipboard(text);
+      state.copyNotice = "全文已复制，可以直接粘贴到微信或客户私聊。";
+    } catch (error) {
+      state.copyNotice = "复制失败，可以改用下载文本版。";
+    }
+    render();
   } else if (action === "annual-pay") {
     if (!paymentOpen() || commerceConfig.annual_enabled === false) return;
     try {
