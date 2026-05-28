@@ -563,6 +563,7 @@ async function verifyAdminDiagnostics() {
     ["/api/public/admin/audit-logs?limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
     ["/api/public/admin/audit-logs?action=config.update&targetType=app_config&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
     ["/api/public/admin/audit-logs?action=order.payment_attempt&targetType=order&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
+    ["/api/public/admin/audit-logs?action=order.payment_status_check&targetType=order&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
     ["/api/public/admin/audit-logs?action=sms.send_attempt&targetType=sms&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
     ["/api/public/admin/audit-logs?action=voice.transcribe_attempt&targetType=voice&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo]
   ];

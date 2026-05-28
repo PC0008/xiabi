@@ -185,6 +185,21 @@ const requiredMarkers = [
     message: "public payment attempts must be rate-limited before external provider calls"
   },
   {
+    file: "server/src/routes/orders.ts",
+    marker: "PAYMENT_STATUS_CHECK_HOURLY_LIMIT",
+    message: "public payment status refreshes must be rate-limited before external provider calls"
+  },
+  {
+    file: "server/src/routes/orders.ts",
+    marker: "order.payment_status_check",
+    message: "public payment status refreshes must write order audit events"
+  },
+  {
+    file: "server/src/routes/orders.ts",
+    marker: "payment_status_rate_limited",
+    message: "payment status refreshes must return a friendly rate-limit error"
+  },
+  {
     file: "h5/app.js",
     marker: "payment_rate_limited",
     message: "user payment flow must show a friendly rate-limit message"

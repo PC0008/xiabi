@@ -932,6 +932,8 @@ function renderLogs() {
             ["order.payment_attempt", "支付拉起尝试"],
             ["order.payment", "支付拉起成功"],
             ["order.payment_failed", "支付拉起失败"],
+            ["order.payment_status_check", "支付结果刷新"],
+            ["order.payment_status_paid", "刷新确认支付"],
             ["order.reconcile", "订单查单"],
             ["order.entitlement_rebuild", "权益补发"],
             ["payment_event.reprocess", "回调重处理"],

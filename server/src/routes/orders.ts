@@ -13,6 +13,7 @@ const SESSION_COOKIE = "xiabi_session";
 const WECHAT_OPENID_COOKIE = "xiabi_wechat_openid";
 const WECHAT_PAY_EXTERNAL_BLOCKED_MESSAGE = "微信支付商户号缺少当前支付产品权限，请到微信支付商户平台产品中心开通 H5 支付或 JSAPI 支付后再试。";
 const PAYMENT_ATTEMPT_HOURLY_LIMIT = 20;
+const PAYMENT_STATUS_CHECK_HOURLY_LIMIT = 60;
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
 type CreateOrderBody = {
@@ -78,15 +79,23 @@ async function logOrderPaymentEvent(sessionId: string, action: string, orderId: 
   });
 }
 
-async function paymentAttemptRateLimited(sessionId: string) {
+async function orderAuditRateLimited(sessionId: string, action: string, limit: number) {
   const cutoff = Date.now() - ONE_HOUR_MS;
   const recent = await db
     .select({ createdAt: auditLogs.createdAt })
     .from(auditLogs)
-    .where(and(eq(auditLogs.tenantId, TENANT_ID), eq(auditLogs.actorId, sessionId), eq(auditLogs.action, "order.payment_attempt")))
+    .where(and(eq(auditLogs.tenantId, TENANT_ID), eq(auditLogs.actorId, sessionId), eq(auditLogs.action, action)))
     .orderBy(desc(auditLogs.createdAt))
-    .limit(PAYMENT_ATTEMPT_HOURLY_LIMIT);
-  return recent.filter((row) => new Date(row.createdAt).getTime() >= cutoff).length >= PAYMENT_ATTEMPT_HOURLY_LIMIT;
+    .limit(limit);
+  return recent.filter((row) => new Date(row.createdAt).getTime() >= cutoff).length >= limit;
+}
+
+async function paymentAttemptRateLimited(sessionId: string) {
+  return orderAuditRateLimited(sessionId, "order.payment_attempt", PAYMENT_ATTEMPT_HOURLY_LIMIT);
+}
+
+async function paymentStatusCheckRateLimited(sessionId: string) {
+  return orderAuditRateLimited(sessionId, "order.payment_status_check", PAYMENT_STATUS_CHECK_HOURLY_LIMIT);
 }
 
 async function getCurrentSession(sessionId: string) {
@@ -259,9 +268,24 @@ export const orderRoutes = new Hono()
       .limit(1);
     if (!order) return fail(c, "order_not_found", "没有找到订单。", 404);
     if (order.status === "pending" && order.providerOrderNo) {
+      if (await paymentStatusCheckRateLimited(sessionId)) {
+        return fail(c, "payment_status_rate_limited", "支付结果刷新太频繁了，请稍后再试。", 429);
+      }
+      await logOrderPaymentEvent(sessionId, "order.payment_status_check", order.id, {
+        orderId: order.id,
+        providerOrderNo: order.providerOrderNo,
+        productType: order.productType,
+        amountCents: order.amountCents
+      });
       const query = await queryWechatPaymentByOutTradeNo(order.providerOrderNo).catch(() => null);
       if (query?.configured && query.transaction && wechatPaidTransactionMatchesOrder(order, query.transaction)) {
         const updated = await markOrderPaidAndGrantEntitlement(order, query.transaction);
+        await logOrderPaymentEvent(sessionId, "order.payment_status_paid", updated.id, {
+          orderId: updated.id,
+          providerOrderNo: order.providerOrderNo,
+          productType: order.productType,
+          amountCents: order.amountCents
+        });
         return ok(c, { orderId: updated.id, status: updated.status, paidAt: updated.paidAt });
       }
     }
