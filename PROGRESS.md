@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 当前线上真实复验刷新：2026-05-28 运行 `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1` 的 `npm run verify:production:report` 通过，当前 Edgespark 线上配置已复验 DeepSeek 写信、首次免费权益、HTML/TXT/DOCX 导出、并发重复免费领取拦截和 MiniMax TTS；正式生产验收报告刷新为 5 项已验证、8 项待输入，交付状态清单已同步刷新。
+
 - 公开接口会话边界补强：新增 `npm run check:public-session-safety`，静态验证写信任务、短信、语音、订单支付/查单、导出、首次免费领取、手机号绑定、产品档案、反馈和微信授权等公开写入或外部调用接口都必须确认当前会话仍为 active，避免用户退出后旧 cookie 继续触发写数据、发短信、拉支付或调用语音/写信服务；该检查已纳入 `npm run verify:preflight`。
 
 - 部署配置契约补强：新增 `npm run check:env-contract`，扫描服务端代码中读取的 `vars.get`、`secret.get`、`optionalVar` 和 `optionalSecret` 名称，并要求全部出现在 `.env.example`，避免微信支付商户号/公众号 ID、短信签名/模板码、MiniMax/DeepSeek 等真实配置项在部署清单里遗漏；该检查已纳入 `npm run verify:preflight`。
