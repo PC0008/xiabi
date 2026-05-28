@@ -1,5 +1,7 @@
 # PROGRESS.md
 
+- 外部供应商调用超时补强：新增统一 `fetchWithTimeout`，DeepSeek、阿里云短信、MiniMax TTS/ASR、微信支付下单/查单/证书拉取/公众号授权均接入超时控制，避免真实运行时供应商接口挂起导致用户端长期等待；UI 回归检查新增超时防护标记。
+
 - 微信回调审计补强：微信支付回调无效 JSON 现在会先落库为 failed 事件再返回 `invalid_payload`；已处理过的重复回调也必须先通过微信签名校验，验签通过后才返回 duplicate，避免伪重复请求绕过回调审计口径。
 
 - 微信查单补偿安全收紧：微信支付成功交易校验已集中到 `assertWechatPaidTransactionMatchesOrder`，用户侧查单、微信回调、后台回调重处理和后台订单“查单”共用同一套 appid/mchid/out_trade_no/transaction_id/金额/币种校验；后台查单遇到 SUCCESS 但字段不匹配时会返回 `wechat_transaction_mismatch`，不会补发权益。

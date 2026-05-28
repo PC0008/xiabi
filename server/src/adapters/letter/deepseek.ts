@@ -1,4 +1,5 @@
 import { secret, vars } from "edgespark";
+import { fetchWithTimeout } from "../../domain/fetch";
 
 export type SalesLetterContent = {
   title: string;
@@ -129,7 +130,7 @@ export async function generateSalesLetterWithDeepSeek(input: SalesLetterInput) {
     }
   ];
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const response = await fetchWithTimeout(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -140,7 +141,8 @@ export async function generateSalesLetterWithDeepSeek(input: SalesLetterInput) {
       messages,
       temperature: 0.7,
       stream: false
-    })
+    }),
+    timeoutMs: 45_000
   });
 
   if (!response.ok) {

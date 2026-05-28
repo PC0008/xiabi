@@ -1,4 +1,5 @@
 import { secret, vars } from "edgespark";
+import { fetchWithTimeout } from "../../domain/fetch";
 import { optionalSecret, optionalVar } from "../../domain/runtime";
 
 export type CreateWechatPaymentInput = {
@@ -331,7 +332,7 @@ export async function exchangeWechatOAuthCode(code: string) {
   const appSecret = optionalSecret("WECHAT_MP_APP_SECRET");
   if (!appId || !appSecret) return { configured: false, message: "微信公众号授权配置还不完整。" };
   const url = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${encodeURIComponent(appId)}&secret=${encodeURIComponent(appSecret)}&code=${encodeURIComponent(code)}&grant_type=authorization_code`;
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url, { timeoutMs: 10_000 });
   const payload = await response.json().catch(() => ({})) as { openid?: string; errmsg?: string; errcode?: number };
   if (!response.ok || !payload.openid) {
     throw new Error(payload.errmsg || `WeChat OAuth failed: ${response.status}`);
@@ -379,10 +380,11 @@ export async function createWechatPayment(input: CreateWechatPaymentInput) {
   const timestamp = String(Math.floor(Date.now() / 1000));
   const nonce = crypto.randomUUID().replace(/-/g, "");
   const signature = await signWithMerchantKey(`POST\n${path}\n${timestamp}\n${nonce}\n${body}\n`);
-  const response = await fetch(`https://api.mch.weixin.qq.com${path}`, {
+  const response = await fetchWithTimeout(`https://api.mch.weixin.qq.com${path}`, {
     method: "POST",
     headers: wechatApiHeaders(buildAuthHeader({ mchId: authConfig.mchId, serialNo: authConfig.serialNo, nonce, timestamp, signature })),
-    body
+    body,
+    timeoutMs: 15_000
   });
   const payload = await response.json().catch(() => ({})) as { h5_url?: string; message?: string; code?: string };
   if (!response.ok || !payload.h5_url) {
@@ -435,10 +437,11 @@ export async function createWechatJsapiPayment(input: CreateWechatPaymentInput &
   const timestamp = String(Math.floor(Date.now() / 1000));
   const nonce = crypto.randomUUID().replace(/-/g, "");
   const signature = await signWithMerchantKey(`POST\n${path}\n${timestamp}\n${nonce}\n${body}\n`);
-  const response = await fetch(`https://api.mch.weixin.qq.com${path}`, {
+  const response = await fetchWithTimeout(`https://api.mch.weixin.qq.com${path}`, {
     method: "POST",
     headers: wechatApiHeaders(buildAuthHeader({ mchId: authConfig.mchId, serialNo: authConfig.serialNo, nonce, timestamp, signature })),
-    body
+    body,
+    timeoutMs: 15_000
   });
   const payload = await response.json().catch(() => ({})) as { prepay_id?: string; message?: string; code?: string };
   if (!response.ok || !payload.prepay_id) {
@@ -478,13 +481,14 @@ export async function queryWechatPaymentByOutTradeNo(providerOrderNo: string) {
   const timestamp = String(Math.floor(Date.now() / 1000));
   const nonce = crypto.randomUUID().replace(/-/g, "");
   const signature = await signWithMerchantKey(`GET\n${path}${query}\n${timestamp}\n${nonce}\n\n`);
-  const response = await fetch(`https://api.mch.weixin.qq.com${path}${query}`, {
+  const response = await fetchWithTimeout(`https://api.mch.weixin.qq.com${path}${query}`, {
     method: "GET",
     headers: {
       "Authorization": buildAuthHeader({ mchId: authConfig.mchId, serialNo: authConfig.serialNo, nonce, timestamp, signature }),
       "Accept": "application/json",
       "User-Agent": "xiabi-edgespark/1.0"
-    }
+    },
+    timeoutMs: 15_000
   });
   const payload = await response.json().catch(() => ({})) as WechatOrderQueryResult & { message?: string; code?: string };
   if (!response.ok) {
@@ -517,13 +521,14 @@ async function fetchWechatPlatformCertificate(serial: string) {
   const timestamp = String(Math.floor(Date.now() / 1000));
   const nonce = crypto.randomUUID().replace(/-/g, "");
   const signature = await signWithMerchantKey(`GET\n${path}\n${timestamp}\n${nonce}\n\n`);
-  const response = await fetch(`https://api.mch.weixin.qq.com${path}`, {
+  const response = await fetchWithTimeout(`https://api.mch.weixin.qq.com${path}`, {
     method: "GET",
     headers: {
       "Authorization": buildAuthHeader({ mchId: authConfig.mchId, serialNo: authConfig.serialNo, nonce, timestamp, signature }),
       "Accept": "application/json",
       "User-Agent": "xiabi-edgespark/1.0"
-    }
+    },
+    timeoutMs: 15_000
   });
   const payload = await response.json().catch(() => ({})) as WechatCertificateResponse;
   if (!response.ok || !Array.isArray(payload.data)) {

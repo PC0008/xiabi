@@ -1,4 +1,5 @@
 import { secret, vars } from "edgespark";
+import { fetchWithTimeout } from "../../domain/fetch";
 import { optionalSecret, optionalVar } from "../../domain/runtime";
 
 export type VoiceTurnInput = {
@@ -165,13 +166,14 @@ async function callJsonAsr(endpoint: string, apiKey: string, audioBase64: string
     body.group_id = groupId;
     body.GroupId = groupId;
   }
-  const response = await fetch(endpoint, {
+  const response = await fetchWithTimeout(endpoint, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    timeoutMs: 20_000
   });
   return readAsrPayload(response);
 }
@@ -183,12 +185,13 @@ async function callOpenAiCompatibleAsr(endpoint: string, apiKey: string, audioBa
   form.append("file", new Blob([bytes], { type: mimeType }), fileName);
   form.append("model", model || "whisper-1");
   form.append("language", "zh");
-  const response = await fetch(endpoint, {
+  const response = await fetchWithTimeout(endpoint, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`
     },
-    body: form
+    body: form,
+    timeoutMs: 30_000
   });
   return readAsrPayload(response);
 }
@@ -206,7 +209,7 @@ function withMiniMaxGroupId(endpoint: string, groupId: string) {
 }
 
 async function callMiniMaxTts(endpoint: string, apiKey: string, voiceId: string, text: string, outputFormat: string): Promise<MiniMaxTtsResult> {
-  const response = await fetch(endpoint, {
+  const response = await fetchWithTimeout(endpoint, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -230,7 +233,8 @@ async function callMiniMaxTts(endpoint: string, apiKey: string, voiceId: string,
         format: "mp3",
         channel: 1
       }
-    })
+    }),
+    timeoutMs: 20_000
   });
   const payload = await response.json().catch(() => ({})) as MiniMaxT2AResponse;
   const statusMsg = payload.base_resp?.status_msg;

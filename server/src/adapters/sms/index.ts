@@ -1,4 +1,5 @@
 import { secret, vars } from "edgespark";
+import { fetchWithTimeout } from "../../domain/fetch";
 
 export type SendSmsCodeInput = {
   phone: string;
@@ -75,7 +76,7 @@ export async function sendSmsCode(input: SendSmsCodeInput) {
   const stringToSign = `GET&%2F&${percentEncode(canonical)}`;
   const signature = await hmacSha1Base64(`${accessKeySecret}&`, stringToSign);
   const url = `https://dysmsapi.aliyuncs.com/?Signature=${percentEncode(signature)}&${canonical}`;
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url, { timeoutMs: 10_000 });
   const payload = await response.json() as { Code?: string; Message?: string; BizId?: string };
   if (!response.ok || payload.Code !== "OK") {
     throw new SmsProviderError(payload.Message || `Aliyun SMS failed: ${response.status}`, payload.Code, response.status);

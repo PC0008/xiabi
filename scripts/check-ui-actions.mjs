@@ -210,6 +210,21 @@ const requiredMarkers = [
     message: "optional provider secrets must be centralized so they do not block deploy"
   },
   {
+    file: "server/src/domain/fetch.ts",
+    marker: "fetchWithTimeout",
+    message: "external provider calls must use a shared timeout wrapper"
+  },
+  {
+    file: "server/src/adapters/voice/index.ts",
+    marker: "timeoutMs",
+    message: "voice provider calls must have timeout guards"
+  },
+  {
+    file: "server/src/adapters/payment/wechat.ts",
+    marker: "fetchWithTimeout",
+    message: "WeChat provider calls must have timeout guards"
+  },
+  {
     file: "server/src/domain/session.ts",
     marker: "eq(guestSessions.status, \"active\")",
     message: "shared session guard must verify active session status"
