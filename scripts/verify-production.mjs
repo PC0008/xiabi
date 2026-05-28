@@ -597,6 +597,7 @@ async function verifyAdminDiagnostics() {
     "wechat_jssdk_voice",
     "admin",
     "runtime",
+    "final_readiness",
     "business_closure"
   ];
   const diagnosticGroupKeys = new Set(groups.map((group) => group.key));

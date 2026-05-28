@@ -198,12 +198,23 @@ async function buildDiagnostics() {
   const publicBaseUrl = getVar("PUBLIC_BASE_URL");
   const notifyUrl = getVar("PAYMENT_NOTIFY_URL");
   const voiceAsrSecretConfigured = hasOptionalSecret("VOICE_ASR_API_KEY") || hasSecret("VOICE_API_KEY");
+  const deepseekReady = hasSecret("DEEPSEEK_API_KEY");
+  const smsReady = hasVar("SMS_ALIYUN_SIGN_NAME") && hasVar("SMS_ALIYUN_TEMPLATE_CODE") && hasSecret("SMS_API_KEY") && hasSecret("SMS_API_SECRET");
+  const ttsReady = hasSecret("VOICE_API_KEY") && hasVar("MINIMAX_VOICE_ID");
+  const serverAsrReady = hasOptionalVar("VOICE_ASR_ENDPOINT") && voiceAsrSecretConfigured && optionalVar("VOICE_ASR_VERIFIED") === "1";
+  const wechatVoiceReady = (hasVar("WECHAT_MP_APP_ID") || hasVar("WECHAT_PAY_APP_ID")) && hasOptionalSecret("WECHAT_MP_APP_SECRET") && !!publicBaseUrl;
   const wechatPlatformVerifierConfigured = hasOptionalSecret("WECHAT_PAY_PLATFORM_PUBLIC_KEY") || (
     hasVar("WECHAT_PAY_MCH_ID") &&
     hasSecret("WECHAT_PAY_PRIVATE_KEY") &&
     hasSecret("WECHAT_PAY_CERT_SERIAL_NO") &&
     hasSecret("WECHAT_PAY_API_V3_KEY")
   );
+  const wechatPayReady = hasVar("WECHAT_PAY_APP_ID") &&
+    hasVar("WECHAT_PAY_MCH_ID") &&
+    hasSecret("WECHAT_PAY_PRIVATE_KEY") &&
+    hasSecret("WECHAT_PAY_CERT_SERIAL_NO") &&
+    hasSecret("WECHAT_PAY_API_V3_KEY") &&
+    wechatPlatformVerifierConfigured;
   const [paidOrders, entitlements, failedPaymentEvents, failedTasks] = await Promise.all([
     db.select().from(orders).where(and(eq(orders.tenantId, TENANT_ID), eq(orders.status, "paid"))).orderBy(desc(orders.createdAt)).limit(100),
     db.select().from(entitlementLedger).where(eq(entitlementLedger.tenantId, TENANT_ID)).orderBy(desc(entitlementLedger.createdAt)).limit(500),
@@ -212,6 +223,7 @@ async function buildDiagnostics() {
   ]);
   const entitlementOrderIds = new Set(entitlements.map((item) => item.orderId).filter(Boolean));
   const paidOrdersWithoutEntitlement = paidOrders.filter((order) => !entitlementOrderIds.has(order.id));
+  const paidOrderWithEntitlement = paidOrders.some((order) => entitlementOrderIds.has(order.id));
   const groups = [
     {
       key: "deepseek",
@@ -332,6 +344,36 @@ async function buildDiagnostics() {
         diagnosticItem("PAYMENT_NOTIFY_URL", !!notifyUrl, false)
       ],
       note: "公网地址用于支付回跳、回调定位和线上验收。"
+    },
+    {
+      key: "final_readiness",
+      title: "最终交付就绪",
+      status: diagnosticStatus([
+        !!adminUser && hasSecret("ADMIN_PASSWORD_PEPPER"),
+        !!publicBaseUrl,
+        deepseekReady,
+        wechatPayReady,
+        smsReady,
+        ttsReady,
+        serverAsrReady || wechatVoiceReady,
+        paidOrderWithEntitlement,
+        paidOrdersWithoutEntitlement.length === 0,
+        failedPaymentEvents.length === 0
+      ], [failedTasks.length === 0]),
+      items: [
+        diagnosticItem("admin_account_ready", !!adminUser && hasSecret("ADMIN_PASSWORD_PEPPER"), false),
+        diagnosticItem("public_runtime_ready", !!publicBaseUrl, false),
+        diagnosticItem("deepseek_ready", deepseekReady, false),
+        diagnosticItem("wechat_pay_config_ready", wechatPayReady, false),
+        diagnosticItem("sms_config_ready", smsReady, false),
+        diagnosticItem("minimax_tts_ready", ttsReady, false),
+        diagnosticItem("voice_input_ready", serverAsrReady || wechatVoiceReady, false),
+        diagnosticItem("real_paid_order_with_entitlement", paidOrderWithEntitlement, false),
+        diagnosticItem("paid_orders_all_have_entitlements", paidOrdersWithoutEntitlement.length === 0, false),
+        diagnosticItem("no_failed_payment_webhooks", failedPaymentEvents.length === 0, false),
+        diagnosticItem("no_failed_generation_tasks", failedTasks.length === 0, false)
+      ],
+      note: "这个汇总不替代分项自检，用于在后台一眼看到是否已经达到真实交付条件；真实支付、短信和语音输入仍需要最终人工验收。"
     },
     {
       key: "business_closure",

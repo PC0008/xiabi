@@ -385,6 +385,11 @@ const requiredMarkers = [
     message: "admin diagnostics must expose WeChat in-H5 voice readiness"
   },
   {
+    file: "server/src/routes/admin.ts",
+    marker: "final_readiness",
+    message: "admin diagnostics must expose one final delivery readiness gate"
+  },
+  {
     file: "scripts/verify-production.mjs",
     marker: "wechat provider config",
     message: "production verification must run the no-order WeChat Pay provider check"
