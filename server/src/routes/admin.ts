@@ -1377,7 +1377,17 @@ export const adminRoutes = new Hono()
     const denied = requireAdminOrFail(c, admin);
     if (denied) return denied;
     const paging = listPaging(c);
-    const rows = await db.select().from(auditLogs).where(eq(auditLogs.tenantId, TENANT_ID)).orderBy(desc(auditLogs.createdAt)).limit(paging.limit + 1).offset(paging.offset);
+    const action = String(c.req.query("action") || "").trim();
+    const targetType = String(c.req.query("targetType") || "").trim();
+    const actorType = String(c.req.query("actorType") || "").trim();
+    if ([action, targetType, actorType].some((value) => value.length > 80)) {
+      return fail(c, "audit_filter_too_long", "审计筛选条件过长。", 413);
+    }
+    const filters = [eq(auditLogs.tenantId, TENANT_ID)];
+    if (action) filters.push(eq(auditLogs.action, action));
+    if (targetType) filters.push(eq(auditLogs.targetType, targetType));
+    if (actorType) filters.push(eq(auditLogs.actorType, actorType));
+    const rows = await db.select().from(auditLogs).where(and(...filters)).orderBy(desc(auditLogs.createdAt)).limit(paging.limit + 1).offset(paging.offset);
     return ok(c, { logs: rows.slice(0, paging.limit).map((log) => ({ ...log, detail: parseJson(log.detailJson, null) })), pageInfo: pageInfo({ ...paging, count: rows.length }) });
   })
   .get("/audit-logs/:id", async (c) => {

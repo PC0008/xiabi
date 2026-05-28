@@ -85,6 +85,16 @@ const requiredMarkers = [
     message: "admin audit log details must render config diffs as readable rows"
   },
   {
+    file: "h5/admin.js",
+    marker: "logsTargetType",
+    message: "admin audit log list must expose operator-friendly filters"
+  },
+  {
+    file: "server/src/routes/admin.ts",
+    marker: "audit_filter_too_long",
+    message: "admin audit log filters must be validated server-side"
+  },
+  {
     file: "server/src/routes/profiles.ts",
     marker: "MAX_PROFILES_PER_OWNER",
     message: "public product profile writes must have count and length limits"

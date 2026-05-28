@@ -95,7 +95,9 @@ const adminState = {
     ordersStatus: "",
     entitlementsStatus: "",
     paymentEventsStatus: "",
-    feedbackStatus: ""
+    feedbackStatus: "",
+    logsAction: "",
+    logsTargetType: ""
   },
   pageLimit: 50,
   pages: {
@@ -155,7 +157,7 @@ async function loadAdminLists() {
       window.XiabiStore.adminFetch(listPath("/letters", adminState.filters.lettersStatus, "letters")),
       window.XiabiStore.adminFetch(listPath("/orders", adminState.filters.ordersStatus, "orders")),
       window.XiabiStore.adminFetch(listPath("/entitlements", adminState.filters.entitlementsStatus, "entitlements")),
-      window.XiabiStore.adminFetch(listPath("/audit-logs", "", "logs")),
+      window.XiabiStore.adminFetch(auditLogPath()),
       window.XiabiStore.adminFetch(listPath("/tasks", adminState.filters.tasksStatus, "tasks")),
       window.XiabiStore.adminFetch(listPath("/payment-events", adminState.filters.paymentEventsStatus, "paymentEvents")),
       window.XiabiStore.adminFetch(listPath("/feedback", adminState.filters.feedbackStatus, "feedback")),
@@ -188,6 +190,15 @@ function listPath(path, status, pageKey = "") {
     params.set("limit", String(adminState.pageLimit));
   }
   return params.toString() ? `${path}?${params}` : path;
+}
+
+function auditLogPath() {
+  const params = new URLSearchParams();
+  if (adminState.filters.logsAction) params.set("action", adminState.filters.logsAction);
+  if (adminState.filters.logsTargetType) params.set("targetType", adminState.filters.logsTargetType);
+  params.set("page", String(adminState.pages.logs || 1));
+  params.set("limit", String(adminState.pageLimit));
+  return `/audit-logs?${params}`;
 }
 
 function canAdminWrite() {
@@ -905,7 +916,45 @@ function renderLogs() {
     formatDate(item.createdAt),
     actionCell(`<button class="mini-action" data-action="show-detail" data-detail-type="audit-logs" data-detail-id="${h(item.id)}">详情</button>`)
   ]);
-  return layout(tablePanel("日志审计", "记录谁在什么时候改了什么，以及支付和生成关键事件。", ["类型", "操作人", "内容", "时间", "操作"], rows, "", paginationControls("logs", adminState.lists.logs?.pageInfo)));
+  const controls = `
+    <div class="table-controls">
+      <label class="control-field">
+        <span>事件</span>
+        <select data-filter="logsAction">
+          ${[
+            ["", "全部事件"],
+            ["config.update", "配置修改"],
+            ["admin.login_failed", "登录失败"],
+            ["admin.create", "账号创建"],
+            ["admin.update", "账号修改"],
+            ["task.retry_failed", "任务重试失败"],
+            ["task.retry_succeeded", "任务重试成功"],
+            ["order.reconcile", "订单查单"],
+            ["order.entitlement_rebuild", "权益补发"],
+            ["payment_event.reprocess", "回调重处理"],
+            ["feedback.submit", "反馈提交"],
+            ["feedback.resolve", "反馈处理"],
+            ["feedback.reopen", "反馈重开"]
+          ].map(([value, label]) => `<option value="${h(value)}" ${adminState.filters.logsAction === value ? "selected" : ""}>${h(label)}</option>`).join("")}
+        </select>
+      </label>
+      <label class="control-field">
+        <span>对象</span>
+        <select data-filter="logsTargetType">
+          ${[
+            ["", "全部对象"],
+            ["app_config", "配置"],
+            ["admin_user", "后台账号"],
+            ["generation_task", "生成任务"],
+            ["order", "订单"],
+            ["payment_webhook_event", "支付回调"],
+            ["feedback", "用户反馈"]
+          ].map(([value, label]) => `<option value="${h(value)}" ${adminState.filters.logsTargetType === value ? "selected" : ""}>${h(label)}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+  `;
+  return layout(tablePanel("日志审计", "记录谁在什么时候改了什么，以及支付和生成关键事件。", ["类型", "操作人", "内容", "时间", "操作"], rows, controls, paginationControls("logs", adminState.lists.logs?.pageInfo)));
 }
 
 function renderFeedback() {
@@ -1576,7 +1625,9 @@ document.addEventListener("change", async (event) => {
       ordersStatus: "orders",
       entitlementsStatus: "entitlements",
       paymentEventsStatus: "paymentEvents",
-      feedbackStatus: "feedback"
+      feedbackStatus: "feedback",
+      logsAction: "logs",
+      logsTargetType: "logs"
     };
     if (pageByFilter[filterName]) adminState.pages[pageByFilter[filterName]] = 1;
     try {
