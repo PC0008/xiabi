@@ -200,6 +200,21 @@ const requiredMarkers = [
     message: "failed SMS provider sends must close their pre-created verification code record"
   },
   {
+    file: "server/src/routes/sms.ts",
+    marker: "sms.send_attempt",
+    message: "SMS send attempts must be audited before external provider calls"
+  },
+  {
+    file: "server/src/routes/sms.ts",
+    marker: "sms.send_failed",
+    message: "SMS send failures must write audit events without leaking verification codes"
+  },
+  {
+    file: "h5/admin.js",
+    marker: "sms.send_attempt",
+    message: "admin audit log filters must expose SMS events"
+  },
+  {
     file: "server/src/routes/admin.ts",
     marker: "requireOwnerOrFail",
     message: "high-risk admin mutations must require owner role"

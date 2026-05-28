@@ -1,7 +1,7 @@
 import { db } from "edgespark";
 import { and, desc, eq, or } from "drizzle-orm";
 import { Hono } from "hono";
-import { smsCodes } from "@defs";
+import { auditLogs, smsCodes } from "@defs";
 import { sendSmsCode, SmsProviderError } from "../adapters/sms";
 import { getAdminConfig } from "../domain/config";
 import { TENANT_ID } from "../domain/defaults";
@@ -30,6 +30,10 @@ function normalizePhone(phone: string) {
   return phone.replace(/\D/g, "");
 }
 
+function maskPhone(phone: string) {
+  return phone.replace(/^(\d{3})\d+(\d{4})$/, "$1****$2");
+}
+
 function createCode() {
   const value = new Uint32Array(1);
   crypto.getRandomValues(value);
@@ -47,10 +51,24 @@ function smsSendFailedMessage(error: unknown) {
   return "验证码暂时发送失败，请稍后再试。";
 }
 
+async function logSmsEvent(sessionId: string, action: string, detail: Record<string, unknown>, targetId?: string) {
+  await db.insert(auditLogs).values({
+    id: crypto.randomUUID(),
+    tenantId: TENANT_ID,
+    actorId: sessionId,
+    actorType: "guest_session",
+    action,
+    targetType: "sms",
+    targetId: targetId || sessionId,
+    detailJson: JSON.stringify(detail)
+  });
+}
+
 export const smsRoutes = new Hono()
   .post("/send-code", async (c) => {
     const activeSession = await getActiveSession(c);
     if (!activeSession) return fail(c, "missing_session", "请先开始一次会话。", 401);
+    const { sessionId } = activeSession;
     const body = await readJson<SendCodeBody>(c);
     const phone = normalizePhone(String(body.phone || ""));
     if (!/^1\d{10}$/.test(phone)) return fail(c, "invalid_phone", "请输入正确的手机号。", 400);
@@ -98,15 +116,34 @@ export const smsRoutes = new Hono()
       status: "sending",
       expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString()
     });
+    await logSmsEvent(sessionId, "sms.send_attempt", {
+      codeId,
+      phoneMasked: maskPhone(phone),
+      provider: "aliyun"
+    }, codeId);
     let result;
     try {
       result = await sendSmsCode({ phone, code });
     } catch (error) {
       await db.update(smsCodes).set({ status: "failed" }).where(eq(smsCodes.id, codeId));
+      await logSmsEvent(sessionId, "sms.send_failed", {
+        codeId,
+        phoneMasked: maskPhone(phone),
+        provider: "aliyun",
+        providerCode: error instanceof SmsProviderError ? error.providerCode || "" : "",
+        httpStatus: error instanceof SmsProviderError ? error.httpStatus || null : null,
+        setupIssue: error instanceof SmsProviderError && !!error.providerCode && SMS_PROVIDER_SETUP_CODES.has(error.providerCode)
+      }, codeId);
       return fail(c, "sms_send_failed", smsSendFailedMessage(error), 502);
     }
     if (!result.configured) {
       await db.update(smsCodes).set({ status: "failed" }).where(eq(smsCodes.id, codeId));
+      await logSmsEvent(sessionId, "sms.send_failed", {
+        codeId,
+        phoneMasked: maskPhone(phone),
+        provider: result.provider,
+        reason: "not_configured"
+      }, codeId);
       return fail(c, "sms_not_configured", result.message || "短信服务还没有完成配置。", 503);
     }
     await db.batch([
@@ -117,5 +154,11 @@ export const smsRoutes = new Hono()
       )),
       db.update(smsCodes).set({ status: "pending" }).where(eq(smsCodes.id, codeId))
     ]);
+    await logSmsEvent(sessionId, "sms.send", {
+      codeId,
+      phoneMasked: result.phone,
+      provider: result.provider,
+      bizId: result.bizId || ""
+    }, codeId);
     return ok(c, { sent: true, phoneMasked: result.phone, provider: result.provider, configured: result.configured });
   });
