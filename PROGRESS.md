@@ -1,5 +1,6 @@
 # PROGRESS.md
 
+- 语音输入自检补强：后台系统自检新增“语音输入自检”按钮和 `/api/public/admin/diagnostics/voice-asr` 接口，不上传音频、不调用外部服务，只检查 `VOICE_ASR_ENDPOINT`、服务端密钥、请求格式、输入模式和 `VOICE_ASR_VERIFIED` 状态，并写入 `diagnostics.voice_asr_check` 审计日志；生产验收在提供后台账号时会验证该接口和审计筛选，方便最终区分“差配置”还是“只差真实音频样本验收”。
 - 服务端 PDF 真实验收刷新：部署后已用 `XIABI_VERIFY_DEEPSEEK=1`、`XIABI_VERIFY_REPEAT_FREE=1`、`XIABI_VERIFY_TTS=1`、`XIABI_VERIFY_PAYMENT_CREATE=1`、`XIABI_VERIFY_ALLOW_EXTERNAL_BLOCKED=1` 跑线上生产报告；DeepSeek 任务 `2f1276c9-27dd-48ae-a6c1-d80233bb3cb5`、信件 `94b10c3e-7e42-485f-a55b-825056c4de97`、权益 `cf47eeb4-3fd7-495e-b544-7c3b909ba39d` 已通过，PDF 对象 `exports/b2bb32c7-d5ca-462c-8ed6-5680f499efa9/94b10c3e-7e42-485f-a55b-825056c4de97.pdf` 结构校验通过，MiniMax TTS traceId `06672126eb2d4212baf3f782c29eaf42`，微信下单仍为商户产品权限外部阻塞，最新订单 `a05f761d-af67-4d00-a5a4-e354a943c3f9`；`docs/delivery-status-latest.md` 当前剩余 8 项。
 - 服务端 PDF 直出补强：销售信导出现在除 HTML 打印版、TXT 文本版、DOCX 文档版外，会同步生成 `.pdf` 文件并写入 `letter_pdf` 文件流水；用户端导出页新增“下载 PDF”，生产验收会检查 PDF 文件头、页面对象、字体资源和下载地址，手机号绑定后的文件归属验证也覆盖 PDF。
 - 后台配置公开字段白名单补强：`/api/public/admin/config` 保存 `home`、`pricing`、`guideStages`、`templates`、`system` 时现在只保留产品约定字段，不再把未知字段随配置落库或下发到用户端；`system` scope 也改为显式开关白名单，避免后台误填的内部字段、备注或密钥形态内容进入公网配置。`check:admin-config-control` 已增加该回归门禁。

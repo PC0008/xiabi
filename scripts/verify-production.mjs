@@ -600,6 +600,10 @@ async function verifyAdminDiagnostics() {
   if (strict && missingRequired.length) {
     throw new Error(`strict verification found missing required config: ${missingRequired.join(", ")}`);
   }
+  const voiceAsrCheck = await api("/api/public/admin/diagnostics/voice-asr", { method: "POST" }, admin.cookie);
+  if (typeof voiceAsrCheck.voiceAsr?.configured !== "boolean" || typeof voiceAsrCheck.voiceAsr?.verified !== "boolean") {
+    throw new Error("voice ASR diagnostics did not return readiness booleans");
+  }
 
   const listChecks = [
     ["/api/public/admin/dashboard", (payload) => !!payload.metrics],
@@ -620,14 +624,19 @@ async function verifyAdminDiagnostics() {
     ["/api/public/admin/audit-logs?action=sms.send_attempt&targetType=sms&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
     ["/api/public/admin/audit-logs?action=voice.transcribe_attempt&targetType=voice&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
     ["/api/public/admin/audit-logs?action=voice.speak_failed&targetType=voice&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
-    ["/api/public/admin/audit-logs?action=voice.transcribe_failed&targetType=voice&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo]
+    ["/api/public/admin/audit-logs?action=voice.transcribe_failed&targetType=voice&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo],
+    ["/api/public/admin/audit-logs?action=diagnostics.voice_asr_check&targetType=voice&limit=2&page=1", (payload) => Array.isArray(payload.logs) && !!payload.pageInfo]
   ];
   for (const [pathname, validate] of listChecks) {
     const payload = await api(pathname, {}, admin.cookie);
     if (!validate(payload)) throw new Error(`${pathname} returned unexpected admin list payload`);
     if (JSON.stringify(payload).includes(admin.password)) throw new Error(`${pathname} leaked the admin password`);
   }
-  addCheck("admin read operations", "ok", { routes: listChecks.length });
+  addCheck("admin read operations", "ok", {
+    routes: listChecks.length,
+    voiceAsrReady: voiceAsrCheck.voiceAsr.ready === true,
+    voiceAsrVerified: voiceAsrCheck.voiceAsr.verified === true
+  });
   await verifyAdminAccountControls(admin);
 
   const config = await api("/api/public/admin/config", {}, admin.cookie);

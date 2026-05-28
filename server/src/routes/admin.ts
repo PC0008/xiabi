@@ -119,6 +119,35 @@ function diagnosticItem(name: string, configured: boolean, required = true) {
   return { name, configured, required };
 }
 
+function buildVoiceAsrProviderCheck() {
+  const endpointConfigured = hasOptionalVar("VOICE_ASR_ENDPOINT");
+  const secretConfigured = hasOptionalSecret("VOICE_ASR_API_KEY") || hasSecret("VOICE_API_KEY");
+  const provider = optionalVar("VOICE_ASR_PROVIDER") || getVar("VOICE_PROVIDER") || "minimax";
+  const requestFormat = optionalVar("VOICE_ASR_REQUEST_FORMAT") || "auto";
+  const inputMode = optionalVar("VOICE_INPUT_MODE") || "browser-first";
+  const verified = optionalVar("VOICE_ASR_VERIFIED") === "1";
+  const configured = endpointConfigured && secretConfigured;
+  const missing = [
+    endpointConfigured ? "" : "VOICE_ASR_ENDPOINT",
+    secretConfigured ? "" : "VOICE_ASR_API_KEY 或 VOICE_API_KEY",
+    verified ? "" : "VOICE_ASR_VERIFIED=1"
+  ].filter(Boolean);
+  return {
+    provider,
+    configured,
+    ready: configured && verified,
+    endpointConfigured,
+    secretConfigured,
+    requestFormat,
+    inputMode,
+    verified,
+    missing,
+    next: configured
+      ? (verified ? "语音输入已通过真实样本验收，用户端可以启用服务端录音转写。" : "请用真实音频样本运行 XIABI_VERIFY_ASR_AUDIO 验收，通过后再设置 VOICE_ASR_VERIFIED=1。")
+      : "请先补齐 VOICE_ASR_ENDPOINT 和服务端密钥；MiniMax 若提供实际转写 endpoint，可设置 VOICE_ASR_PROVIDER=minimax。"
+  };
+}
+
 type StoredWechatNotification = {
   event_type?: string;
   resource?: {
@@ -952,6 +981,24 @@ export const adminRoutes = new Hono()
       });
       return fail(c, "wechat_pay_provider_check_failed", "微信支付自检失败，请检查商户私钥、证书序列号、APIv3 Key、平台证书和产品权限。", 502);
     }
+  })
+  .post("/diagnostics/voice-asr", async (c) => {
+    const admin = await requireAdmin(c);
+    const denied = requireAdminOrFail(c, admin);
+    if (denied) return denied;
+    const result = buildVoiceAsrProviderCheck();
+    await logAdmin(admin!.id, "diagnostics.voice_asr_check", "voice", {
+      provider: result.provider,
+      configured: result.configured,
+      ready: result.ready,
+      endpointConfigured: result.endpointConfigured,
+      secretConfigured: result.secretConfigured,
+      requestFormat: result.requestFormat,
+      inputMode: result.inputMode,
+      verified: result.verified,
+      missing: result.missing
+    });
+    return ok(c, { voiceAsr: result });
   })
   .patch("/config", async (c) => {
     const admin = await requireAdmin(c);

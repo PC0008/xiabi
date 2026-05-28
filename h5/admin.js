@@ -1052,10 +1052,12 @@ function renderDiagnostics() {
   const diagnostics = adminState.lists.diagnostics || {};
   const smsProvider = diagnostics.smsProviderCheck || null;
   const wechatPay = diagnostics.wechatPayCheck || null;
+  const voiceAsr = diagnostics.voiceAsrCheck || null;
   const summary = diagnostics.summary || {};
   const groups = diagnostics.groups || [];
   const smsProviderClass = smsProvider ? statusClass(smsProvider.ready ? "ok" : "missing") : "";
   const wechatPayClass = wechatPay ? statusClass(wechatPay.ready ? "ok" : "missing") : "";
+  const voiceAsrClass = voiceAsr ? statusClass(voiceAsr.ready ? "ok" : voiceAsr.configured ? "warn" : "missing") : "";
   return layout(`
     <section class="section grid cols-3">
       ${metric("已就绪", summary.ok ?? 0, "可直接运行")}
@@ -1071,6 +1073,7 @@ function renderDiagnostics() {
         <div class="inline-actions">
           <button class="secondary" data-action="check-wechat-pay">微信支付自检</button>
           <button class="secondary" data-action="check-sms-provider">短信供应商自检</button>
+          <button class="secondary" data-action="check-voice-asr">语音输入自检</button>
           <button class="secondary" data-action="refresh-diagnostics">刷新自检</button>
         </div>
       </div>
@@ -1105,6 +1108,24 @@ function renderDiagnostics() {
             <div class="diagnostic-item"><span>模板状态</span><strong class="${smsProvider.template?.ready ? "ready" : "missing"}">${h(String(smsProvider.template?.status ?? "未确认"))}</strong></div>
             <div class="diagnostic-item"><span>关联签名</span><strong class="optional">${h(smsProvider.template?.relatedSignName || smsProvider.sign?.signName || "未返回")}</strong></div>
           </div>
+        </article>
+      ` : ""}
+      ${voiceAsr ? `
+        <article class="diagnostic-card ${voiceAsrClass} sms-provider-result">
+          <div class="diagnostic-head">
+            <div>
+              <div class="diagnostic-title">语音输入实时结果</div>
+              <div class="diagnostic-note">只检查服务端 ASR 接入位、密钥和真实样本验收状态，不上传音频、不调用外部服务。</div>
+            </div>
+            <span class="tag ${voiceAsrClass}">${voiceAsr.ready ? "可启用" : voiceAsr.configured ? "待样本验收" : "需配置"}</span>
+          </div>
+          <div class="diagnostic-items">
+            <div class="diagnostic-item"><span>供应商</span><strong class="optional">${h(voiceAsr.provider || "-")}</strong></div>
+            <div class="diagnostic-item"><span>转写端点</span><strong class="${voiceAsr.endpointConfigured ? "ready" : "missing"}">${voiceAsr.endpointConfigured ? "已配置" : "缺失"}</strong></div>
+            <div class="diagnostic-item"><span>服务端密钥</span><strong class="${voiceAsr.secretConfigured ? "ready" : "missing"}">${voiceAsr.secretConfigured ? "已配置" : "缺失"}</strong></div>
+            <div class="diagnostic-item"><span>样本验收</span><strong class="${voiceAsr.verified ? "ready" : "missing"}">${voiceAsr.verified ? "已通过" : "未通过"}</strong></div>
+          </div>
+          <div class="diagnostic-note">${h(voiceAsr.next || "")}</div>
         </article>
       ` : ""}
       <div class="diagnostic-grid">
@@ -1490,6 +1511,17 @@ document.addEventListener("click", async (event) => {
       showToast("微信支付自检已完成");
     } catch (error) {
       showToast(error.message || "微信支付自检失败");
+    }
+  } else if (action === "check-voice-asr") {
+    try {
+      const result = await window.XiabiStore.adminPost("/diagnostics/voice-asr");
+      const diagnostics = adminState.lists.diagnostics || {};
+      adminState.lists.diagnostics = Object.assign({}, diagnostics, {
+        voiceAsrCheck: result.voiceAsr || result
+      });
+      showToast("语音输入自检已完成");
+    } catch (error) {
+      showToast(error.message || "语音输入自检失败");
     }
   } else if (action === "create-admin") {
     if (!canAdminWrite()) {

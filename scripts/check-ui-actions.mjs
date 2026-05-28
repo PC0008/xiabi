@@ -360,6 +360,16 @@ const requiredMarkers = [
     message: "admin diagnostics UI must expose WeChat Pay provider checks"
   },
   {
+    file: "server/src/routes/admin.ts",
+    marker: "diagnostics.voice_asr_check",
+    message: "admin diagnostics must audit voice ASR readiness checks"
+  },
+  {
+    file: "h5/admin.js",
+    marker: "check-voice-asr",
+    message: "admin diagnostics UI must expose voice ASR readiness checks"
+  },
+  {
     file: "scripts/verify-production.mjs",
     marker: "wechat provider config",
     message: "production verification must run the no-order WeChat Pay provider check"
