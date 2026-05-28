@@ -13,6 +13,7 @@ const steps = [
   ["typecheck", ["run", "typecheck"], "服务端与静态前端类型/源码检查"],
   ["build", ["run", "build"], "静态 Web 构建"],
   ["check:ui", ["run", "check:ui"], "用户端/后台关键交互覆盖标记"],
+  ["check:user-copy-safety", ["run", "check:user-copy-safety"], "用户端文案不暴露内部技术词或旧阶段痕迹"],
   ["check:env-contract", ["run", "check:env-contract"], "服务端环境变量与部署样例契约"],
   ["check:admin-config-control", ["run", "check:admin-config-control"], "后台配置真实控制用户端和服务端"],
   ["check:sensitive-output-safety", ["run", "check:sensitive-output-safety"], "供应商失败和敏感输出安全边界"],

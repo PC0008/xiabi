@@ -47,12 +47,16 @@ requireAll(config, [
   "getPublicConfig",
   "getAdminConfig",
   "upsertConfigScope",
+  "withTransientDbRetry",
+  "async function getConfigScopes",
+  "config_scopes_select",
+  "inArray(appConfig.scope, scopes)",
   "homeConfig: home.data",
   "pricing: pricing.data",
   "guideStages: guideStages.data",
   "system: system.data",
   "versions:",
-  "for (const scope of configScopes())"
+  "Object.fromEntries(configScopes().map"
 ], "config domain");
 
 const publicRoutes = read("server/src/routes/public.ts");

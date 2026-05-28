@@ -3,37 +3,21 @@ import { and, eq } from "drizzle-orm";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
 import { guestSessions, users } from "@defs";
+import { withTransientDbRetry } from "../domain/db_retry";
 import { TENANT_ID } from "../domain/defaults";
 import { ok } from "../domain/http";
 
 const SESSION_COOKIE = "xiabi_session";
-const GUEST_SESSION_INSERT_ATTEMPTS = 3;
-
-function transientDbError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error || "");
-  return message.includes("D1_ERROR") && /timeout|reset|temporar/i.test(message);
-}
-
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 async function createGuest(c: any) {
   const sessionId = crypto.randomUUID();
-  for (let attempt = 1; attempt <= GUEST_SESSION_INSERT_ATTEMPTS; attempt += 1) {
-    try {
-      await db.insert(guestSessions).values({
-        id: sessionId,
-        tenantId: TENANT_ID,
-        status: "active"
-      });
-      break;
-    } catch (error) {
-      if (attempt >= GUEST_SESSION_INSERT_ATTEMPTS || !transientDbError(error)) throw error;
-      console.warn("guest_session_insert_retry", { attempt, reason: "transient_db_error" });
-      await delay(150 * attempt);
-    }
-  }
+  await withTransientDbRetry("guest_session_insert", () =>
+    db.insert(guestSessions).values({
+      id: sessionId,
+      tenantId: TENANT_ID,
+      status: "active"
+    })
+  );
   setCookie(c, SESSION_COOKIE, sessionId, {
     httpOnly: true,
     sameSite: "Lax",
@@ -48,11 +32,13 @@ export const sessionRoutes = new Hono()
   .post("/guest", async (c) => {
     const cookieSessionId = getCookie(c, SESSION_COOKIE);
     const [session] = cookieSessionId
-      ? await db
-        .select()
-        .from(guestSessions)
-        .where(and(eq(guestSessions.id, cookieSessionId), eq(guestSessions.status, "active")))
-        .limit(1)
+      ? await withTransientDbRetry("guest_session_select", () =>
+          db
+            .select()
+            .from(guestSessions)
+            .where(and(eq(guestSessions.id, cookieSessionId), eq(guestSessions.status, "active")))
+            .limit(1)
+        )
       : [];
     const sessionId = session?.id || await createGuest(c);
     return ok(c, { sessionId });
@@ -60,10 +46,12 @@ export const sessionRoutes = new Hono()
   .post("/logout", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
     if (sessionId) {
-      await db.update(guestSessions).set({
-        status: "logged_out",
-        updatedAt: new Date().toISOString()
-      }).where(eq(guestSessions.id, sessionId));
+      await withTransientDbRetry("guest_session_logout", () =>
+        db.update(guestSessions).set({
+          status: "logged_out",
+          updatedAt: new Date().toISOString()
+        }).where(eq(guestSessions.id, sessionId))
+      );
     }
     deleteCookie(c, SESSION_COOKIE, { path: "/" });
     return ok(c, { loggedOut: true });
@@ -71,13 +59,18 @@ export const sessionRoutes = new Hono()
   .get("/me", async (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
     if (!sessionId) return ok(c, { session: null, user: null });
-    const [session] = await db
-      .select()
-      .from(guestSessions)
-      .where(and(eq(guestSessions.id, sessionId), eq(guestSessions.status, "active")))
-      .limit(1);
-    const [user] = session?.userId
-      ? await db.select().from(users).where(eq(users.id, session.userId)).limit(1)
+    const [session] = await withTransientDbRetry("guest_session_me_select", () =>
+      db
+        .select()
+        .from(guestSessions)
+        .where(and(eq(guestSessions.id, sessionId), eq(guestSessions.status, "active")))
+        .limit(1)
+    );
+    const userId = session?.userId;
+    const [user] = userId
+      ? await withTransientDbRetry("guest_session_user_select", () =>
+          db.select().from(users).where(eq(users.id, userId)).limit(1)
+        )
       : [];
     return ok(c, { session, user: user || null });
   });
